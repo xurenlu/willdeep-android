@@ -322,13 +322,14 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         val text = current.messageText.trim()
         if (text.isEmpty()) return
         val payload = JSONObject().put("text", text)
-        send(
+        val sent = send(
             GatewayEnvelope(
                 type = "message.send",
                 sessionId = current.selectedSessionId,
                 payload = payload,
             )
         )
+        if (!sent) return
         _state.update {
             it.copy(
                 messageText = "",
@@ -348,13 +349,14 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         val payload = JSONObject()
             .put("action", "add")
             .put("text", text)
-        send(
+        val sent = send(
             GatewayEnvelope(
                 type = "queue.update",
                 sessionId = current.selectedSessionId,
                 payload = payload,
             )
         )
+        if (!sent) return
         _state.update {
             it.copy(
                 messageText = "",
@@ -373,20 +375,22 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun removeQueuedMessage(message: GatewayQueuedMessage) {
-        updateQueue(message, "remove", R.string.queue_remove_log)
+        val sent = updateQueue(message, "remove", R.string.queue_remove_log)
+        if (!sent) return
         _state.update {
             it.copy(queuedMessages = it.queuedMessages.filterNot { queued -> queued.id == message.id })
         }
     }
 
     fun clearQueue() {
-        send(
+        val sent = send(
             GatewayEnvelope(
                 type = "queue.update",
                 sessionId = state.value.selectedSessionId,
                 payload = JSONObject().put("action", "clear"),
             )
         )
+        if (!sent) return
         _state.update {
             it.copy(
                 queuedMessages = emptyList(),
@@ -416,13 +420,14 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             }
             payload.put("answer", answer)
         }
-        send(
+        val sent = send(
             GatewayEnvelope(
                 type = "tool.decide",
                 sessionId = approval.sessionId ?: state.value.selectedSessionId,
                 payload = payload,
             )
         )
+        if (!sent) return
         _state.update {
             it.copy(
                 pendingTools = it.pendingTools.filterNot { item -> item.id == approval.id },
@@ -443,13 +448,14 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             .put("id", proposal.id)
             .put("decision", decision)
             .put("approved", approved)
-        send(
+        val sent = send(
             GatewayEnvelope(
                 type = "patch.decide",
                 sessionId = proposal.sessionId ?: state.value.selectedSessionId,
                 payload = payload,
             )
         )
+        if (!sent) return
         _state.update {
             it.copy(
                 patchProposals = it.patchProposals.filterNot { item -> item.id == proposal.id },
@@ -493,13 +499,14 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun killJob(job: GatewayJob) {
         val payload = JSONObject().put("job_id", job.handle.ifBlank { job.id })
-        send(
+        val sent = send(
             GatewayEnvelope(
                 type = "job.kill",
                 sessionId = job.sessionId ?: state.value.selectedSessionId,
                 payload = payload,
             )
         )
+        if (!sent) return
         _state.update {
             it.copy(
                 logLines = it.logLines.append(
@@ -512,17 +519,18 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    private fun updateQueue(message: GatewayQueuedMessage, action: String, logStringId: Int) {
+    private fun updateQueue(message: GatewayQueuedMessage, action: String, logStringId: Int): Boolean {
         val payload = JSONObject()
             .put("action", action)
             .put("message_id", message.id)
-        send(
+        val sent = send(
             GatewayEnvelope(
                 type = "queue.update",
                 sessionId = message.sessionId ?: state.value.selectedSessionId,
                 payload = payload,
             )
         )
+        if (!sent) return false
         _state.update {
             it.copy(
                 logLines = it.logLines.append(
@@ -533,6 +541,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 ),
             )
         }
+        return true
     }
 
     override fun onCleared() {
@@ -540,7 +549,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         super.onCleared()
     }
 
-    private fun send(envelope: GatewayEnvelope) {
+    private fun send(envelope: GatewayEnvelope): Boolean {
         val sent = client.sendCommand(envelope)
         if (!sent) {
             _state.update {
@@ -550,6 +559,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 )
             }
         }
+        return sent
     }
 
     private fun handleGatewayEvent(event: GatewayEvent) {

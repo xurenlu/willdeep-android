@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.11.0-rc2] - 2026-06-14
+
+### Fixed
+
+- Preserved the Android composer draft when `message.send` or `queue.update` cannot be written to the WebSocket.
+- Kept pending tool approvals, patch proposals, queued messages, and job cards visible when their mobile command fails to send.
+
+### Changed
+
+- Bumped Android client version to `1.11.0-rc2`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.11.0-rc1] - 2026-06-14
 
 ### Added
