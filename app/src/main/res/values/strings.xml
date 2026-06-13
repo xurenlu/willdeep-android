@@ -56,10 +56,13 @@
     <string name="status_idle">Idle</string>
     <string name="status_pairing">Pairing…</string>
     <string name="status_connecting">Connecting…</string>
+    <string name="status_reconnecting">Reconnecting %1$d · retrying in %2$d s</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="status_error">Error: %1$s</string>
     <string name="error_websocket_not_connected">WebSocket is not connected.</string>
+    <string name="error_device_revoked">This device token was rejected. Pair with the Mac again.</string>
+    <string name="error_reconnect_exhausted">Could not reconnect. Check that Mobile Gateway is still enabled on the Mac.</string>
     <string name="error_answer_required">Enter an answer before approving this request.</string>
     <string name="camera_permission_required">Camera permission is required to scan the Mac pairing QR code.</string>
     <string name="qr_scanner_title">Scan Mac pairing QR</string>
@@ -71,6 +74,8 @@
     <string name="log_mac">Mac: %1$s</string>
     <string name="log_ack">Ack: %1$s</string>
     <string name="log_error">Error: %1$s</string>
+    <string name="websocket_closed_log">WebSocket closed: %1$d</string>
+    <string name="websocket_failed_log">WebSocket failed: %1$s</string>
     <string name="session_empty">No sessions yet. Create one or refresh after connecting.</string>
     <string name="selected_session">Selected</string>
     <string name="responding">Responding</string>

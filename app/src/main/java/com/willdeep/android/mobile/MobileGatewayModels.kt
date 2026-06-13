@@ -147,6 +147,8 @@ data class GatewayEnvelope(
 sealed interface GatewayEvent {
     data object Connected : GatewayEvent
     data object Disconnected : GatewayEvent
+    data class ConnectionClosed(val code: Int, val reason: String) : GatewayEvent
+    data class ConnectionFailed(val message: String, val httpCode: Int?) : GatewayEvent
 
     data class Snapshot(
         val sessions: List<GatewaySession>,

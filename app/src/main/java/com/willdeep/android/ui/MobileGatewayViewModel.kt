@@ -19,8 +19,10 @@ import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PairingPayload
 import com.willdeep.android.mobile.PendingToolApproval
+import com.willdeep.android.mobile.ReconnectPolicy
 import com.willdeep.android.mobile.StoredGatewayCredential
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +34,7 @@ enum class ConnectionStatus {
     Idle,
     Pairing,
     Connecting,
+    Reconnecting,
     Connected,
     Disconnected,
     Error,
@@ -51,6 +54,8 @@ data class MobileGatewayUiState(
     val isPaired: Boolean = false,
     val status: ConnectionStatus = ConnectionStatus.Idle,
     val errorMessage: String? = null,
+    val reconnectAttempt: Int = 0,
+    val reconnectDelayMillis: Long = 0,
     val filePathText: String = "",
     val loadedFile: GatewayFile? = null,
     val sessions: List<GatewaySession> = emptyList(),
@@ -71,6 +76,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     private val tokenStore = DeviceTokenStore(application)
     private val client = MobileGatewayClient()
     private var socketJob: Job? = null
+    private var reconnectRequested = false
 
     private val _state = MutableStateFlow(MobileGatewayUiState())
     val state: StateFlow<MobileGatewayUiState> = _state.asStateFlow()
@@ -165,6 +171,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun connect() {
         val credential = tokenStore.load() ?: return
+        reconnectRequested = true
         socketJob?.cancel()
         _state.update {
             it.copy(
@@ -174,20 +181,100 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 desktopName = credential.desktopName,
                 protocolVersion = credential.protocolVersion,
                 isPaired = true,
+                reconnectAttempt = 0,
+                reconnectDelayMillis = 0,
             )
         }
         socketJob = viewModelScope.launch {
-            client.connect(credential.baseUrl, credential.deviceToken).collect { event ->
-                handleGatewayEvent(event)
+            runConnectionLoop()
+        }
+    }
+
+    private suspend fun runConnectionLoop() {
+        var attempt = 0
+        while (reconnectRequested) {
+            val credential = tokenStore.load() ?: return
+            _state.update {
+                it.copy(
+                    status = if (attempt == 0) ConnectionStatus.Connecting else ConnectionStatus.Reconnecting,
+                    errorMessage = null,
+                    baseUrl = credential.baseUrl,
+                    desktopName = credential.desktopName,
+                    protocolVersion = credential.protocolVersion,
+                    isPaired = true,
+                    reconnectAttempt = attempt,
+                    reconnectDelayMillis = if (attempt == 0) 0 else ReconnectPolicy.delayMillisForAttempt(attempt),
+                )
             }
+
+            var terminalRequiresRePair = false
+            var terminalMessage: String? = null
+            client.connect(credential.baseUrl, credential.deviceToken).collect { event ->
+                when (event) {
+                    GatewayEvent.Connected -> {
+                        attempt = 0
+                        handleGatewayEvent(event)
+                    }
+                    is GatewayEvent.ConnectionFailed -> {
+                        terminalMessage = event.message
+                        terminalRequiresRePair = ReconnectPolicy.isAuthenticationRejected(event.httpCode, event.message)
+                        handleGatewayEvent(event)
+                    }
+                    is GatewayEvent.ConnectionClosed -> {
+                        terminalMessage = event.reason
+                        handleGatewayEvent(event)
+                    }
+                    else -> handleGatewayEvent(event)
+                }
+            }
+
+            if (!reconnectRequested) {
+                return
+            }
+            if (terminalRequiresRePair) {
+                handleAuthenticationRejected()
+                return
+            }
+
+            attempt += 1
+            if (!ReconnectPolicy.shouldRetry(attempt)) {
+                reconnectRequested = false
+                _state.update {
+                    it.copy(
+                        status = ConnectionStatus.Disconnected,
+                        errorMessage = getApplication<Application>().getString(R.string.error_reconnect_exhausted),
+                        reconnectAttempt = attempt,
+                        reconnectDelayMillis = 0,
+                    )
+                }
+                return
+            }
+
+            val delayMillis = ReconnectPolicy.delayMillisForAttempt(attempt)
+            _state.update {
+                it.copy(
+                    status = ConnectionStatus.Reconnecting,
+                    errorMessage = terminalMessage,
+                    reconnectAttempt = attempt,
+                    reconnectDelayMillis = delayMillis,
+                )
+            }
+            delay(delayMillis)
         }
     }
 
     fun disconnect() {
+        reconnectRequested = false
         socketJob?.cancel()
         socketJob = null
         client.disconnect()
-        _state.update { it.copy(status = ConnectionStatus.Disconnected) }
+        _state.update {
+            it.copy(
+                status = ConnectionStatus.Disconnected,
+                reconnectAttempt = 0,
+                reconnectDelayMillis = 0,
+            )
+        }
     }
 
     fun forgetToken() {
@@ -452,7 +539,14 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     private fun handleGatewayEvent(event: GatewayEvent) {
         when (event) {
             GatewayEvent.Connected -> {
-                _state.update { it.copy(status = ConnectionStatus.Connected, errorMessage = null) }
+                _state.update {
+                    it.copy(
+                        status = ConnectionStatus.Connected,
+                        errorMessage = null,
+                        reconnectAttempt = 0,
+                        reconnectDelayMillis = 0,
+                    )
+                }
             }
             GatewayEvent.Disconnected -> {
                 _state.update {
@@ -461,6 +555,33 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     } else {
                         it.copy(status = ConnectionStatus.Disconnected)
                     }
+                }
+            }
+            is GatewayEvent.ConnectionClosed -> {
+                _state.update {
+                    it.copy(
+                        status = ConnectionStatus.Disconnected,
+                        errorMessage = event.reason.ifBlank { null },
+                        logLines = it.logLines.append(
+                            GatewayLogLine(
+                                "error",
+                                getApplication<Application>().getString(R.string.websocket_closed_log, event.code),
+                            )
+                        ),
+                    )
+                }
+            }
+            is GatewayEvent.ConnectionFailed -> {
+                _state.update {
+                    it.copy(
+                        errorMessage = event.message,
+                        logLines = it.logLines.append(
+                            GatewayLogLine(
+                                "error",
+                                getApplication<Application>().getString(R.string.websocket_failed_log, event.message),
+                            )
+                        ),
+                    )
                 }
             }
             is GatewayEvent.Snapshot -> {
@@ -604,6 +725,28 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.Raw -> Unit
+        }
+    }
+
+    private fun handleAuthenticationRejected() {
+        reconnectRequested = false
+        socketJob = null
+        client.disconnect()
+        tokenStore.clear()
+        _state.update {
+            it.copy(
+                isPaired = false,
+                status = ConnectionStatus.Error,
+                errorMessage = getApplication<Application>().getString(R.string.error_device_revoked),
+                reconnectAttempt = 0,
+                reconnectDelayMillis = 0,
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "error",
+                        getApplication<Application>().getString(R.string.error_device_revoked),
+                    )
+                ),
+            )
         }
     }
 }

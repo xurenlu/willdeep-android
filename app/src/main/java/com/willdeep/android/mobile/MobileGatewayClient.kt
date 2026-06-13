@@ -63,12 +63,12 @@ class MobileGatewayClient(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                trySend(GatewayEvent.Error(t.message ?: "WebSocket failed"))
-                close(t)
+                trySend(GatewayEvent.ConnectionFailed(t.message ?: "WebSocket failed", response?.code))
+                close()
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                trySend(GatewayEvent.Disconnected)
+                trySend(GatewayEvent.ConnectionClosed(code, reason))
                 close()
             }
         }

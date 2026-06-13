@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.10.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android WebSocket reconnect handling with bounded backoff for temporary Mac gateway disconnects.
+- Added revoked-token handling that stops reconnecting, clears the stored device token, and asks the user to pair again.
+- Added localized reconnect and WebSocket lifecycle status text.
+
+### Changed
+
+- Bumped Android client version to `1.10.0-rc1`.
+
+### Tests
+
+- Added reconnect policy coverage for bounded backoff and authentication rejection detection.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.9.0-rc1] - 2026-06-14
 
 ### Added

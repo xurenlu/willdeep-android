@@ -236,7 +236,7 @@ private fun PairingCard(
                 OutlinedButton(onClick = onScan) {
                     Text(stringResource(R.string.scan_qr_button))
                 }
-                if (state.status == ConnectionStatus.Connected) {
+                if (state.status == ConnectionStatus.Connected || state.status == ConnectionStatus.Reconnecting) {
                     OutlinedButton(onClick = onDisconnect) {
                         Text(stringResource(R.string.disconnect_button))
                     }
@@ -1044,6 +1044,11 @@ private fun StatusLine(state: MobileGatewayUiState) {
         ConnectionStatus.Idle -> stringResource(R.string.status_idle)
         ConnectionStatus.Pairing -> stringResource(R.string.status_pairing)
         ConnectionStatus.Connecting -> stringResource(R.string.status_connecting)
+        ConnectionStatus.Reconnecting -> stringResource(
+            R.string.status_reconnecting,
+            state.reconnectAttempt,
+            (state.reconnectDelayMillis / 1000L).coerceAtLeast(1L),
+        )
         ConnectionStatus.Connected -> stringResource(R.string.status_connected)
         ConnectionStatus.Disconnected -> stringResource(R.string.status_disconnected)
         ConnectionStatus.Error -> stringResource(R.string.status_error, state.errorMessage.orEmpty())

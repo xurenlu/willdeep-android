@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.9.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.10.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.9.0-rc1:
+Implemented through v1.10.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -47,6 +47,7 @@ Implemented through v1.9.0-rc1:
 - Queue panel parses `queued_messages` from `state.snapshot` and sends `queue.update` actions for add, remove, clear, and send-now.
 - Conversation panel parses recent `messages` from `state.snapshot` and follows `message.append`, `message.delta`, and `message.done`.
 - Changed Files panel parses `worktree_changes` from `state.snapshot` and follows `worktree.updated` for Mac-side file changes.
+- Temporary WebSocket disconnects retry with bounded backoff, while 401/403 gateway rejection clears the stored token and requires pairing again.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
@@ -54,7 +55,7 @@ Planned next:
 
 - Multi-language resource sets.
 - Instrumented integration test against the Mac gateway mock.
-- Better offline/reconnect state handling.
+- Foreground/background lifecycle polish after full device testing.
 
 ## Pairing Payload
 
@@ -122,7 +123,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.9.0-rc1:
+Gateway events parsed by Android v1.10.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -152,7 +153,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Bearer token and pairing payload must not be printed to logs.
 - LAN cleartext traffic is allowed only because the Mac gateway is local-network HTTP during the current phase.
 - Android must treat every command as a request to the Mac; it must never execute local workspace or shell actions itself.
-- Device revocation is enforced by the Mac gateway. When the gateway closes or rejects the WebSocket, Android should return to a disconnected or error state.
+- Device revocation is enforced by the Mac gateway. When the gateway closes or rejects the WebSocket with 401/403, Android clears the stored token and returns to a re-pair required state.
 
 ## Acceptance Criteria
 
@@ -167,4 +168,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Queued Mac requests can be displayed and controlled through `queue.update`.
 - Recent Mac conversation messages are visible in the Android Conversation panel.
 - Mac-side changed files are visible in the Android Changed Files panel.
-- Version `1.9.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Temporary disconnects retry automatically, and revoked tokens do not loop reconnect attempts forever.
+- Version `1.10.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
