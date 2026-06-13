@@ -74,6 +74,18 @@ data class PatchDiff(
     val sessionId: String?,
 )
 
+data class GatewayJob(
+    val id: String,
+    val handle: String,
+    val command: String,
+    val status: String,
+    val isAlive: Boolean,
+    val pid: Int,
+    val exitCode: Int?,
+    val outputByteCount: Int,
+    val sessionId: String?,
+)
+
 data class GatewayEnvelope(
     val id: String = UUID.randomUUID().toString(),
     val type: String,
@@ -99,6 +111,7 @@ sealed interface GatewayEvent {
     data class Snapshot(
         val sessions: List<GatewaySession>,
         val activeSessionId: String?,
+        val jobs: List<GatewayJob>,
     ) : GatewayEvent
 
     data class SessionUpsert(val session: GatewaySession) : GatewayEvent
@@ -108,6 +121,7 @@ sealed interface GatewayEvent {
     data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
     data class PatchDiffLoaded(val diff: PatchDiff) : GatewayEvent
+    data class JobUpdated(val job: GatewayJob) : GatewayEvent
     data class Raw(val type: String) : GatewayEvent
 }
 
@@ -141,6 +155,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         "state.snapshot" -> GatewayEvent.Snapshot(
             sessions = payload.optJSONArray("sessions").toSessions(),
             activeSessionId = payload.optString("active_session_id").ifBlank { null },
+            jobs = payload.optJSONArray("jobs").toJobs(),
         )
         "session.upsert" -> GatewayEvent.SessionUpsert(payload.getJSONObject("session").toSession())
         "ack" -> payload.toAckEvent(sessionId)
@@ -152,6 +167,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         "tool.pending" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
         "tool.updated" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
         "patch.upsert" -> GatewayEvent.PatchUpsert(payload.toPatchProposal(sessionId))
+        "job.updated" -> GatewayEvent.JobUpdated(payload.toJob(sessionId))
         else -> GatewayEvent.Raw(type)
     }
 }
@@ -179,6 +195,15 @@ private fun JSONArray?.toSessions(): List<GatewaySession> {
     return buildList {
         for (index in 0 until length()) {
             add(getJSONObject(index).toSession())
+        }
+    }
+}
+
+private fun JSONArray?.toJobs(): List<GatewayJob> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            add(getJSONObject(index).toJob(null))
         }
     }
 }
@@ -220,6 +245,21 @@ private fun JSONObject.toPatchProposal(sessionId: String?): PatchProposal {
         summary = firstString("summary", "description", "message"),
         path = path,
         stats = firstString("stats", "diffstat", "status"),
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
+private fun JSONObject.toJob(sessionId: String?): GatewayJob {
+    val id = firstString("id", "job_id")
+    return GatewayJob(
+        id = id,
+        handle = firstString("handle").ifBlank { id },
+        command = firstString("command"),
+        status = firstString("status").ifBlank { "unknown" },
+        isAlive = optBoolean("is_alive", false),
+        pid = optInt("pid", 0),
+        exitCode = if (has("exit_code") && !isNull("exit_code")) optInt("exit_code") else null,
+        outputByteCount = optInt("output_byte_count", 0),
         sessionId = firstString("session_id").ifBlank { sessionId },
     )
 }

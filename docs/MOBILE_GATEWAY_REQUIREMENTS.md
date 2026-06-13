@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.4.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.5.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.4.0-rc1:
+Implemented through v1.5.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -42,12 +42,12 @@ Implemented through v1.4.0-rc1:
 - Approval decisions sent as `tool.decide` and `patch.decide`.
 - Answer-required `ask_user` approvals with Compose input and `tool.decide` `answer` payloads.
 - Patch approval cards can request `diff.get` and display the returned unified diff before decision.
+- Background job cards parse `job.updated`, display job metadata, and send `job.kill` for running jobs.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
 Planned next:
 
-- Dedicated job controls.
 - Multi-language resource sets.
 - Instrumented integration test against the Mac gateway mock.
 - Better offline/reconnect state handling.
@@ -103,6 +103,7 @@ Android sends:
 - `tool.decide`
 - `patch.decide`
 - `diff.get`
+- `job.kill`
 
 `tool.decide` includes `answer` when approving an answer-required `ask_user` prompt:
 
@@ -115,7 +116,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.4.0-rc1:
+Gateway events parsed by Android v1.5.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -125,6 +126,7 @@ Gateway events parsed by Android v1.4.0-rc1:
 - `patch.upsert`
 - `ack`
 - `ack` payloads for `diff.get` containing `patch_id`, `title`, and `diff`
+- `job.updated`
 - `error`
 - `command.error`
 
@@ -146,4 +148,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Pairing payload claim stores a long-lived device token securely.
 - A paired device can open `/mobile/ws`, send `session.list`, and display returned session state.
 - A pending `ask_user` approval requires an Android answer before approve and sends that answer in `tool.decide`.
-- Version `1.4.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Running background jobs can be killed from Android through `job.kill` without direct process access.
+- Version `1.5.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

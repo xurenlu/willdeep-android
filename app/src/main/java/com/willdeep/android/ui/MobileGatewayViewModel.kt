@@ -8,6 +8,7 @@ import com.willdeep.android.R
 import com.willdeep.android.mobile.DeviceTokenStore
 import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
+import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.MobileGatewayClient
 import com.willdeep.android.mobile.PatchDiff
@@ -53,6 +54,7 @@ data class MobileGatewayUiState(
     val toolAnswers: Map<String, String> = emptyMap(),
     val patchProposals: List<PatchProposal> = emptyList(),
     val patchDiffs: Map<String, PatchDiff> = emptyMap(),
+    val jobs: List<GatewayJob> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
@@ -298,6 +300,27 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         )
     }
 
+    fun killJob(job: GatewayJob) {
+        val payload = JSONObject().put("job_id", job.handle.ifBlank { job.id })
+        send(
+            GatewayEnvelope(
+                type = "job.kill",
+                sessionId = job.sessionId ?: state.value.selectedSessionId,
+                payload = payload,
+            )
+        )
+        _state.update {
+            it.copy(
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "mobile",
+                        getApplication<Application>().getString(R.string.job_kill_log, job.handle.ifBlank { job.id }),
+                    )
+                ),
+            )
+        }
+    }
+
     override fun onCleared() {
         client.disconnect()
         super.onCleared()
@@ -334,6 +357,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     it.copy(
                         sessions = event.sessions,
                         selectedSessionId = event.activeSessionId ?: it.selectedSessionId ?: event.sessions.firstOrNull()?.id,
+                        jobs = event.jobs,
                         status = ConnectionStatus.Connected,
                     )
                 }
@@ -402,6 +426,15 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                                 getApplication<Application>().getString(R.string.patch_diff_loaded_log, event.diff.title),
                             )
                         ),
+                    )
+                }
+            }
+            is GatewayEvent.JobUpdated -> {
+                _state.update {
+                    it.copy(
+                        jobs = (it.jobs.filterNot { job -> job.id == event.job.id } + event.job)
+                            .sortedWith(compareByDescending<GatewayJob> { it.isAlive }.thenBy { it.handle }),
+                        logLines = it.logLines.append(GatewayLogLine("mac", event.job.handle)),
                     )
                 }
             }

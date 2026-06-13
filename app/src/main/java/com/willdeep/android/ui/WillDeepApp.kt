@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.R
+import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
@@ -120,6 +121,12 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     onToolAnswerChange = viewModel::updateToolAnswer,
                     onPatchDiffRequest = viewModel::requestPatchDiff,
                     onPatchDecision = viewModel::decidePatch,
+                )
+            }
+            item {
+                JobsCard(
+                    state = state,
+                    onKillJob = viewModel::killJob,
                 )
             }
             item {
@@ -535,6 +542,86 @@ private fun DecisionButtons(
         }
         OutlinedButton(onClick = onReject) {
             Text(stringResource(R.string.reject_button))
+        }
+    }
+}
+
+@Composable
+private fun JobsCard(
+    state: MobileGatewayUiState,
+    onKillJob: (GatewayJob) -> Unit,
+) {
+    if (state.jobs.isEmpty()) {
+        return
+    }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_jobs))
+            state.jobs.forEach { job ->
+                JobRow(job = job, onKill = { onKillJob(job) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun JobRow(job: GatewayJob, onKill: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = job.handle.ifBlank { job.id.take(8) },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                AssistChip(
+                    onClick = {},
+                    label = { Text(job.status) },
+                )
+            }
+            if (job.command.isNotBlank()) {
+                Text(
+                    text = job.command,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text(stringResource(R.string.job_pid, job.pid)) },
+                )
+                AssistChip(
+                    onClick = {},
+                    label = { Text(stringResource(R.string.job_output_bytes, job.outputByteCount)) },
+                )
+                if (job.exitCode != null) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(stringResource(R.string.job_exit_code, job.exitCode)) },
+                    )
+                }
+            }
+            if (job.isAlive) {
+                OutlinedButton(onClick = onKill) {
+                    Text(stringResource(R.string.kill_job_button))
+                }
+            }
         }
     }
 }

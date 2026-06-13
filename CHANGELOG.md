@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android parsing for Mobile Gateway background job snapshots and `job.updated` events.
+- Added a Compose Background Jobs panel with job status, command metadata, and kill controls for running jobs.
+- Added `job.kill` command encoding and model coverage.
+
+### Changed
+
+- Bumped Android client version to `1.5.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.4.0-rc1] - 2026-06-14
 
 ### Added

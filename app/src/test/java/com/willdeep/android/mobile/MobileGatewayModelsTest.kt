@@ -67,6 +67,18 @@ class MobileGatewayModelsTest {
                     "is_active": true,
                     "is_responding": false
                   }
+                ],
+                "jobs": [
+                  {
+                    "id": "job_uuid",
+                    "handle": "job_abcdef",
+                    "command": "yarn test",
+                    "status": "running",
+                    "is_alive": true,
+                    "pid": 1234,
+                    "output_byte_count": 42,
+                    "session_id": "s1"
+                  }
                 ]
               }
             }
@@ -78,6 +90,8 @@ class MobileGatewayModelsTest {
         assertEquals("s1", snapshot.activeSessionId)
         assertEquals("Build mobile gateway", snapshot.sessions.single().title)
         assertEquals(3, snapshot.sessions.single().messageCount)
+        assertEquals("job_abcdef", snapshot.jobs.single().handle)
+        assertTrue(snapshot.jobs.single().isAlive)
     }
 
     @Test
@@ -203,6 +217,38 @@ class MobileGatewayModelsTest {
     }
 
     @Test
+    fun jobUpdatedParsesJobPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "job.updated",
+              "session_id": "s1",
+              "payload": {
+                "id": "job_uuid",
+                "handle": "job_abcdef",
+                "command": "go test ./...",
+                "status": "killed",
+                "is_alive": false,
+                "pid": 1234,
+                "exit_code": 143,
+                "output_byte_count": 2048
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.JobUpdated)
+        val updated = event as GatewayEvent.JobUpdated
+        assertEquals("job_uuid", updated.job.id)
+        assertEquals("job_abcdef", updated.job.handle)
+        assertEquals("go test ./...", updated.job.command)
+        assertEquals("killed", updated.job.status)
+        assertEquals(false, updated.job.isAlive)
+        assertEquals(143, updated.job.exitCode)
+        assertEquals("s1", updated.job.sessionId)
+    }
+
+    @Test
     fun decisionEnvelopeEncodesApprovalDecision() {
         val envelope = GatewayEnvelope(
             id = "cmd_2",
@@ -221,5 +267,20 @@ class MobileGatewayModelsTest {
         assertEquals("tool_1", json.getJSONObject("payload").getString("id"))
         assertTrue(json.getJSONObject("payload").getBoolean("approved"))
         assertEquals("use main", json.getJSONObject("payload").getString("answer"))
+    }
+
+    @Test
+    fun jobKillEnvelopeEncodesJobHandle() {
+        val envelope = GatewayEnvelope(
+            id = "cmd_3",
+            type = "job.kill",
+            sessionId = "s1",
+            payload = JSONObject().put("job_id", "job_abcdef"),
+        )
+
+        val json = JSONObject(envelope.toJsonString())
+        assertEquals("job.kill", json.getString("type"))
+        assertEquals("s1", json.getString("session_id"))
+        assertEquals("job_abcdef", json.getJSONObject("payload").getString("job_id"))
     }
 }

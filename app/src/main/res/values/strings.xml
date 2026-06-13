@@ -6,6 +6,7 @@
     <string name="section_connection">Connection</string>
     <string name="section_sessions">Sessions</string>
     <string name="section_approvals">Approvals</string>
+    <string name="section_jobs">Background Jobs</string>
     <string name="section_composer">Ask WillDeep</string>
     <string name="pairing_payload_label">Pairing payload</string>
     <string name="pairing_payload_placeholder">Paste the QR payload from WillDeep Settings</string>
@@ -25,6 +26,7 @@
     <string name="approve_button">Approve</string>
     <string name="reject_button">Reject</string>
     <string name="view_diff_button">View diff</string>
+    <string name="kill_job_button">Kill job</string>
     <string name="message_label">Message</string>
     <string name="message_placeholder">Tell the Mac WillDeep what to build or change</string>
     <string name="paired_to">Paired to %1$s</string>
@@ -60,6 +62,10 @@
     <string name="tool_decision_log">Tool decision: %1$s</string>
     <string name="patch_decision_log">Patch decision: %1$s</string>
     <string name="patch_diff_loaded_log">Loaded diff: %1$s</string>
+    <string name="job_kill_log">Kill job: %1$s</string>
+    <string name="job_pid">pid %1$d</string>
+    <string name="job_output_bytes">%1$d bytes</string>
+    <string name="job_exit_code">exit %1$d</string>
     <string name="gateway_url">Gateway: %1$s</string>
     <string name="protocol_version">Protocol: %1$s</string>
     <string name="token_stored">Device token stored securely on this phone.</string>
