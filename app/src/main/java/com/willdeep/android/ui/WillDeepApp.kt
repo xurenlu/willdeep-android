@@ -1,0 +1,382 @@
+package com.willdeep.android.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.willdeep.android.R
+import com.willdeep.android.mobile.GatewaySession
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
+    val state by viewModel.state.collectAsState()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(stringResource(R.string.screen_title))
+                        Text(
+                            text = stringResource(R.string.screen_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                PairingCard(
+                    state = state,
+                    onPayloadChange = viewModel::updatePairingPayload,
+                    onDeviceNameChange = viewModel::updateDeviceName,
+                    onPair = viewModel::pair,
+                    onConnect = viewModel::connect,
+                    onDisconnect = viewModel::disconnect,
+                    onForget = viewModel::forgetToken,
+                )
+            }
+            item {
+                SessionCard(
+                    state = state,
+                    onRefresh = viewModel::refreshSessions,
+                    onCreate = viewModel::createSession,
+                    onSelect = viewModel::selectSession,
+                )
+            }
+            item {
+                ComposerCard(
+                    state = state,
+                    onMessageChange = viewModel::updateMessage,
+                    onSend = viewModel::sendMessage,
+                    onStop = viewModel::stopTurn,
+                )
+            }
+            item {
+                EventLogCard(state)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PairingCard(
+    state: MobileGatewayUiState,
+    onPayloadChange: (String) -> Unit,
+    onDeviceNameChange: (String) -> Unit,
+    onPair: () -> Unit,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+    onForget: () -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_pairing))
+            Text(
+                text = if (state.isPaired && state.desktopName.isNotBlank()) {
+                    stringResource(R.string.paired_to, state.desktopName)
+                } else {
+                    stringResource(R.string.not_paired)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            StatusLine(state)
+            if (state.baseUrl.isNotBlank()) {
+                Text(
+                    text = stringResource(R.string.gateway_url, state.baseUrl),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (state.protocolVersion.isNotBlank()) {
+                Text(
+                    text = stringResource(R.string.protocol_version, state.protocolVersion),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            OutlinedTextField(
+                value = state.pairingPayloadText,
+                onValueChange = onPayloadChange,
+                label = { Text(stringResource(R.string.pairing_payload_label)) },
+                placeholder = { Text(stringResource(R.string.pairing_payload_placeholder)) },
+                minLines = 4,
+                maxLines = 8,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.deviceName,
+                onValueChange = onDeviceNameChange,
+                label = { Text(stringResource(R.string.device_name_label)) },
+                placeholder = { Text(stringResource(R.string.device_name_placeholder)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onPair,
+                    enabled = state.pairingPayloadText.isNotBlank() && state.status != ConnectionStatus.Pairing,
+                ) {
+                    Text(stringResource(R.string.pair_button))
+                }
+                if (state.status == ConnectionStatus.Connected) {
+                    OutlinedButton(onClick = onDisconnect) {
+                        Text(stringResource(R.string.disconnect_button))
+                    }
+                } else {
+                    OutlinedButton(onClick = onConnect, enabled = state.isPaired) {
+                        Text(stringResource(R.string.connect_button))
+                    }
+                }
+                TextButton(onClick = onForget, enabled = state.isPaired) {
+                    Text(stringResource(R.string.forget_button))
+                }
+            }
+            Text(
+                text = stringResource(R.string.pairing_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionCard(
+    state: MobileGatewayUiState,
+    onRefresh: () -> Unit,
+    onCreate: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle(stringResource(R.string.section_sessions), modifier = Modifier.weight(1f))
+                OutlinedButton(onClick = onRefresh, enabled = state.status == ConnectionStatus.Connected) {
+                    Text(stringResource(R.string.refresh_sessions_button))
+                }
+            }
+            Button(onClick = onCreate, enabled = state.status == ConnectionStatus.Connected) {
+                Text(stringResource(R.string.new_session_button))
+            }
+            if (state.sessions.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.session_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.sessions.forEach { session ->
+                        SessionRow(
+                            session = session,
+                            selected = session.id == state.selectedSessionId,
+                            onClick = { onSelect(session.id) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = session.title.ifBlank { session.workspaceName.ifBlank { session.id.take(8) } },
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = session.workspaceName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (selected) {
+                    AssistChip(onClick = onClick, label = { Text(stringResource(R.string.selected_session)) })
+                }
+                if (session.isResponding) {
+                    AssistChip(onClick = onClick, label = { Text(stringResource(R.string.responding)) })
+                }
+                AssistChip(
+                    onClick = onClick,
+                    label = { Text(stringResource(R.string.message_count, session.messageCount)) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComposerCard(
+    state: MobileGatewayUiState,
+    onMessageChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_composer))
+            OutlinedTextField(
+                value = state.messageText,
+                onValueChange = onMessageChange,
+                label = { Text(stringResource(R.string.message_label)) },
+                placeholder = { Text(stringResource(R.string.message_placeholder)) },
+                minLines = 4,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onSend,
+                    enabled = state.status == ConnectionStatus.Connected && state.messageText.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.send_button))
+                }
+                OutlinedButton(
+                    onClick = onStop,
+                    enabled = state.status == ConnectionStatus.Connected,
+                ) {
+                    Text(stringResource(R.string.stop_turn_button))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventLogCard(state: MobileGatewayUiState) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_connection))
+            if (state.isPaired) {
+                Text(
+                    text = stringResource(R.string.token_stored),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+            state.logLines.takeLast(12).forEach { line ->
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = when (line.kind) {
+                            "mobile" -> stringResource(R.string.log_mobile, line.text)
+                            "mac" -> stringResource(R.string.log_mac, line.text)
+                            "ack" -> stringResource(R.string.log_ack, line.text)
+                            "error" -> stringResource(R.string.log_error, line.text)
+                            else -> line.text
+                        },
+                        modifier = Modifier.padding(10.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+        }
+    }
+}
+
+@Composable
+private fun StatusLine(state: MobileGatewayUiState) {
+    val text = when (state.status) {
+        ConnectionStatus.Idle -> stringResource(R.string.status_idle)
+        ConnectionStatus.Pairing -> stringResource(R.string.status_pairing)
+        ConnectionStatus.Connecting -> stringResource(R.string.status_connecting)
+        ConnectionStatus.Connected -> stringResource(R.string.status_connected)
+        ConnectionStatus.Disconnected -> stringResource(R.string.status_disconnected)
+        ConnectionStatus.Error -> stringResource(R.string.status_error, state.errorMessage.orEmpty())
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (state.status == ConnectionStatus.Error) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.primary
+        },
+    )
+}
+
+@Composable
+private fun SectionTitle(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+    )
+}
