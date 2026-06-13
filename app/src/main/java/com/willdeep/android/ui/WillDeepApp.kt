@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
+import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
@@ -142,7 +143,16 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     state = state,
                     onMessageChange = viewModel::updateMessage,
                     onSend = viewModel::sendMessage,
+                    onQueue = viewModel::queueCurrentMessage,
                     onStop = viewModel::stopTurn,
+                )
+            }
+            item {
+                QueueCard(
+                    state = state,
+                    onSendNow = viewModel::sendQueuedNow,
+                    onRemove = viewModel::removeQueuedMessage,
+                    onClear = viewModel::clearQueue,
                 )
             }
             item {
@@ -717,6 +727,7 @@ private fun ComposerCard(
     state: MobileGatewayUiState,
     onMessageChange: (String) -> Unit,
     onSend: () -> Unit,
+    onQueue: () -> Unit,
     onStop: () -> Unit,
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
@@ -741,10 +752,101 @@ private fun ComposerCard(
                     Text(stringResource(R.string.send_button))
                 }
                 OutlinedButton(
+                    onClick = onQueue,
+                    enabled = state.status == ConnectionStatus.Connected && state.messageText.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.queue_button))
+                }
+                OutlinedButton(
                     onClick = onStop,
                     enabled = state.status == ConnectionStatus.Connected,
                 ) {
                     Text(stringResource(R.string.stop_turn_button))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueCard(
+    state: MobileGatewayUiState,
+    onSendNow: (GatewayQueuedMessage) -> Unit,
+    onRemove: (GatewayQueuedMessage) -> Unit,
+    onClear: () -> Unit,
+) {
+    if (state.queuedMessages.isEmpty()) {
+        return
+    }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle(stringResource(R.string.section_queue), modifier = Modifier.weight(1f))
+                OutlinedButton(
+                    onClick = onClear,
+                    enabled = state.status == ConnectionStatus.Connected,
+                ) {
+                    Text(stringResource(R.string.clear_queue_button))
+                }
+            }
+            state.queuedMessages.forEach { message ->
+                QueuedMessageRow(
+                    message = message,
+                    connected = state.status == ConnectionStatus.Connected,
+                    onSendNow = { onSendNow(message) },
+                    onRemove = { onRemove(message) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueuedMessageRow(
+    message: GatewayQueuedMessage,
+    connected: Boolean,
+    onSendNow: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = message.textPreview.ifBlank { message.id.take(8) },
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (message.imageCount > 0) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(stringResource(R.string.queue_images, message.imageCount)) },
+                    )
+                }
+                if (message.textAttachmentCount > 0) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(stringResource(R.string.queue_attachments, message.textAttachmentCount)) },
+                    )
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSendNow, enabled = connected) {
+                    Text(stringResource(R.string.send_now_button))
+                }
+                OutlinedButton(onClick = onRemove, enabled = connected) {
+                    Text(stringResource(R.string.remove_queue_button))
                 }
             }
         }

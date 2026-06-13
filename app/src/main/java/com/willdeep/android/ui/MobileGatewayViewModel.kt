@@ -10,6 +10,7 @@ import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
 import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
+import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.MobileGatewayClient
 import com.willdeep.android.mobile.PatchDiff
@@ -58,6 +59,7 @@ data class MobileGatewayUiState(
     val patchProposals: List<PatchProposal> = emptyList(),
     val patchDiffs: Map<String, PatchDiff> = emptyMap(),
     val jobs: List<GatewayJob> = emptyList(),
+    val queuedMessages: List<GatewayQueuedMessage> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
@@ -232,6 +234,65 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         send(GatewayEnvelope(type = "turn.stop", sessionId = state.value.selectedSessionId))
     }
 
+    fun queueCurrentMessage() {
+        val current = state.value
+        val text = current.messageText.trim()
+        if (text.isEmpty()) return
+        val payload = JSONObject()
+            .put("action", "add")
+            .put("text", text)
+        send(
+            GatewayEnvelope(
+                type = "queue.update",
+                sessionId = current.selectedSessionId,
+                payload = payload,
+            )
+        )
+        _state.update {
+            it.copy(
+                messageText = "",
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "mobile",
+                        getApplication<Application>().getString(R.string.queue_add_log),
+                    )
+                ),
+            )
+        }
+    }
+
+    fun sendQueuedNow(message: GatewayQueuedMessage) {
+        updateQueue(message, "send_now", R.string.queue_send_now_log)
+    }
+
+    fun removeQueuedMessage(message: GatewayQueuedMessage) {
+        updateQueue(message, "remove", R.string.queue_remove_log)
+        _state.update {
+            it.copy(queuedMessages = it.queuedMessages.filterNot { queued -> queued.id == message.id })
+        }
+    }
+
+    fun clearQueue() {
+        send(
+            GatewayEnvelope(
+                type = "queue.update",
+                sessionId = state.value.selectedSessionId,
+                payload = JSONObject().put("action", "clear"),
+            )
+        )
+        _state.update {
+            it.copy(
+                queuedMessages = emptyList(),
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "mobile",
+                        getApplication<Application>().getString(R.string.queue_clear_log),
+                    )
+                ),
+            )
+        }
+    }
+
     fun decideTool(approval: PendingToolApproval, approved: Boolean) {
         val decision = if (approved) "approve" else "reject"
         val payload = JSONObject()
@@ -344,6 +405,29 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    private fun updateQueue(message: GatewayQueuedMessage, action: String, logStringId: Int) {
+        val payload = JSONObject()
+            .put("action", action)
+            .put("message_id", message.id)
+        send(
+            GatewayEnvelope(
+                type = "queue.update",
+                sessionId = message.sessionId ?: state.value.selectedSessionId,
+                payload = payload,
+            )
+        )
+        _state.update {
+            it.copy(
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "mobile",
+                        getApplication<Application>().getString(logStringId, message.textPreview.ifBlank { message.id }),
+                    )
+                ),
+            )
+        }
+    }
+
     override fun onCleared() {
         client.disconnect()
         super.onCleared()
@@ -381,6 +465,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         sessions = event.sessions,
                         selectedSessionId = event.activeSessionId ?: it.selectedSessionId ?: event.sessions.firstOrNull()?.id,
                         jobs = event.jobs,
+                        queuedMessages = event.queuedMessages,
                         status = ConnectionStatus.Connected,
                     )
                 }

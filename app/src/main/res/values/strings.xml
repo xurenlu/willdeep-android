@@ -9,6 +9,7 @@
     <string name="section_approvals">Approvals</string>
     <string name="section_jobs">Background Jobs</string>
     <string name="section_composer">Ask WillDeep</string>
+    <string name="section_queue">Queued Requests</string>
     <string name="pairing_payload_label">Pairing payload</string>
     <string name="pairing_payload_placeholder">Paste the QR payload from WillDeep Settings</string>
     <string name="device_name_label">Device name</string>
@@ -23,11 +24,15 @@
     <string name="refresh_sessions_button">Refresh sessions</string>
     <string name="new_session_button">New session</string>
     <string name="send_button">Send</string>
+    <string name="queue_button">Queue</string>
     <string name="stop_turn_button">Stop turn</string>
     <string name="approve_button">Approve</string>
     <string name="reject_button">Reject</string>
     <string name="view_diff_button">View diff</string>
     <string name="kill_job_button">Kill job</string>
+    <string name="send_now_button">Send now</string>
+    <string name="remove_queue_button">Remove</string>
+    <string name="clear_queue_button">Clear</string>
     <string name="read_file_button">Read file</string>
     <string name="file_path_label">Workspace path</string>
     <string name="file_path_placeholder">README.md</string>
@@ -67,6 +72,12 @@
     <string name="patch_decision_log">Patch decision: %1$s</string>
     <string name="patch_diff_loaded_log">Loaded diff: %1$s</string>
     <string name="job_kill_log">Kill job: %1$s</string>
+    <string name="queue_add_log">Queued request added.</string>
+    <string name="queue_send_now_log">Send queued request now: %1$s</string>
+    <string name="queue_remove_log">Remove queued request: %1$s</string>
+    <string name="queue_clear_log">Queued requests cleared.</string>
+    <string name="queue_images">%1$d images</string>
+    <string name="queue_attachments">%1$d attachments</string>
     <string name="job_pid">pid %1$d</string>
     <string name="job_output_bytes">%1$d bytes</string>
     <string name="job_exit_code">exit %1$d</string>

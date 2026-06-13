@@ -94,6 +94,14 @@ data class GatewayFile(
     val sessionId: String?,
 )
 
+data class GatewayQueuedMessage(
+    val id: String,
+    val textPreview: String,
+    val imageCount: Int,
+    val textAttachmentCount: Int,
+    val sessionId: String?,
+)
+
 data class GatewayEnvelope(
     val id: String = UUID.randomUUID().toString(),
     val type: String,
@@ -120,6 +128,7 @@ sealed interface GatewayEvent {
         val sessions: List<GatewaySession>,
         val activeSessionId: String?,
         val jobs: List<GatewayJob>,
+        val queuedMessages: List<GatewayQueuedMessage>,
     ) : GatewayEvent
 
     data class SessionUpsert(val session: GatewaySession) : GatewayEvent
@@ -165,6 +174,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
             sessions = payload.optJSONArray("sessions").toSessions(),
             activeSessionId = payload.optString("active_session_id").ifBlank { null },
             jobs = payload.optJSONArray("jobs").toJobs(),
+            queuedMessages = payload.optJSONArray("queued_messages").toQueuedMessages(),
         )
         "session.upsert" -> GatewayEvent.SessionUpsert(payload.getJSONObject("session").toSession())
         "ack" -> payload.toAckEvent(sessionId)
@@ -228,6 +238,15 @@ private fun JSONArray?.toJobs(): List<GatewayJob> {
     }
 }
 
+private fun JSONArray?.toQueuedMessages(): List<GatewayQueuedMessage> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            add(getJSONObject(index).toQueuedMessage(null))
+        }
+    }
+}
+
 private fun JSONObject.toSession(): GatewaySession {
     return GatewaySession(
         id = getString("id"),
@@ -265,6 +284,16 @@ private fun JSONObject.toPatchProposal(sessionId: String?): PatchProposal {
         summary = firstString("summary", "description", "message"),
         path = path,
         stats = firstString("stats", "diffstat", "status"),
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
+private fun JSONObject.toQueuedMessage(sessionId: String?): GatewayQueuedMessage {
+    return GatewayQueuedMessage(
+        id = firstString("id", "message_id", "queued_id"),
+        textPreview = firstString("text_preview", "preview", "text"),
+        imageCount = optInt("image_count", 0),
+        textAttachmentCount = optInt("text_attachment_count", 0),
         sessionId = firstString("session_id").ifBlank { sessionId },
     )
 }

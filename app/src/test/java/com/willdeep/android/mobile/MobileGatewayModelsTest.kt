@@ -79,6 +79,15 @@ class MobileGatewayModelsTest {
                     "output_byte_count": 42,
                     "session_id": "s1"
                   }
+                ],
+                "queued_messages": [
+                  {
+                    "id": "queue_1",
+                    "text_preview": "Run Android tests next",
+                    "image_count": 0,
+                    "text_attachment_count": 1,
+                    "session_id": "s1"
+                  }
                 ]
               }
             }
@@ -92,6 +101,9 @@ class MobileGatewayModelsTest {
         assertEquals(3, snapshot.sessions.single().messageCount)
         assertEquals("job_abcdef", snapshot.jobs.single().handle)
         assertTrue(snapshot.jobs.single().isAlive)
+        assertEquals("queue_1", snapshot.queuedMessages.single().id)
+        assertEquals("Run Android tests next", snapshot.queuedMessages.single().textPreview)
+        assertEquals(1, snapshot.queuedMessages.single().textAttachmentCount)
     }
 
     @Test
@@ -328,5 +340,23 @@ class MobileGatewayModelsTest {
         assertEquals("s1", json.getString("session_id"))
         assertEquals("README.md", json.getJSONObject("payload").getString("path"))
         assertEquals(65536, json.getJSONObject("payload").getInt("max_bytes"))
+    }
+
+    @Test
+    fun queueUpdateEnvelopeEncodesActionAndMessageId() {
+        val envelope = GatewayEnvelope(
+            id = "cmd_5",
+            type = "queue.update",
+            sessionId = "s1",
+            payload = JSONObject()
+                .put("action", "send_now")
+                .put("message_id", "queue_1"),
+        )
+
+        val json = JSONObject(envelope.toJsonString())
+        assertEquals("queue.update", json.getString("type"))
+        assertEquals("s1", json.getString("session_id"))
+        assertEquals("send_now", json.getJSONObject("payload").getString("action"))
+        assertEquals("queue_1", json.getJSONObject("payload").getString("message_id"))
     }
 }

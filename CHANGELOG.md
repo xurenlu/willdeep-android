@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.7.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android parsing for queued Mac Agent messages in `state.snapshot`.
+- Added a Compose Queued Requests panel with send-now, remove, and clear controls.
+- Added `queue.update` command encoding and model coverage.
+
+### Changed
+
+- Bumped Android client version to `1.7.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.6.0-rc1] - 2026-06-14
 
 ### Added
