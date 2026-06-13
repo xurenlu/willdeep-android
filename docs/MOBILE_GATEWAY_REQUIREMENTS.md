@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.3.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.4.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.3.0-rc1:
+Implemented through v1.4.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -41,6 +41,7 @@ Implemented through v1.3.0-rc1:
 - Tool and patch approval panels for `tool.pending` and `patch.upsert`.
 - Approval decisions sent as `tool.decide` and `patch.decide`.
 - Answer-required `ask_user` approvals with Compose input and `tool.decide` `answer` payloads.
+- Patch approval cards can request `diff.get` and display the returned unified diff before decision.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
@@ -101,6 +102,7 @@ Android sends:
 - `turn.stop`
 - `tool.decide`
 - `patch.decide`
+- `diff.get`
 
 `tool.decide` includes `answer` when approving an answer-required `ask_user` prompt:
 
@@ -113,7 +115,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.3.0-rc1:
+Gateway events parsed by Android v1.4.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -122,6 +124,7 @@ Gateway events parsed by Android v1.3.0-rc1:
 - `tool.updated`
 - `patch.upsert`
 - `ack`
+- `ack` payloads for `diff.get` containing `patch_id`, `title`, and `diff`
 - `error`
 - `command.error`
 
@@ -143,4 +146,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Pairing payload claim stores a long-lived device token securely.
 - A paired device can open `/mobile/ws`, send `session.list`, and display returned session state.
 - A pending `ask_user` approval requires an Android answer before approve and sends that answer in `tool.decide`.
-- Version `1.3.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.4.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

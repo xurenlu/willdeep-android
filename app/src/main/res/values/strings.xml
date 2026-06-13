@@ -24,6 +24,7 @@
     <string name="stop_turn_button">Stop turn</string>
     <string name="approve_button">Approve</string>
     <string name="reject_button">Reject</string>
+    <string name="view_diff_button">View diff</string>
     <string name="message_label">Message</string>
     <string name="message_placeholder">Tell the Mac WillDeep what to build or change</string>
     <string name="paired_to">Paired to %1$s</string>
@@ -58,6 +59,7 @@
     <string name="patch_stats">Changes: %1$s</string>
     <string name="tool_decision_log">Tool decision: %1$s</string>
     <string name="patch_decision_log">Patch decision: %1$s</string>
+    <string name="patch_diff_loaded_log">Loaded diff: %1$s</string>
     <string name="gateway_url">Gateway: %1$s</string>
     <string name="protocol_version">Protocol: %1$s</string>
     <string name="token_stored">Device token stored securely on this phone.</string>

@@ -49,6 +49,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewaySession
+import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PendingToolApproval
 
@@ -117,6 +118,7 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     state = state,
                     onToolDecision = viewModel::decideTool,
                     onToolAnswerChange = viewModel::updateToolAnswer,
+                    onPatchDiffRequest = viewModel::requestPatchDiff,
                     onPatchDecision = viewModel::decidePatch,
                 )
             }
@@ -373,6 +375,7 @@ private fun ApprovalCard(
     state: MobileGatewayUiState,
     onToolDecision: (PendingToolApproval, Boolean) -> Unit,
     onToolAnswerChange: (String, String) -> Unit,
+    onPatchDiffRequest: (PatchProposal) -> Unit,
     onPatchDecision: (PatchProposal, Boolean) -> Unit,
 ) {
     if (state.pendingTools.isEmpty() && state.patchProposals.isEmpty()) {
@@ -397,6 +400,8 @@ private fun ApprovalCard(
             state.patchProposals.forEach { proposal ->
                 PatchProposalRow(
                     proposal = proposal,
+                    diff = state.patchDiffs[proposal.id],
+                    onViewDiff = { onPatchDiffRequest(proposal) },
                     onApprove = { onPatchDecision(proposal, true) },
                     onReject = { onPatchDecision(proposal, false) },
                 )
@@ -459,6 +464,8 @@ private fun ToolApprovalRow(
 @Composable
 private fun PatchProposalRow(
     proposal: PatchProposal,
+    diff: PatchDiff?,
+    onViewDiff: () -> Unit,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
@@ -494,6 +501,22 @@ private fun PatchProposalRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
+            }
+            OutlinedButton(onClick = onViewDiff) {
+                Text(stringResource(R.string.view_diff_button))
+            }
+            if (diff != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = MaterialTheme.shapes.extraSmall,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = diff.diff,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(10.dp),
+                    )
+                }
             }
             DecisionButtons(onApprove = onApprove, onReject = onReject)
         }

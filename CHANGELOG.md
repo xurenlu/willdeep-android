@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android `diff.get` requests from patch approval cards.
+- Added parsing and display for patch diff payloads returned in gateway `ack` responses.
+- Added unit coverage for `diff.get` ack parsing.
+
+### Changed
+
+- Bumped Android client version to `1.4.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.3.0-rc1] - 2026-06-14
 
 ### Added

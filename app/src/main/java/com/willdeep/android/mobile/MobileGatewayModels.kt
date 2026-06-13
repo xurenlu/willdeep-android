@@ -67,6 +67,13 @@ data class PatchProposal(
     val sessionId: String?,
 )
 
+data class PatchDiff(
+    val patchId: String,
+    val title: String,
+    val diff: String,
+    val sessionId: String?,
+)
+
 data class GatewayEnvelope(
     val id: String = UUID.randomUUID().toString(),
     val type: String,
@@ -100,6 +107,7 @@ sealed interface GatewayEvent {
     data class MessageDelta(val sessionId: String?, val text: String) : GatewayEvent
     data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
+    data class PatchDiffLoaded(val diff: PatchDiff) : GatewayEvent
     data class Raw(val type: String) : GatewayEvent
 }
 
@@ -135,10 +143,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
             activeSessionId = payload.optString("active_session_id").ifBlank { null },
         )
         "session.upsert" -> GatewayEvent.SessionUpsert(payload.getJSONObject("session").toSession())
-        "ack" -> GatewayEvent.Ack(
-            commandType = payload.optString("type", "command"),
-            sessionId = sessionId,
-        )
+        "ack" -> payload.toAckEvent(sessionId)
         "error", "command.error" -> GatewayEvent.Error(payload.optString("message", "Unknown gateway error"))
         "message.delta" -> GatewayEvent.MessageDelta(
             sessionId = sessionId,
@@ -149,6 +154,24 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         "patch.upsert" -> GatewayEvent.PatchUpsert(payload.toPatchProposal(sessionId))
         else -> GatewayEvent.Raw(type)
     }
+}
+
+private fun JSONObject.toAckEvent(sessionId: String?): GatewayEvent {
+    val commandType = optString("type", "command")
+    if (commandType == "diff.get" && optString("diff").isNotBlank()) {
+        return GatewayEvent.PatchDiffLoaded(
+            PatchDiff(
+                patchId = firstString("patch_id", "id"),
+                title = firstString("title"),
+                diff = optString("diff"),
+                sessionId = firstString("session_id").ifBlank { sessionId },
+            )
+        )
+    }
+    return GatewayEvent.Ack(
+        commandType = commandType,
+        sessionId = sessionId,
+    )
 }
 
 private fun JSONArray?.toSessions(): List<GatewaySession> {

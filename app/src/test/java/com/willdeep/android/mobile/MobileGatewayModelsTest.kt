@@ -177,6 +177,32 @@ class MobileGatewayModelsTest {
     }
 
     @Test
+    fun diffGetAckParsesPatchDiffPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "id": "cmd_diff",
+              "type": "ack",
+              "session_id": "s1",
+              "payload": {
+                "type": "diff.get",
+                "patch_id": "patch_1",
+                "title": "Agent Patch",
+                "diff": "diff --git a/App.kt b/App.kt\n+println(\"hi\")"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.PatchDiffLoaded)
+        val loaded = event as GatewayEvent.PatchDiffLoaded
+        assertEquals("patch_1", loaded.diff.patchId)
+        assertEquals("Agent Patch", loaded.diff.title)
+        assertEquals("diff --git a/App.kt b/App.kt\n+println(\"hi\")", loaded.diff.diff)
+        assertEquals("s1", loaded.diff.sessionId)
+    }
+
+    @Test
     fun decisionEnvelopeEncodesApprovalDecision() {
         val envelope = GatewayEnvelope(
             id = "cmd_2",

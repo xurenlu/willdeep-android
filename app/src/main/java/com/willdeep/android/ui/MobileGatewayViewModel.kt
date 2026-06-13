@@ -10,6 +10,7 @@ import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.MobileGatewayClient
+import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PairingPayload
 import com.willdeep.android.mobile.PendingToolApproval
@@ -51,6 +52,7 @@ data class MobileGatewayUiState(
     val pendingTools: List<PendingToolApproval> = emptyList(),
     val toolAnswers: Map<String, String> = emptyMap(),
     val patchProposals: List<PatchProposal> = emptyList(),
+    val patchDiffs: Map<String, PatchDiff> = emptyMap(),
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
@@ -274,6 +276,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update {
             it.copy(
                 patchProposals = it.patchProposals.filterNot { item -> item.id == proposal.id },
+                patchDiffs = it.patchDiffs - proposal.id,
                 logLines = it.logLines.append(
                     GatewayLogLine(
                         "mobile",
@@ -282,6 +285,17 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 ),
             )
         }
+    }
+
+    fun requestPatchDiff(proposal: PatchProposal) {
+        val payload = JSONObject().put("patch_id", proposal.id)
+        send(
+            GatewayEnvelope(
+                type = "diff.get",
+                sessionId = proposal.sessionId ?: state.value.selectedSessionId,
+                payload = payload,
+            )
+        )
     }
 
     override fun onCleared() {
@@ -375,6 +389,19 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     it.copy(
                         patchProposals = (it.patchProposals.filterNot { item -> item.id == event.proposal.id } + event.proposal),
                         logLines = it.logLines.append(GatewayLogLine("mac", event.proposal.title)),
+                    )
+                }
+            }
+            is GatewayEvent.PatchDiffLoaded -> {
+                _state.update {
+                    it.copy(
+                        patchDiffs = it.patchDiffs + (event.diff.patchId to event.diff),
+                        logLines = it.logLines.append(
+                            GatewayLogLine(
+                                "ack",
+                                getApplication<Application>().getString(R.string.patch_diff_loaded_log, event.diff.title),
+                            )
+                        ),
                     )
                 }
             }
