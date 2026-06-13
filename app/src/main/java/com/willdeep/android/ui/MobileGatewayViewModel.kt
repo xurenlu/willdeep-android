@@ -13,6 +13,7 @@ import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
+import com.willdeep.android.mobile.GatewayWorktree
 import com.willdeep.android.mobile.MobileGatewayClient
 import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
@@ -62,6 +63,7 @@ data class MobileGatewayUiState(
     val jobs: List<GatewayJob> = emptyList(),
     val queuedMessages: List<GatewayQueuedMessage> = emptyList(),
     val conversationMessages: List<GatewayMessage> = emptyList(),
+    val worktree: GatewayWorktree? = null,
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
@@ -471,6 +473,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         conversationMessages = event.messages.filterForSession(
                             event.activeSessionId ?: it.selectedSessionId,
                         ),
+                        worktree = event.worktrees.forSession(event.activeSessionId ?: it.selectedSessionId),
                         status = ConnectionStatus.Connected,
                     )
                 }
@@ -527,6 +530,22 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.MessageDone -> Unit
+            is GatewayEvent.WorktreeUpdated -> {
+                _state.update {
+                    it.copy(
+                        worktree = event.worktree,
+                        logLines = it.logLines.append(
+                            GatewayLogLine(
+                                "mac",
+                                getApplication<Application>().getString(
+                                    R.string.worktree_updated_log,
+                                    event.worktree.fileCount,
+                                ),
+                            )
+                        ),
+                    )
+                }
+            }
             is GatewayEvent.ToolPending -> {
                 _state.update {
                     it.copy(
@@ -628,4 +647,10 @@ private fun List<GatewayMessage>.appendDelta(
         createdAt = "",
         sessionId = sessionId,
     )).filterForSession(sessionId)
+}
+
+private fun List<GatewayWorktree>.forSession(sessionId: String?): GatewayWorktree? {
+    if (isEmpty()) return null
+    if (sessionId.isNullOrBlank()) return firstOrNull()
+    return firstOrNull { it.sessionId == sessionId } ?: firstOrNull()
 }

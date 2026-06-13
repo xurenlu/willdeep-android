@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.9.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android parsing for Mobile Gateway `worktree_changes` snapshots and `worktree.updated` events.
+- Added a Compose Changed Files panel showing repository root, changed-file count, and added/deleted line totals.
+- Added model coverage for worktree changed-file snapshot and event parsing.
+
+### Changed
+
+- Bumped Android client version to `1.9.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.8.0-rc1] - 2026-06-14
 
 ### Added

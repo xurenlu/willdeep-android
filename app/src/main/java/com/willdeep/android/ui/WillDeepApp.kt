@@ -53,6 +53,8 @@ import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
+import com.willdeep.android.mobile.GatewayWorktree
+import com.willdeep.android.mobile.GatewayWorktreeFile
 import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PendingToolApproval
@@ -119,6 +121,9 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
             }
             item {
                 ConversationCard(state)
+            }
+            item {
+                WorktreeCard(state)
             }
             item {
                 FilesCard(
@@ -454,6 +459,84 @@ private fun ConversationMessageRow(message: GatewayMessage) {
                 text = message.content.ifBlank { stringResource(R.string.message_empty_content) },
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+@Composable
+private fun WorktreeCard(state: MobileGatewayUiState) {
+    val worktree = state.worktree ?: return
+    if (worktree.fileCount == 0 && worktree.files.isEmpty()) {
+        return
+    }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_worktree))
+            WorktreeSummary(worktree)
+            worktree.files.take(8).forEach { file ->
+                WorktreeFileRow(file)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorktreeSummary(worktree: GatewayWorktree) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AssistChip(
+            onClick = {},
+            label = { Text(stringResource(R.string.worktree_file_count, worktree.fileCount)) },
+        )
+        AssistChip(
+            onClick = {},
+            label = { Text(stringResource(R.string.worktree_added_lines, worktree.totalAddedLines)) },
+        )
+        AssistChip(
+            onClick = {},
+            label = { Text(stringResource(R.string.worktree_deleted_lines, worktree.totalDeletedLines)) },
+        )
+    }
+    if (!worktree.repositoryRoot.isNullOrBlank()) {
+        Text(
+            text = worktree.repositoryRoot,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.secondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun WorktreeFileRow(file: GatewayWorktreeFile) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            AssistChip(onClick = {}, label = { Text(file.kind.ifBlank { stringResource(R.string.worktree_unknown_kind) }) })
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = file.path,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.worktree_file_stats, file.addedLines, file.deletedLines),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
         }
     }
 }

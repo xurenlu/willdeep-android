@@ -104,6 +104,29 @@ class MobileGatewayModelsTest {
                     "created_at": "2026-06-14T01:30:02Z",
                     "session_id": "s1"
                   }
+                ],
+                "worktree_changes": [
+                  {
+                    "repository_root": "/tmp/project",
+                    "file_count": 2,
+                    "total_added_lines": 12,
+                    "total_deleted_lines": 3,
+                    "session_id": "s1",
+                    "files": [
+                      {
+                        "path": "app/src/main/java/MainActivity.kt",
+                        "kind": "M",
+                        "added_lines": 10,
+                        "deleted_lines": 2
+                      },
+                      {
+                        "path": "README.md",
+                        "kind": "A",
+                        "added_lines": 2,
+                        "deleted_lines": 1
+                      }
+                    ]
+                  }
                 ]
               }
             }
@@ -124,6 +147,44 @@ class MobileGatewayModelsTest {
         assertEquals("user", snapshot.messages.first().role)
         assertEquals("Please update the Android client", snapshot.messages.first().content)
         assertEquals("assistant", snapshot.messages.last().role)
+        assertEquals("/tmp/project", snapshot.worktrees.single().repositoryRoot)
+        assertEquals(2, snapshot.worktrees.single().fileCount)
+        assertEquals(12, snapshot.worktrees.single().totalAddedLines)
+        assertEquals("app/src/main/java/MainActivity.kt", snapshot.worktrees.single().files.first().path)
+        assertEquals("M", snapshot.worktrees.single().files.first().kind)
+    }
+
+    @Test
+    fun worktreeUpdatedParsesChangedFiles() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "worktree.updated",
+              "session_id": "s1",
+              "payload": {
+                "repository_root": "/tmp/project",
+                "file_count": 1,
+                "total_added_lines": 4,
+                "total_deleted_lines": 0,
+                "files": [
+                  {
+                    "path": "app/src/main/java/MainActivity.kt",
+                    "kind": "M",
+                    "added_lines": 4,
+                    "deleted_lines": 0
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.WorktreeUpdated)
+        val updated = event as GatewayEvent.WorktreeUpdated
+        assertEquals("s1", updated.worktree.sessionId)
+        assertEquals(1, updated.worktree.fileCount)
+        assertEquals(4, updated.worktree.totalAddedLines)
+        assertEquals("app/src/main/java/MainActivity.kt", updated.worktree.files.single().path)
     }
 
     @Test

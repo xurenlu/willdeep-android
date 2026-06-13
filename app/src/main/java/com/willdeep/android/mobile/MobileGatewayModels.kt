@@ -110,6 +110,22 @@ data class GatewayMessage(
     val sessionId: String?,
 )
 
+data class GatewayWorktreeFile(
+    val path: String,
+    val kind: String,
+    val addedLines: Int,
+    val deletedLines: Int,
+)
+
+data class GatewayWorktree(
+    val repositoryRoot: String?,
+    val fileCount: Int,
+    val totalAddedLines: Int,
+    val totalDeletedLines: Int,
+    val files: List<GatewayWorktreeFile>,
+    val sessionId: String?,
+)
+
 data class GatewayEnvelope(
     val id: String = UUID.randomUUID().toString(),
     val type: String,
@@ -138,6 +154,7 @@ sealed interface GatewayEvent {
         val jobs: List<GatewayJob>,
         val queuedMessages: List<GatewayQueuedMessage>,
         val messages: List<GatewayMessage>,
+        val worktrees: List<GatewayWorktree>,
     ) : GatewayEvent
 
     data class SessionUpsert(val session: GatewaySession) : GatewayEvent
@@ -146,6 +163,7 @@ sealed interface GatewayEvent {
     data class MessageAppend(val message: GatewayMessage) : GatewayEvent
     data class MessageDelta(val sessionId: String?, val messageId: String?, val text: String) : GatewayEvent
     data class MessageDone(val sessionId: String?, val messageId: String?) : GatewayEvent
+    data class WorktreeUpdated(val worktree: GatewayWorktree) : GatewayEvent
     data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
     data class PatchDiffLoaded(val diff: PatchDiff) : GatewayEvent
@@ -187,6 +205,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
             jobs = payload.optJSONArray("jobs").toJobs(),
             queuedMessages = payload.optJSONArray("queued_messages").toQueuedMessages(),
             messages = payload.optJSONArray("messages").toMessages(),
+            worktrees = payload.optJSONArray("worktree_changes").toWorktrees(),
         )
         "session.upsert" -> GatewayEvent.SessionUpsert(payload.getJSONObject("session").toSession())
         "ack" -> payload.toAckEvent(sessionId)
@@ -201,6 +220,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
             sessionId = sessionId,
             messageId = payload.firstString("message_id", "id").ifBlank { null },
         )
+        "worktree.updated" -> GatewayEvent.WorktreeUpdated(payload.toWorktree(sessionId))
         "tool.pending" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
         "tool.updated" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
         "patch.upsert" -> GatewayEvent.PatchUpsert(payload.toPatchProposal(sessionId))
@@ -274,6 +294,15 @@ private fun JSONArray?.toMessages(): List<GatewayMessage> {
     }
 }
 
+private fun JSONArray?.toWorktrees(): List<GatewayWorktree> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            add(getJSONObject(index).toWorktree(null))
+        }
+    }
+}
+
 private fun JSONObject.toSession(): GatewaySession {
     return GatewaySession(
         id = getString("id"),
@@ -333,6 +362,34 @@ private fun JSONObject.toMessage(sessionId: String?): GatewayMessage {
         createdAt = firstString("created_at", "ts"),
         sessionId = firstString("session_id").ifBlank { sessionId },
     )
+}
+
+private fun JSONObject.toWorktree(sessionId: String?): GatewayWorktree {
+    return GatewayWorktree(
+        repositoryRoot = firstString("repository_root", "repositoryRoot").ifBlank { null },
+        fileCount = optInt("file_count", optInt("fileCount", 0)),
+        totalAddedLines = optInt("total_added_lines", optInt("totalAddedLines", 0)),
+        totalDeletedLines = optInt("total_deleted_lines", optInt("totalDeletedLines", 0)),
+        files = optJSONArray("files").toWorktreeFiles(),
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
+private fun JSONArray?.toWorktreeFiles(): List<GatewayWorktreeFile> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            val item = getJSONObject(index)
+            add(
+                GatewayWorktreeFile(
+                    path = item.firstString("path", "file_path"),
+                    kind = item.firstString("kind", "status"),
+                    addedLines = item.optInt("added_lines", item.optInt("addedLines", 0)),
+                    deletedLines = item.optInt("deleted_lines", item.optInt("deletedLines", 0)),
+                )
+            )
+        }
+    }
 }
 
 private fun JSONObject.toJob(sessionId: String?): GatewayJob {

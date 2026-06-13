@@ -6,6 +6,7 @@
     <string name="section_connection">Connection</string>
     <string name="section_sessions">Sessions</string>
     <string name="section_conversation">Conversation</string>
+    <string name="section_worktree">Changed Files</string>
     <string name="section_files">Files</string>
     <string name="section_approvals">Approvals</string>
     <string name="section_jobs">Background Jobs</string>
@@ -45,6 +46,11 @@
     <string name="message_role_system">System</string>
     <string name="message_role_other">Message</string>
     <string name="message_empty_content">No visible text.</string>
+    <string name="worktree_file_count">%1$d files</string>
+    <string name="worktree_added_lines">+%1$d</string>
+    <string name="worktree_deleted_lines">-%1$d</string>
+    <string name="worktree_file_stats">+%1$d -%2$d</string>
+    <string name="worktree_unknown_kind">changed</string>
     <string name="paired_to">Paired to %1$s</string>
     <string name="not_paired">Not paired</string>
     <string name="status_idle">Idle</string>
@@ -85,6 +91,7 @@
     <string name="queue_clear_log">Queued requests cleared.</string>
     <string name="queue_images">%1$d images</string>
     <string name="queue_attachments">%1$d attachments</string>
+    <string name="worktree_updated_log">Changed files: %1$d</string>
     <string name="job_pid">pid %1$d</string>
     <string name="job_output_bytes">%1$d bytes</string>
     <string name="job_exit_code">exit %1$d</string>

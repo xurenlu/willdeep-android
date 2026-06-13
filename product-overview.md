@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.8.0-rc1
+> Last updated: 2026-06-14 | Current version: v1.9.0-rc1
 
 ## Project Summary
 
@@ -13,6 +13,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Connect to the Mac gateway over WebSocket.
 - Display gateway status, paired desktop name, protocol version, sessions, selected session, and recent event log.
 - Display recent Mac-side conversation messages and follow streaming assistant deltas.
+- Display Mac-side changed files, repository root, and added/deleted line totals.
 - Send `session.list`, `session.create`, `session.select`, `message.send`, and `turn.stop` commands.
 - Review pending tool and patch approvals, then send `tool.decide` or `patch.decide` back to the Mac.
 - Answer Mac-side `ask_user` prompts from the Android approval panel.
@@ -44,6 +45,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 | WS | `file.read` | Request a text file from the selected Mac session workspace. |
 | WS | `queue.update` | Add, remove, clear, or immediately send queued requests on the Mac. |
 | WS | `message.append/delta/done` | Display Mac-side conversation updates. |
+| WS | `worktree.updated` | Display Mac-side changed-file summaries. |
 
 ## Run
 
