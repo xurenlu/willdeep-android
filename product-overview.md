@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-13 | Current version: v1.0.0-rc1
+> Last updated: 2026-06-14 | Current version: v1.1.0-rc1
 
 ## Project Summary
 
@@ -8,7 +8,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 
 ## Core Features
 
-- Pair with the Mac Mobile Gateway using a short-lived JSON pairing payload.
+- Pair with the Mac Mobile Gateway by scanning the QR payload or pasting the short-lived JSON payload.
 - Store the long-lived device token securely on Android.
 - Connect to the Mac gateway over WebSocket.
 - Display gateway status, paired desktop name, protocol version, sessions, selected session, and recent event log.
@@ -20,6 +20,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - UI: Jetpack Compose + Material 3
 - Concurrency: Kotlin coroutines and Flow
 - Networking: OkHttp HTTP and WebSocket
+- QR scanning: CameraX preview + ML Kit barcode scanning
 - Storage: AndroidX Security encrypted shared preferences
 - Build: Gradle Kotlin DSL, Android Gradle Plugin, Kotlin Compose compiler plugin
 
@@ -40,7 +41,6 @@ Install the debug APK on an Android device on the same LAN as the Mac running Wi
 
 ## Known Gaps
 
-- QR scanning is not implemented yet; the pairing payload is pasted manually.
 - Tool approval, patch approval, and job controls need dedicated Compose panels.
 - Reconnect and revoked-device UX should be improved after full gateway integration testing.
 - Additional locales are pending.

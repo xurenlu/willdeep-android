@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-13 | Android version: v1.0.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.1.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -30,7 +30,8 @@ This repository owns the native Android client. The current implementation uses 
 Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
-- Manual pairing payload paste as the first integration path.
+- QR pairing scan through CameraX and ML Kit barcode scanning.
+- Manual pairing payload paste as a fallback path.
 - Encrypted token persistence through AndroidX Security.
 - WebSocket connection with `X-App-Version` populated from `BuildConfig.VERSION_NAME`.
 - Session list refresh, session creation, session selection, message send, and turn stop commands.
@@ -39,7 +40,6 @@ Implemented in v1.0.0-rc1:
 
 Planned next:
 
-- QR scanning through CameraX plus ML Kit barcode scanning.
 - Dedicated approval panels for `tool.pending`, `patch.upsert`, and job controls.
 - Multi-language resource sets.
 - Instrumented integration test against the Mac gateway mock.

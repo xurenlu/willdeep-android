@@ -1,5 +1,9 @@
 package com.willdeep.android.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -28,13 +32,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewaySession
@@ -43,6 +54,7 @@ import com.willdeep.android.mobile.GatewaySession
 @Composable
 fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    var scannerVisible by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -73,10 +85,22 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     onPayloadChange = viewModel::updatePairingPayload,
                     onDeviceNameChange = viewModel::updateDeviceName,
                     onPair = viewModel::pair,
+                    onScan = { scannerVisible = true },
                     onConnect = viewModel::connect,
                     onDisconnect = viewModel::disconnect,
                     onForget = viewModel::forgetToken,
                 )
+            }
+            if (scannerVisible) {
+                item {
+                    PairingScannerCard(
+                        onPayloadScanned = { payload ->
+                            viewModel.loadPairingPayloadFromQr(payload)
+                            scannerVisible = false
+                        },
+                        onClose = { scannerVisible = false },
+                    )
+                }
             }
             item {
                 SessionCard(
@@ -107,6 +131,7 @@ private fun PairingCard(
     onPayloadChange: (String) -> Unit,
     onDeviceNameChange: (String) -> Unit,
     onPair: () -> Unit,
+    onScan: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onForget: () -> Unit,
@@ -162,6 +187,9 @@ private fun PairingCard(
                 ) {
                     Text(stringResource(R.string.pair_button))
                 }
+                OutlinedButton(onClick = onScan) {
+                    Text(stringResource(R.string.scan_qr_button))
+                }
                 if (state.status == ConnectionStatus.Connected) {
                     OutlinedButton(onClick = onDisconnect) {
                         Text(stringResource(R.string.disconnect_button))
@@ -180,6 +208,64 @@ private fun PairingCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary,
             )
+        }
+    }
+}
+
+@Composable
+private fun PairingScannerCard(
+    onPayloadScanned: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    val context = LocalContext.current
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasCameraPermission = granted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            launcher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle(stringResource(R.string.qr_scanner_title), modifier = Modifier.weight(1f))
+                TextButton(onClick = onClose) {
+                    Text(stringResource(R.string.close_scanner_button))
+                }
+            }
+            Text(
+                text = stringResource(R.string.qr_scanner_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            if (hasCameraPermission) {
+                PairingQrScanner(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp),
+                    onPayloadScanned = onPayloadScanned,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.camera_permission_required),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedButton(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
+                    Text(stringResource(R.string.camera_permission_button))
+                }
+            }
         }
     }
 }

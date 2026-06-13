@@ -75,6 +75,20 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update { it.copy(pairingPayloadText = value) }
     }
 
+    fun loadPairingPayloadFromQr(value: String) {
+        _state.update {
+            it.copy(
+                pairingPayloadText = value,
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "ack",
+                        getApplication<Application>().getString(R.string.qr_scanner_payload_loaded),
+                    )
+                ),
+            )
+        }
+    }
+
     fun updateDeviceName(value: String) {
         _state.update { it.copy(deviceName = value) }
     }

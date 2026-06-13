@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0-rc1] - 2026-06-14
+
+### Added
+
+- Added CameraX and ML Kit QR scanning for Mac Mobile Gateway pairing payloads.
+- Added runtime camera permission handling in the Compose pairing flow.
+
+### Changed
+
+- Bumped Android client version to `1.1.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.0.0-rc1] - 2026-06-13
 
 ### Added

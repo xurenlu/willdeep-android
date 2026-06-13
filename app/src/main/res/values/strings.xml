@@ -11,6 +11,9 @@
     <string name="device_name_label">Device name</string>
     <string name="device_name_placeholder">Android phone</string>
     <string name="pair_button">Pair device</string>
+    <string name="scan_qr_button">Scan QR</string>
+    <string name="close_scanner_button">Close scanner</string>
+    <string name="camera_permission_button">Allow camera</string>
     <string name="connect_button">Connect</string>
     <string name="disconnect_button">Disconnect</string>
     <string name="forget_button">Forget token</string>
@@ -29,6 +32,10 @@
     <string name="status_disconnected">Disconnected</string>
     <string name="status_error">Error: %1$s</string>
     <string name="error_websocket_not_connected">WebSocket is not connected.</string>
+    <string name="camera_permission_required">Camera permission is required to scan the Mac pairing QR code.</string>
+    <string name="qr_scanner_title">Scan Mac pairing QR</string>
+    <string name="qr_scanner_hint">Point the camera at the QR code shown in WillDeep Settings.</string>
+    <string name="qr_scanner_payload_loaded">Pairing payload loaded from QR.</string>
     <string name="ws_ack">Gateway acknowledged %1$s</string>
     <string name="ws_error">Gateway error: %1$s</string>
     <string name="log_mobile">You: %1$s</string>
