@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.2.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.3.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -15,7 +15,7 @@ This repository owns the native Android client. The current implementation uses 
 - Store the device token securely on Android.
 - Connect to `GET /mobile/ws` using `Authorization: Bearer <device_token>`.
 - Subscribe to session snapshots, session updates, message deltas, acknowledgements, and errors.
-- Send mobile commands such as session listing, session creation, message sending, and turn stop.
+- Send mobile commands such as session listing, session creation, message sending, turn stop, approval decisions, and answer prompts.
 - Keep all core execution on the Mac. Android is a display and control client, not an Agent runtime.
 
 ## Non-Goals
@@ -30,6 +30,9 @@ This repository owns the native Android client. The current implementation uses 
 Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
+
+Implemented through v1.3.0-rc1:
+
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
 - Encrypted token persistence through AndroidX Security.
@@ -37,12 +40,12 @@ Implemented in v1.0.0-rc1:
 - Session list refresh, session creation, session selection, message send, and turn stop commands.
 - Tool and patch approval panels for `tool.pending` and `patch.upsert`.
 - Approval decisions sent as `tool.decide` and `patch.decide`.
+- Answer-required `ask_user` approvals with Compose input and `tool.decide` `answer` payloads.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
 Planned next:
 
-- Mac desktop bridge routing for `tool.decide` and `patch.decide` into existing WillDeep approval machinery.
 - Dedicated job controls.
 - Multi-language resource sets.
 - Instrumented integration test against the Mac gateway mock.
@@ -96,8 +99,21 @@ Android sends:
 - `session.select`
 - `message.send`
 - `turn.stop`
+- `tool.decide`
+- `patch.decide`
 
-Gateway events parsed by Android v1.0.0-rc1:
+`tool.decide` includes `answer` when approving an answer-required `ask_user` prompt:
+
+```json
+{
+  "id": "approval-id",
+  "decision": "approve",
+  "approved": true,
+  "answer": "Use the main branch"
+}
+```
+
+Gateway events parsed by Android v1.3.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -126,4 +142,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - User-visible text is stored in Android string resources.
 - Pairing payload claim stores a long-lived device token securely.
 - A paired device can open `/mobile/ws`, send `session.list`, and display returned session state.
-- Version `1.0.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- A pending `ask_user` approval requires an Android answer before approve and sends that answer in `tool.decide`.
+- Version `1.3.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

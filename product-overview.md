@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.2.0-rc1
+> Last updated: 2026-06-14 | Current version: v1.3.0-rc1
 
 ## Project Summary
 
@@ -14,6 +14,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Display gateway status, paired desktop name, protocol version, sessions, selected session, and recent event log.
 - Send `session.list`, `session.create`, `session.select`, `message.send`, and `turn.stop` commands.
 - Review pending tool and patch approvals, then send `tool.decide` or `patch.decide` back to the Mac.
+- Answer Mac-side `ask_user` prompts from the Android approval panel.
 
 ## Technology Stack
 
@@ -31,6 +32,8 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 | --- | --- | --- |
 | `POST` | `/mobile/pair/claim` | Claim a short-lived pairing token and receive a device token. |
 | `GET` | `/mobile/ws` | Open the authenticated WebSocket command and event channel. |
+| WS | `tool.decide` | Approve, reject, or answer Mac-side tool approval requests. |
+| WS | `patch.decide` | Approve or reject Mac-side patch proposals. |
 
 ## Run
 
@@ -42,7 +45,6 @@ Install the debug APK on an Android device on the same LAN as the Mac running Wi
 
 ## Known Gaps
 
-- Mac desktop bridge still needs full tool and patch decision routing into the existing WillDeep approval machinery.
 - Job controls need dedicated Compose panels.
 - Reconnect and revoked-device UX should be improved after full gateway integration testing.
 - Additional locales are pending.

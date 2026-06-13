@@ -116,6 +116,7 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                 ApprovalCard(
                     state = state,
                     onToolDecision = viewModel::decideTool,
+                    onToolAnswerChange = viewModel::updateToolAnswer,
                     onPatchDecision = viewModel::decidePatch,
                 )
             }
@@ -371,6 +372,7 @@ private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -
 private fun ApprovalCard(
     state: MobileGatewayUiState,
     onToolDecision: (PendingToolApproval, Boolean) -> Unit,
+    onToolAnswerChange: (String, String) -> Unit,
     onPatchDecision: (PatchProposal, Boolean) -> Unit,
 ) {
     if (state.pendingTools.isEmpty() && state.patchProposals.isEmpty()) {
@@ -386,6 +388,8 @@ private fun ApprovalCard(
             state.pendingTools.forEach { approval ->
                 ToolApprovalRow(
                     approval = approval,
+                    answer = state.toolAnswers[approval.id].orEmpty(),
+                    onAnswerChange = { onToolAnswerChange(approval.id, it) },
                     onApprove = { onToolDecision(approval, true) },
                     onReject = { onToolDecision(approval, false) },
                 )
@@ -404,6 +408,8 @@ private fun ApprovalCard(
 @Composable
 private fun ToolApprovalRow(
     approval: PendingToolApproval,
+    answer: String,
+    onAnswerChange: (String) -> Unit,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
@@ -431,7 +437,21 @@ private fun ToolApprovalRow(
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
-            DecisionButtons(onApprove = onApprove, onReject = onReject)
+            if (approval.requiresAnswer) {
+                OutlinedTextField(
+                    value = answer,
+                    onValueChange = onAnswerChange,
+                    label = { Text(stringResource(R.string.tool_answer_label)) },
+                    placeholder = { Text(stringResource(R.string.tool_answer_placeholder)) },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            DecisionButtons(
+                approveEnabled = !approval.requiresAnswer || answer.isNotBlank(),
+                onApprove = onApprove,
+                onReject = onReject,
+            )
         }
     }
 }
@@ -482,11 +502,12 @@ private fun PatchProposalRow(
 
 @Composable
 private fun DecisionButtons(
+    approveEnabled: Boolean = true,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = onApprove) {
+        Button(onClick = onApprove, enabled = approveEnabled) {
             Text(stringResource(R.string.approve_button))
         }
         OutlinedButton(onClick = onReject) {

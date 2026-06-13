@@ -54,6 +54,7 @@ data class PendingToolApproval(
     val summary: String,
     val toolName: String,
     val inputPreview: String,
+    val requiresAnswer: Boolean,
     val sessionId: String?,
 )
 
@@ -172,6 +173,9 @@ private fun JSONObject.toSession(): GatewaySession {
 
 private fun JSONObject.toPendingToolApproval(sessionId: String?): PendingToolApproval {
     val toolName = firstString("tool_name", "tool", "name").ifBlank { "Tool" }
+    val requiresAnswer = optBoolean("requires_answer", false) ||
+        optString("kind").equals("ask_user", ignoreCase = true) ||
+        toolName.equals("ask_user", ignoreCase = true)
     return PendingToolApproval(
         id = firstString("id", "approval_id", "tool_call_id").ifBlank { toolName },
         title = firstString("title").ifBlank { toolName },
@@ -180,6 +184,7 @@ private fun JSONObject.toPendingToolApproval(sessionId: String?): PendingToolApp
         inputPreview = firstString("input_preview", "arguments", "command").ifBlank {
             optJSONObject("input")?.toString()?.limitPreview().orEmpty()
         },
+        requiresAnswer = requiresAnswer,
         sessionId = firstString("session_id").ifBlank { sessionId },
     )
 }

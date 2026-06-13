@@ -35,6 +35,7 @@
     <string name="status_disconnected">Disconnected</string>
     <string name="status_error">Error: %1$s</string>
     <string name="error_websocket_not_connected">WebSocket is not connected.</string>
+    <string name="error_answer_required">Enter an answer before approving this request.</string>
     <string name="camera_permission_required">Camera permission is required to scan the Mac pairing QR code.</string>
     <string name="qr_scanner_title">Scan Mac pairing QR</string>
     <string name="qr_scanner_hint">Point the camera at the QR code shown in WillDeep Settings.</string>
@@ -51,6 +52,8 @@
     <string name="message_count">%1$d messages</string>
     <string name="tool_approval_title">Tool: %1$s</string>
     <string name="approval_preview">Preview: %1$s</string>
+    <string name="tool_answer_label">Answer</string>
+    <string name="tool_answer_placeholder">Type the answer to send back to the Mac</string>
     <string name="patch_proposal_title">Patch: %1$s</string>
     <string name="patch_stats">Changes: %1$s</string>
     <string name="tool_decision_log">Tool decision: %1$s</string>

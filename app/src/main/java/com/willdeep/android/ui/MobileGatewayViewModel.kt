@@ -49,6 +49,7 @@ data class MobileGatewayUiState(
     val selectedSessionId: String? = null,
     val messageText: String = "",
     val pendingTools: List<PendingToolApproval> = emptyList(),
+    val toolAnswers: Map<String, String> = emptyMap(),
     val patchProposals: List<PatchProposal> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
 )
@@ -99,6 +100,12 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun updateMessage(value: String) {
         _state.update { it.copy(messageText = value) }
+    }
+
+    fun updateToolAnswer(approvalId: String, value: String) {
+        _state.update {
+            it.copy(toolAnswers = it.toolAnswers + (approvalId to value))
+        }
     }
 
     fun pair() {
@@ -220,6 +227,16 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             .put("id", approval.id)
             .put("decision", decision)
             .put("approved", approved)
+        val answer = state.value.toolAnswers[approval.id].orEmpty().trim()
+        if (approved && approval.requiresAnswer) {
+            if (answer.isEmpty()) {
+                _state.update {
+                    it.copy(errorMessage = getApplication<Application>().getString(R.string.error_answer_required))
+                }
+                return
+            }
+            payload.put("answer", answer)
+        }
         send(
             GatewayEnvelope(
                 type = "tool.decide",
@@ -230,6 +247,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update {
             it.copy(
                 pendingTools = it.pendingTools.filterNot { item -> item.id == approval.id },
+                toolAnswers = it.toolAnswers - approval.id,
                 logLines = it.logLines.append(
                     GatewayLogLine(
                         "mobile",
@@ -343,6 +361,11 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update {
                     it.copy(
                         pendingTools = (it.pendingTools.filterNot { item -> item.id == event.approval.id } + event.approval),
+                        toolAnswers = if (event.approval.requiresAnswer) {
+                            it.toolAnswers + (event.approval.id to it.toolAnswers[event.approval.id].orEmpty())
+                        } else {
+                            it.toolAnswers - event.approval.id
+                        },
                         logLines = it.logLines.append(GatewayLogLine("mac", event.approval.title)),
                     )
                 }

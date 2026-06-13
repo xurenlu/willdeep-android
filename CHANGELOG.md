@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android answer prompts for `ask_user` / answer-required tool approvals.
+- Added `answer` payload support when approving `tool.decide` requests that require user input.
+- Added unit coverage for answer-required approval parsing and command encoding.
+
+### Changed
+
+- Bumped Android client version to `1.3.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.2.0-rc1] - 2026-06-14
 
 ### Added

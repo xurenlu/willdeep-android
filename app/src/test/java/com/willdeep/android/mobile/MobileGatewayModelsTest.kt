@@ -119,7 +119,34 @@ class MobileGatewayModelsTest {
         assertEquals("shell", pending.approval.title)
         assertEquals("Run tests", pending.approval.summary)
         assertEquals("go test ./...", pending.approval.inputPreview)
+        assertEquals(false, pending.approval.requiresAnswer)
         assertEquals("s1", pending.approval.sessionId)
+    }
+
+    @Test
+    fun askUserToolPendingRequiresAnswer() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "tool.pending",
+              "session_id": "s1",
+              "payload": {
+                "approval_id": "ask_1",
+                "tool_name": "ask_user",
+                "summary": "Waiting for your answer",
+                "input": {
+                  "question": "Which branch should I use?"
+                }
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.ToolPending)
+        val pending = event as GatewayEvent.ToolPending
+        assertEquals("ask_1", pending.approval.id)
+        assertEquals("ask_user", pending.approval.toolName)
+        assertTrue(pending.approval.requiresAnswer)
     }
 
     @Test
@@ -158,7 +185,8 @@ class MobileGatewayModelsTest {
             payload = JSONObject()
                 .put("id", "tool_1")
                 .put("decision", "approve")
-                .put("approved", true),
+                .put("approved", true)
+                .put("answer", "use main"),
         )
 
         val json = JSONObject(envelope.toJsonString())
@@ -166,5 +194,6 @@ class MobileGatewayModelsTest {
         assertEquals("s1", json.getString("session_id"))
         assertEquals("tool_1", json.getJSONObject("payload").getString("id"))
         assertTrue(json.getJSONObject("payload").getBoolean("approved"))
+        assertEquals("use main", json.getJSONObject("payload").getString("answer"))
     }
 }
