@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.6.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android `file.read` requests for selected Mac session workspaces.
+- Added a Compose Files panel for reading and displaying text files returned by the Mac desktop peer.
+- Added model coverage for `file.read` ack parsing and command encoding.
+
+### Changed
+
+- Bumped Android client version to `1.6.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.5.0-rc1] - 2026-06-14
 
 ### Added

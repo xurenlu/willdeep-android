@@ -8,6 +8,7 @@ import com.willdeep.android.R
 import com.willdeep.android.mobile.DeviceTokenStore
 import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
+import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.MobileGatewayClient
@@ -47,6 +48,8 @@ data class MobileGatewayUiState(
     val isPaired: Boolean = false,
     val status: ConnectionStatus = ConnectionStatus.Idle,
     val errorMessage: String? = null,
+    val filePathText: String = "",
+    val loadedFile: GatewayFile? = null,
     val sessions: List<GatewaySession> = emptyList(),
     val selectedSessionId: String? = null,
     val messageText: String = "",
@@ -104,6 +107,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun updateMessage(value: String) {
         _state.update { it.copy(messageText = value) }
+    }
+
+    fun updateFilePath(value: String) {
+        _state.update { it.copy(filePathText = value) }
     }
 
     fun updateToolAnswer(approvalId: String, value: String) {
@@ -300,6 +307,22 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         )
     }
 
+    fun requestFileRead() {
+        val current = state.value
+        val path = current.filePathText.trim()
+        if (path.isEmpty()) return
+        val payload = JSONObject()
+            .put("path", path)
+            .put("max_bytes", 65536)
+        send(
+            GatewayEnvelope(
+                type = "file.read",
+                sessionId = current.selectedSessionId,
+                payload = payload,
+            )
+        )
+    }
+
     fun killJob(job: GatewayJob) {
         val payload = JSONObject().put("job_id", job.handle.ifBlank { job.id })
         send(
@@ -435,6 +458,20 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         jobs = (it.jobs.filterNot { job -> job.id == event.job.id } + event.job)
                             .sortedWith(compareByDescending<GatewayJob> { it.isAlive }.thenBy { it.handle }),
                         logLines = it.logLines.append(GatewayLogLine("mac", event.job.handle)),
+                    )
+                }
+            }
+            is GatewayEvent.FileLoaded -> {
+                _state.update {
+                    it.copy(
+                        loadedFile = event.file,
+                        filePathText = event.file.path.ifBlank { it.filePathText },
+                        logLines = it.logLines.append(
+                            GatewayLogLine(
+                                "ack",
+                                getApplication<Application>().getString(R.string.file_read_loaded_log, event.file.path),
+                            )
+                        ),
                     )
                 }
             }

@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.5.0-rc1
+> Last updated: 2026-06-14 | Current version: v1.6.0-rc1
 
 ## Project Summary
 
@@ -17,6 +17,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Answer Mac-side `ask_user` prompts from the Android approval panel.
 - Request and view pending patch diffs before approving or rejecting them.
 - Display Mac background jobs and kill running jobs through the gateway.
+- Read text files from the selected Mac session workspace through desktop-mediated `file.read`.
 
 ## Technology Stack
 
@@ -38,6 +39,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 | WS | `patch.decide` | Approve or reject Mac-side patch proposals. |
 | WS | `diff.get` | Request the unified diff for a pending patch proposal. |
 | WS | `job.kill` | Ask the Mac to stop a running background job in the selected session. |
+| WS | `file.read` | Request a text file from the selected Mac session workspace. |
 
 ## Run
 

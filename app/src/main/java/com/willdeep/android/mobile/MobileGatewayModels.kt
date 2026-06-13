@@ -86,6 +86,14 @@ data class GatewayJob(
     val sessionId: String?,
 )
 
+data class GatewayFile(
+    val path: String,
+    val content: String,
+    val truncated: Boolean,
+    val byteCount: Int,
+    val sessionId: String?,
+)
+
 data class GatewayEnvelope(
     val id: String = UUID.randomUUID().toString(),
     val type: String,
@@ -122,6 +130,7 @@ sealed interface GatewayEvent {
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
     data class PatchDiffLoaded(val diff: PatchDiff) : GatewayEvent
     data class JobUpdated(val job: GatewayJob) : GatewayEvent
+    data class FileLoaded(val file: GatewayFile) : GatewayEvent
     data class Raw(val type: String) : GatewayEvent
 }
 
@@ -180,6 +189,17 @@ private fun JSONObject.toAckEvent(sessionId: String?): GatewayEvent {
                 patchId = firstString("patch_id", "id"),
                 title = firstString("title"),
                 diff = optString("diff"),
+                sessionId = firstString("session_id").ifBlank { sessionId },
+            )
+        )
+    }
+    if (commandType == "file.read" && has("content")) {
+        return GatewayEvent.FileLoaded(
+            GatewayFile(
+                path = firstString("path", "file_path"),
+                content = optString("content"),
+                truncated = optBoolean("truncated", false),
+                byteCount = optInt("byte_count", 0),
                 sessionId = firstString("session_id").ifBlank { sessionId },
             )
         )

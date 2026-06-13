@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.5.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.6.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.5.0-rc1:
+Implemented through v1.6.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -43,6 +43,7 @@ Implemented through v1.5.0-rc1:
 - Answer-required `ask_user` approvals with Compose input and `tool.decide` `answer` payloads.
 - Patch approval cards can request `diff.get` and display the returned unified diff before decision.
 - Background job cards parse `job.updated`, display job metadata, and send `job.kill` for running jobs.
+- Files panel sends `file.read` and displays text content returned by the Mac desktop peer.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
@@ -104,6 +105,7 @@ Android sends:
 - `patch.decide`
 - `diff.get`
 - `job.kill`
+- `file.read`
 
 `tool.decide` includes `answer` when approving an answer-required `ask_user` prompt:
 
@@ -116,7 +118,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.5.0-rc1:
+Gateway events parsed by Android v1.6.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -126,6 +128,7 @@ Gateway events parsed by Android v1.5.0-rc1:
 - `patch.upsert`
 - `ack`
 - `ack` payloads for `diff.get` containing `patch_id`, `title`, and `diff`
+- `ack` payloads for `file.read` containing `path`, `content`, `truncated`, and `byte_count`
 - `job.updated`
 - `error`
 - `command.error`
@@ -149,4 +152,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - A paired device can open `/mobile/ws`, send `session.list`, and display returned session state.
 - A pending `ask_user` approval requires an Android answer before approve and sends that answer in `tool.decide`.
 - Running background jobs can be killed from Android through `job.kill` without direct process access.
-- Version `1.5.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Text files can be read from the selected Mac session workspace through `file.read`.
+- Version `1.6.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

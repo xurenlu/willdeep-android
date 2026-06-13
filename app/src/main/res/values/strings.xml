@@ -5,6 +5,7 @@
     <string name="section_pairing">Pair with Mac</string>
     <string name="section_connection">Connection</string>
     <string name="section_sessions">Sessions</string>
+    <string name="section_files">Files</string>
     <string name="section_approvals">Approvals</string>
     <string name="section_jobs">Background Jobs</string>
     <string name="section_composer">Ask WillDeep</string>
@@ -27,6 +28,9 @@
     <string name="reject_button">Reject</string>
     <string name="view_diff_button">View diff</string>
     <string name="kill_job_button">Kill job</string>
+    <string name="read_file_button">Read file</string>
+    <string name="file_path_label">Workspace path</string>
+    <string name="file_path_placeholder">README.md</string>
     <string name="message_label">Message</string>
     <string name="message_placeholder">Tell the Mac WillDeep what to build or change</string>
     <string name="paired_to">Paired to %1$s</string>
@@ -66,6 +70,9 @@
     <string name="job_pid">pid %1$d</string>
     <string name="job_output_bytes">%1$d bytes</string>
     <string name="job_exit_code">exit %1$d</string>
+    <string name="file_read_loaded_log">Loaded file: %1$s</string>
+    <string name="file_bytes">%1$d bytes</string>
+    <string name="file_truncated">truncated</string>
     <string name="gateway_url">Gateway: %1$s</string>
     <string name="protocol_version">Protocol: %1$s</string>
     <string name="token_stored">Device token stored securely on this phone.</string>

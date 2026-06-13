@@ -249,6 +249,34 @@ class MobileGatewayModelsTest {
     }
 
     @Test
+    fun fileReadAckParsesFilePayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "id": "cmd_file",
+              "type": "ack",
+              "session_id": "s1",
+              "payload": {
+                "type": "file.read",
+                "path": "README.md",
+                "content": "# WillDeep\n",
+                "truncated": false,
+                "byte_count": 11
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.FileLoaded)
+        val loaded = event as GatewayEvent.FileLoaded
+        assertEquals("README.md", loaded.file.path)
+        assertEquals("# WillDeep\n", loaded.file.content)
+        assertEquals(false, loaded.file.truncated)
+        assertEquals(11, loaded.file.byteCount)
+        assertEquals("s1", loaded.file.sessionId)
+    }
+
+    @Test
     fun decisionEnvelopeEncodesApprovalDecision() {
         val envelope = GatewayEnvelope(
             id = "cmd_2",
@@ -282,5 +310,23 @@ class MobileGatewayModelsTest {
         assertEquals("job.kill", json.getString("type"))
         assertEquals("s1", json.getString("session_id"))
         assertEquals("job_abcdef", json.getJSONObject("payload").getString("job_id"))
+    }
+
+    @Test
+    fun fileReadEnvelopeEncodesPathAndLimit() {
+        val envelope = GatewayEnvelope(
+            id = "cmd_4",
+            type = "file.read",
+            sessionId = "s1",
+            payload = JSONObject()
+                .put("path", "README.md")
+                .put("max_bytes", 65536),
+        )
+
+        val json = JSONObject(envelope.toJsonString())
+        assertEquals("file.read", json.getString("type"))
+        assertEquals("s1", json.getString("session_id"))
+        assertEquals("README.md", json.getJSONObject("payload").getString("path"))
+        assertEquals(65536, json.getJSONObject("payload").getInt("max_bytes"))
     }
 }

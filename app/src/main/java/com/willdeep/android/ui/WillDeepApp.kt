@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.R
+import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.PatchDiff
@@ -112,6 +113,13 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     onRefresh = viewModel::refreshSessions,
                     onCreate = viewModel::createSession,
                     onSelect = viewModel::selectSession,
+                )
+            }
+            item {
+                FilesCard(
+                    state = state,
+                    onPathChange = viewModel::updateFilePath,
+                    onReadFile = viewModel::requestFileRead,
                 )
             }
             item {
@@ -371,6 +379,84 @@ private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -
                 AssistChip(
                     onClick = onClick,
                     label = { Text(stringResource(R.string.message_count, session.messageCount)) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilesCard(
+    state: MobileGatewayUiState,
+    onPathChange: (String) -> Unit,
+    onReadFile: () -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_files))
+            OutlinedTextField(
+                value = state.filePathText,
+                onValueChange = onPathChange,
+                label = { Text(stringResource(R.string.file_path_label)) },
+                placeholder = { Text(stringResource(R.string.file_path_placeholder)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = onReadFile,
+                enabled = state.status == ConnectionStatus.Connected && state.filePathText.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.read_file_button))
+            }
+            state.loadedFile?.let { file ->
+                FilePreview(file)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilePreview(file: GatewayFile) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = file.path,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text(stringResource(R.string.file_bytes, file.byteCount)) },
+                )
+                if (file.truncated) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(stringResource(R.string.file_truncated)) },
+                    )
+                }
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shape = MaterialTheme.shapes.extraSmall,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = file.content,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(10.dp),
                 )
             }
         }
