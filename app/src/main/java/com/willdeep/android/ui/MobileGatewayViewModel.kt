@@ -77,6 +77,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     private val client = MobileGatewayClient()
     private var socketJob: Job? = null
     private var reconnectRequested = false
+    private var manuallyDisconnected = false
 
     private val _state = MutableStateFlow(MobileGatewayUiState())
     val state: StateFlow<MobileGatewayUiState> = _state.asStateFlow()
@@ -92,6 +93,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     status = ConnectionStatus.Disconnected,
                 )
             }
+            resumeConnectionIfAppropriate()
         }
     }
 
@@ -171,6 +173,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun connect() {
         val credential = tokenStore.load() ?: return
+        manuallyDisconnected = false
         reconnectRequested = true
         socketJob?.cancel()
         _state.update {
@@ -264,6 +267,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun disconnect() {
+        manuallyDisconnected = true
         reconnectRequested = false
         socketJob?.cancel()
         socketJob = null
@@ -278,6 +282,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun forgetToken() {
+        manuallyDisconnected = true
         disconnect()
         tokenStore.clear()
         _state.update {
@@ -290,6 +295,17 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun refreshSessions() {
         send(GatewayEnvelope(type = "session.list"))
+    }
+
+    fun resumeConnectionIfAppropriate() {
+        if (MobileGatewayConnectionPolicy.shouldAutoResume(
+                isPaired = state.value.isPaired,
+                status = state.value.status,
+                manuallyDisconnected = manuallyDisconnected,
+            )
+        ) {
+            connect()
+        }
     }
 
     fun createSession() {
@@ -731,6 +747,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     private fun handleAuthenticationRejected() {
         reconnectRequested = false
         socketJob = null
+        manuallyDisconnected = false
         client.disconnect()
         tokenStore.clear()
         _state.update {

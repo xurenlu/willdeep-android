@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.10.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.11.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.10.0-rc1:
+Implemented through v1.11.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -48,6 +48,7 @@ Implemented through v1.10.0-rc1:
 - Conversation panel parses recent `messages` from `state.snapshot` and follows `message.append`, `message.delta`, and `message.done`.
 - Changed Files panel parses `worktree_changes` from `state.snapshot` and follows `worktree.updated` for Mac-side file changes.
 - Temporary WebSocket disconnects retry with bounded backoff, while 401/403 gateway rejection clears the stored token and requires pairing again.
+- A paired device automatically reconnects when the app starts or returns to the foreground, while a manual Disconnect intentionally pauses auto-resume.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
@@ -123,7 +124,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.10.0-rc1:
+Gateway events parsed by Android v1.11.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -169,4 +170,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Recent Mac conversation messages are visible in the Android Conversation panel.
 - Mac-side changed files are visible in the Android Changed Files panel.
 - Temporary disconnects retry automatically, and revoked tokens do not loop reconnect attempts forever.
-- Version `1.10.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Paired devices reconnect automatically on app start and foreground resume unless the user manually disconnected.
+- Version `1.11.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.11.0-rc1] - 2026-06-14
+
+### Added
+
+- Added automatic gateway connection resume for paired devices when the app starts or returns to the foreground.
+- Added connection policy coverage so manual Disconnect does not get overridden by lifecycle auto-resume.
+
+### Changed
+
+- Bumped Android client version to `1.11.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.10.0-rc1] - 2026-06-14
 
 ### Added
