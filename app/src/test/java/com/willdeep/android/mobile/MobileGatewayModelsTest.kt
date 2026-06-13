@@ -88,6 +88,22 @@ class MobileGatewayModelsTest {
                     "text_attachment_count": 1,
                     "session_id": "s1"
                   }
+                ],
+                "messages": [
+                  {
+                    "id": "m1",
+                    "role": "user",
+                    "content": "Please update the Android client",
+                    "created_at": "2026-06-14T01:30:00Z",
+                    "session_id": "s1"
+                  },
+                  {
+                    "id": "m2",
+                    "role": "assistant",
+                    "content": "I'll make the change on the Mac.",
+                    "created_at": "2026-06-14T01:30:02Z",
+                    "session_id": "s1"
+                  }
                 ]
               }
             }
@@ -104,6 +120,57 @@ class MobileGatewayModelsTest {
         assertEquals("queue_1", snapshot.queuedMessages.single().id)
         assertEquals("Run Android tests next", snapshot.queuedMessages.single().textPreview)
         assertEquals(1, snapshot.queuedMessages.single().textAttachmentCount)
+        assertEquals(2, snapshot.messages.size)
+        assertEquals("user", snapshot.messages.first().role)
+        assertEquals("Please update the Android client", snapshot.messages.first().content)
+        assertEquals("assistant", snapshot.messages.last().role)
+    }
+
+    @Test
+    fun messageAppendParsesConversationMessage() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "message.append",
+              "session_id": "s1",
+              "payload": {
+                "id": "m3",
+                "role": "assistant",
+                "content": "Patch is ready.",
+                "created_at": "2026-06-14T01:31:00Z"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.MessageAppend)
+        val append = event as GatewayEvent.MessageAppend
+        assertEquals("m3", append.message.id)
+        assertEquals("assistant", append.message.role)
+        assertEquals("Patch is ready.", append.message.content)
+        assertEquals("s1", append.message.sessionId)
+    }
+
+    @Test
+    fun messageDeltaParsesMessageIdAndText() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "message.delta",
+              "session_id": "s1",
+              "payload": {
+                "message_id": "m3",
+                "delta": "Streaming text"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.MessageDelta)
+        val delta = event as GatewayEvent.MessageDelta
+        assertEquals("s1", delta.sessionId)
+        assertEquals("m3", delta.messageId)
+        assertEquals("Streaming text", delta.text)
     }
 
     @Test

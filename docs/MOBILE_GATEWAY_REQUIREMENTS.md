@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.7.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.8.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.7.0-rc1:
+Implemented through v1.8.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -45,6 +45,7 @@ Implemented through v1.7.0-rc1:
 - Background job cards parse `job.updated`, display job metadata, and send `job.kill` for running jobs.
 - Files panel sends `file.read` and displays text content returned by the Mac desktop peer.
 - Queue panel parses `queued_messages` from `state.snapshot` and sends `queue.update` actions for add, remove, clear, and send-now.
+- Conversation panel parses recent `messages` from `state.snapshot` and follows `message.append`, `message.delta`, and `message.done`.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
@@ -120,11 +121,13 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.7.0-rc1:
+Gateway events parsed by Android v1.8.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
 - `message.delta`
+- `message.append`
+- `message.done`
 - `tool.pending`
 - `tool.updated`
 - `patch.upsert`
@@ -136,6 +139,7 @@ Gateway events parsed by Android v1.7.0-rc1:
 - `command.error`
 
 `state.snapshot` may include `queued_messages` with `id`, `text_preview`, `image_count`, `text_attachment_count`, and `session_id`.
+`state.snapshot` may include `messages` with `id`, `role`, `content`, `created_at`, and `session_id`.
 
 Unknown events are ignored for now so the Mac can add event types without breaking this client.
 
@@ -158,4 +162,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Running background jobs can be killed from Android through `job.kill` without direct process access.
 - Text files can be read from the selected Mac session workspace through `file.read`.
 - Queued Mac requests can be displayed and controlled through `queue.update`.
-- Version `1.7.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Recent Mac conversation messages are visible in the Android Conversation panel.
+- Version `1.8.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

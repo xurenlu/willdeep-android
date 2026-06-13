@@ -10,6 +10,7 @@ import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
 import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
+import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.MobileGatewayClient
@@ -60,6 +61,7 @@ data class MobileGatewayUiState(
     val patchDiffs: Map<String, PatchDiff> = emptyMap(),
     val jobs: List<GatewayJob> = emptyList(),
     val queuedMessages: List<GatewayQueuedMessage> = emptyList(),
+    val conversationMessages: List<GatewayMessage> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
@@ -466,6 +468,9 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         selectedSessionId = event.activeSessionId ?: it.selectedSessionId ?: event.sessions.firstOrNull()?.id,
                         jobs = event.jobs,
                         queuedMessages = event.queuedMessages,
+                        conversationMessages = event.messages.filterForSession(
+                            event.activeSessionId ?: it.selectedSessionId,
+                        ),
                         status = ConnectionStatus.Connected,
                     )
                 }
@@ -500,9 +505,28 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             }
             is GatewayEvent.MessageDelta -> {
                 _state.update {
-                    it.copy(logLines = it.logLines.append(GatewayLogLine("mac", event.text)))
+                    val sessionId = event.sessionId ?: it.selectedSessionId
+                    it.copy(
+                        conversationMessages = it.conversationMessages.appendDelta(
+                            sessionId = sessionId,
+                            messageId = event.messageId,
+                            text = event.text,
+                        ),
+                        logLines = it.logLines.append(GatewayLogLine("mac", event.text)),
+                    )
                 }
             }
+            is GatewayEvent.MessageAppend -> {
+                _state.update {
+                    val sessionId = event.message.sessionId ?: it.selectedSessionId
+                    it.copy(
+                        conversationMessages = (it.conversationMessages
+                            .filterNot { message -> message.id == event.message.id } + event.message)
+                            .filterForSession(sessionId),
+                    )
+                }
+            }
+            is GatewayEvent.MessageDone -> Unit
             is GatewayEvent.ToolPending -> {
                 _state.update {
                     it.copy(
@@ -567,4 +591,41 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
 private fun List<GatewayLogLine>.append(line: GatewayLogLine): List<GatewayLogLine> {
     return (this + line).takeLast(80)
+}
+
+private fun List<GatewayMessage>.filterForSession(sessionId: String?): List<GatewayMessage> {
+    if (sessionId.isNullOrBlank()) {
+        return takeLast(80)
+    }
+    return filter { it.sessionId == null || it.sessionId == sessionId }.takeLast(80)
+}
+
+private fun List<GatewayMessage>.appendDelta(
+    sessionId: String?,
+    messageId: String?,
+    text: String,
+): List<GatewayMessage> {
+    if (text.isBlank()) {
+        return this
+    }
+    val targetIndex = when {
+        !messageId.isNullOrBlank() -> indexOfLast { it.id == messageId }
+        else -> indexOfLast { it.role == "assistant" && (sessionId == null || it.sessionId == sessionId) }
+    }
+    if (targetIndex >= 0) {
+        return mapIndexed { index, message ->
+            if (index == targetIndex) {
+                message.copy(content = message.content + text)
+            } else {
+                message
+            }
+        }.filterForSession(sessionId)
+    }
+    return (this + GatewayMessage(
+        id = messageId ?: "stream-${System.nanoTime()}",
+        role = "assistant",
+        content = text,
+        createdAt = "",
+        sessionId = sessionId,
+    )).filterForSession(sessionId)
 }

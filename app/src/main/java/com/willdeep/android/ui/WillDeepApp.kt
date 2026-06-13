@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
+import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.PatchDiff
@@ -115,6 +116,9 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     onCreate = viewModel::createSession,
                     onSelect = viewModel::selectSession,
                 )
+            }
+            item {
+                ConversationCard(state)
             }
             item {
                 FilesCard(
@@ -391,6 +395,65 @@ private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -
                     label = { Text(stringResource(R.string.message_count, session.messageCount)) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ConversationCard(state: MobileGatewayUiState) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_conversation))
+            if (state.conversationMessages.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.conversation_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            } else {
+                state.conversationMessages.takeLast(12).forEach { message ->
+                    ConversationMessageRow(message)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationMessageRow(message: GatewayMessage) {
+    val roleLabel = when (message.role) {
+        "user" -> stringResource(R.string.message_role_user)
+        "assistant" -> stringResource(R.string.message_role_assistant)
+        "system" -> stringResource(R.string.message_role_system)
+        else -> stringResource(R.string.message_role_other)
+    }
+    val containerColor = when (message.role) {
+        "user" -> MaterialTheme.colorScheme.primaryContainer
+        "assistant" -> MaterialTheme.colorScheme.surfaceVariant
+        "system" -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    Surface(
+        color = containerColor,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = roleLabel,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = message.content.ifBlank { stringResource(R.string.message_empty_content) },
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

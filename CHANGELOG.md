@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android parsing for recent conversation messages in `state.snapshot`.
+- Added parsing coverage for `message.append`, `message.delta`, and `message.done` gateway events.
+- Added a Compose Conversation panel that displays recent Mac-side user, assistant, and system messages.
+
+### Changed
+
+- Bumped Android client version to `1.8.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.7.0-rc1] - 2026-06-14
 
 ### Added

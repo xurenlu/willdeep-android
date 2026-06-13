@@ -5,6 +5,7 @@
     <string name="section_pairing">Pair with Mac</string>
     <string name="section_connection">Connection</string>
     <string name="section_sessions">Sessions</string>
+    <string name="section_conversation">Conversation</string>
     <string name="section_files">Files</string>
     <string name="section_approvals">Approvals</string>
     <string name="section_jobs">Background Jobs</string>
@@ -38,6 +39,12 @@
     <string name="file_path_placeholder">README.md</string>
     <string name="message_label">Message</string>
     <string name="message_placeholder">Tell the Mac WillDeep what to build or change</string>
+    <string name="conversation_empty">No conversation messages yet.</string>
+    <string name="message_role_user">You</string>
+    <string name="message_role_assistant">WillDeep</string>
+    <string name="message_role_system">System</string>
+    <string name="message_role_other">Message</string>
+    <string name="message_empty_content">No visible text.</string>
     <string name="paired_to">Paired to %1$s</string>
     <string name="not_paired">Not paired</string>
     <string name="status_idle">Idle</string>

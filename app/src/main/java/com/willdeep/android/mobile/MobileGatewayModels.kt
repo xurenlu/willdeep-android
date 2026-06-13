@@ -102,6 +102,14 @@ data class GatewayQueuedMessage(
     val sessionId: String?,
 )
 
+data class GatewayMessage(
+    val id: String,
+    val role: String,
+    val content: String,
+    val createdAt: String,
+    val sessionId: String?,
+)
+
 data class GatewayEnvelope(
     val id: String = UUID.randomUUID().toString(),
     val type: String,
@@ -129,12 +137,15 @@ sealed interface GatewayEvent {
         val activeSessionId: String?,
         val jobs: List<GatewayJob>,
         val queuedMessages: List<GatewayQueuedMessage>,
+        val messages: List<GatewayMessage>,
     ) : GatewayEvent
 
     data class SessionUpsert(val session: GatewaySession) : GatewayEvent
     data class Ack(val commandType: String, val sessionId: String?) : GatewayEvent
     data class Error(val message: String) : GatewayEvent
-    data class MessageDelta(val sessionId: String?, val text: String) : GatewayEvent
+    data class MessageAppend(val message: GatewayMessage) : GatewayEvent
+    data class MessageDelta(val sessionId: String?, val messageId: String?, val text: String) : GatewayEvent
+    data class MessageDone(val sessionId: String?, val messageId: String?) : GatewayEvent
     data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
     data class PatchDiffLoaded(val diff: PatchDiff) : GatewayEvent
@@ -175,13 +186,20 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
             activeSessionId = payload.optString("active_session_id").ifBlank { null },
             jobs = payload.optJSONArray("jobs").toJobs(),
             queuedMessages = payload.optJSONArray("queued_messages").toQueuedMessages(),
+            messages = payload.optJSONArray("messages").toMessages(),
         )
         "session.upsert" -> GatewayEvent.SessionUpsert(payload.getJSONObject("session").toSession())
         "ack" -> payload.toAckEvent(sessionId)
         "error", "command.error" -> GatewayEvent.Error(payload.optString("message", "Unknown gateway error"))
+        "message.append" -> GatewayEvent.MessageAppend(payload.toMessage(sessionId))
         "message.delta" -> GatewayEvent.MessageDelta(
             sessionId = sessionId,
-            text = payload.optString("delta"),
+            messageId = payload.firstString("message_id", "id").ifBlank { null },
+            text = payload.firstString("delta", "text", "content"),
+        )
+        "message.done" -> GatewayEvent.MessageDone(
+            sessionId = sessionId,
+            messageId = payload.firstString("message_id", "id").ifBlank { null },
         )
         "tool.pending" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
         "tool.updated" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
@@ -247,6 +265,15 @@ private fun JSONArray?.toQueuedMessages(): List<GatewayQueuedMessage> {
     }
 }
 
+private fun JSONArray?.toMessages(): List<GatewayMessage> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            add(getJSONObject(index).toMessage(null))
+        }
+    }
+}
+
 private fun JSONObject.toSession(): GatewaySession {
     return GatewaySession(
         id = getString("id"),
@@ -294,6 +321,16 @@ private fun JSONObject.toQueuedMessage(sessionId: String?): GatewayQueuedMessage
         textPreview = firstString("text_preview", "preview", "text"),
         imageCount = optInt("image_count", 0),
         textAttachmentCount = optInt("text_attachment_count", 0),
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
+private fun JSONObject.toMessage(sessionId: String?): GatewayMessage {
+    return GatewayMessage(
+        id = firstString("id", "message_id").ifBlank { UUID.randomUUID().toString() },
+        role = firstString("role").ifBlank { "assistant" },
+        content = firstString("content", "text", "delta"),
+        createdAt = firstString("created_at", "ts"),
         sessionId = firstString("session_id").ifBlank { sessionId },
     )
 }
