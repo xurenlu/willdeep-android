@@ -49,6 +49,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewaySession
+import com.willdeep.android.mobile.PatchProposal
+import com.willdeep.android.mobile.PendingToolApproval
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +110,13 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     onRefresh = viewModel::refreshSessions,
                     onCreate = viewModel::createSession,
                     onSelect = viewModel::selectSession,
+                )
+            }
+            item {
+                ApprovalCard(
+                    state = state,
+                    onToolDecision = viewModel::decideTool,
+                    onPatchDecision = viewModel::decidePatch,
                 )
             }
             item {
@@ -354,6 +363,134 @@ private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -
                     label = { Text(stringResource(R.string.message_count, session.messageCount)) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ApprovalCard(
+    state: MobileGatewayUiState,
+    onToolDecision: (PendingToolApproval, Boolean) -> Unit,
+    onPatchDecision: (PatchProposal, Boolean) -> Unit,
+) {
+    if (state.pendingTools.isEmpty() && state.patchProposals.isEmpty()) {
+        return
+    }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionTitle(stringResource(R.string.section_approvals))
+            state.pendingTools.forEach { approval ->
+                ToolApprovalRow(
+                    approval = approval,
+                    onApprove = { onToolDecision(approval, true) },
+                    onReject = { onToolDecision(approval, false) },
+                )
+            }
+            state.patchProposals.forEach { proposal ->
+                PatchProposalRow(
+                    proposal = proposal,
+                    onApprove = { onPatchDecision(proposal, true) },
+                    onReject = { onPatchDecision(proposal, false) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolApprovalRow(
+    approval: PendingToolApproval,
+    onApprove: () -> Unit,
+    onReject: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.tool_approval_title, approval.title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (approval.summary.isNotBlank()) {
+                Text(text = approval.summary, style = MaterialTheme.typography.bodySmall)
+            }
+            if (approval.inputPreview.isNotBlank()) {
+                Text(
+                    text = stringResource(R.string.approval_preview, approval.inputPreview),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+            DecisionButtons(onApprove = onApprove, onReject = onReject)
+        }
+    }
+}
+
+@Composable
+private fun PatchProposalRow(
+    proposal: PatchProposal,
+    onApprove: () -> Unit,
+    onReject: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.patch_proposal_title, proposal.title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (proposal.path.isNotBlank()) {
+                Text(
+                    text = proposal.path,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (proposal.summary.isNotBlank()) {
+                Text(text = proposal.summary, style = MaterialTheme.typography.bodySmall)
+            }
+            if (proposal.stats.isNotBlank()) {
+                Text(
+                    text = stringResource(R.string.patch_stats, proposal.stats),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+            DecisionButtons(onApprove = onApprove, onReject = onReject)
+        }
+    }
+}
+
+@Composable
+private fun DecisionButtons(
+    onApprove: () -> Unit,
+    onReject: () -> Unit,
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = onApprove) {
+            Text(stringResource(R.string.approve_button))
+        }
+        OutlinedButton(onClick = onReject) {
+            Text(stringResource(R.string.reject_button))
         }
     }
 }

@@ -48,6 +48,24 @@ data class GatewaySession(
     val isResponding: Boolean,
 )
 
+data class PendingToolApproval(
+    val id: String,
+    val title: String,
+    val summary: String,
+    val toolName: String,
+    val inputPreview: String,
+    val sessionId: String?,
+)
+
+data class PatchProposal(
+    val id: String,
+    val title: String,
+    val summary: String,
+    val path: String,
+    val stats: String,
+    val sessionId: String?,
+)
+
 data class GatewayEnvelope(
     val id: String = UUID.randomUUID().toString(),
     val type: String,
@@ -79,6 +97,8 @@ sealed interface GatewayEvent {
     data class Ack(val commandType: String, val sessionId: String?) : GatewayEvent
     data class Error(val message: String) : GatewayEvent
     data class MessageDelta(val sessionId: String?, val text: String) : GatewayEvent
+    data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
+    data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
     data class Raw(val type: String) : GatewayEvent
 }
 
@@ -123,6 +143,9 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
             sessionId = sessionId,
             text = payload.optString("delta"),
         )
+        "tool.pending" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
+        "tool.updated" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
+        "patch.upsert" -> GatewayEvent.PatchUpsert(payload.toPatchProposal(sessionId))
         else -> GatewayEvent.Raw(type)
     }
 }
@@ -145,4 +168,49 @@ private fun JSONObject.toSession(): GatewaySession {
         isActive = optBoolean("is_active", false),
         isResponding = optBoolean("is_responding", false),
     )
+}
+
+private fun JSONObject.toPendingToolApproval(sessionId: String?): PendingToolApproval {
+    val toolName = firstString("tool_name", "tool", "name").ifBlank { "Tool" }
+    return PendingToolApproval(
+        id = firstString("id", "approval_id", "tool_call_id").ifBlank { toolName },
+        title = firstString("title").ifBlank { toolName },
+        summary = firstString("summary", "message", "reason"),
+        toolName = toolName,
+        inputPreview = firstString("input_preview", "arguments", "command").ifBlank {
+            optJSONObject("input")?.toString()?.limitPreview().orEmpty()
+        },
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
+private fun JSONObject.toPatchProposal(sessionId: String?): PatchProposal {
+    val path = firstString("path", "file", "file_path")
+    return PatchProposal(
+        id = firstString("id", "patch_id").ifBlank { path.ifBlank { "patch" } },
+        title = firstString("title").ifBlank { path.ifBlank { "Patch proposal" } },
+        summary = firstString("summary", "description", "message"),
+        path = path,
+        stats = firstString("stats", "diffstat", "status"),
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
+private fun JSONObject.firstString(vararg keys: String): String {
+    for (key in keys) {
+        val value = opt(key) ?: continue
+        val text = when (value) {
+            is String -> value
+            is JSONObject, is JSONArray -> value.toString()
+            else -> value.toString()
+        }.trim()
+        if (text.isNotBlank()) {
+            return text.limitPreview()
+        }
+    }
+    return ""
+}
+
+private fun String.limitPreview(maxLength: Int = 300): String {
+    return if (length <= maxLength) this else take(maxLength).trimEnd() + "..."
 }

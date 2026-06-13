@@ -95,4 +95,76 @@ class MobileGatewayModelsTest {
         assertEquals("s1", json.getString("session_id"))
         assertEquals("hello", json.getJSONObject("payload").getString("text"))
     }
+
+    @Test
+    fun toolPendingParsesApprovalPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "tool.pending",
+              "session_id": "s1",
+              "payload": {
+                "approval_id": "tool_1",
+                "tool_name": "shell",
+                "summary": "Run tests",
+                "command": "go test ./..."
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.ToolPending)
+        val pending = event as GatewayEvent.ToolPending
+        assertEquals("tool_1", pending.approval.id)
+        assertEquals("shell", pending.approval.title)
+        assertEquals("Run tests", pending.approval.summary)
+        assertEquals("go test ./...", pending.approval.inputPreview)
+        assertEquals("s1", pending.approval.sessionId)
+    }
+
+    @Test
+    fun patchUpsertParsesProposalPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "patch.upsert",
+              "payload": {
+                "patch_id": "patch_1",
+                "title": "Update Android gateway client",
+                "path": "app/src/main/java/MainActivity.kt",
+                "summary": "Adds approval controls",
+                "diffstat": "+12 -2",
+                "session_id": "s2"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.PatchUpsert)
+        val proposal = event as GatewayEvent.PatchUpsert
+        assertEquals("patch_1", proposal.proposal.id)
+        assertEquals("Update Android gateway client", proposal.proposal.title)
+        assertEquals("app/src/main/java/MainActivity.kt", proposal.proposal.path)
+        assertEquals("+12 -2", proposal.proposal.stats)
+        assertEquals("s2", proposal.proposal.sessionId)
+    }
+
+    @Test
+    fun decisionEnvelopeEncodesApprovalDecision() {
+        val envelope = GatewayEnvelope(
+            id = "cmd_2",
+            type = "tool.decide",
+            sessionId = "s1",
+            payload = JSONObject()
+                .put("id", "tool_1")
+                .put("decision", "approve")
+                .put("approved", true),
+        )
+
+        val json = JSONObject(envelope.toJsonString())
+        assertEquals("tool.decide", json.getString("type"))
+        assertEquals("s1", json.getString("session_id"))
+        assertEquals("tool_1", json.getJSONObject("payload").getString("id"))
+        assertTrue(json.getJSONObject("payload").getBoolean("approved"))
+    }
 }

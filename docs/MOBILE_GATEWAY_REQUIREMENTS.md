@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.1.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.2.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -35,12 +35,15 @@ Implemented in v1.0.0-rc1:
 - Encrypted token persistence through AndroidX Security.
 - WebSocket connection with `X-App-Version` populated from `BuildConfig.VERSION_NAME`.
 - Session list refresh, session creation, session selection, message send, and turn stop commands.
+- Tool and patch approval panels for `tool.pending` and `patch.upsert`.
+- Approval decisions sent as `tool.decide` and `patch.decide`.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml`.
 
 Planned next:
 
-- Dedicated approval panels for `tool.pending`, `patch.upsert`, and job controls.
+- Mac desktop bridge routing for `tool.decide` and `patch.decide` into existing WillDeep approval machinery.
+- Dedicated job controls.
 - Multi-language resource sets.
 - Instrumented integration test against the Mac gateway mock.
 - Better offline/reconnect state handling.
@@ -99,6 +102,9 @@ Gateway events parsed by Android v1.0.0-rc1:
 - `state.snapshot`
 - `session.upsert`
 - `message.delta`
+- `tool.pending`
+- `tool.updated`
+- `patch.upsert`
 - `ack`
 - `error`
 - `command.error`

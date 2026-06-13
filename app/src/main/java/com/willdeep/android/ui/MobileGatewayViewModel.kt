@@ -10,7 +10,9 @@ import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.MobileGatewayClient
+import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PairingPayload
+import com.willdeep.android.mobile.PendingToolApproval
 import com.willdeep.android.mobile.StoredGatewayCredential
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +48,8 @@ data class MobileGatewayUiState(
     val sessions: List<GatewaySession> = emptyList(),
     val selectedSessionId: String? = null,
     val messageText: String = "",
+    val pendingTools: List<PendingToolApproval> = emptyList(),
+    val patchProposals: List<PatchProposal> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
@@ -210,6 +214,58 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         send(GatewayEnvelope(type = "turn.stop", sessionId = state.value.selectedSessionId))
     }
 
+    fun decideTool(approval: PendingToolApproval, approved: Boolean) {
+        val decision = if (approved) "approve" else "reject"
+        val payload = JSONObject()
+            .put("id", approval.id)
+            .put("decision", decision)
+            .put("approved", approved)
+        send(
+            GatewayEnvelope(
+                type = "tool.decide",
+                sessionId = approval.sessionId ?: state.value.selectedSessionId,
+                payload = payload,
+            )
+        )
+        _state.update {
+            it.copy(
+                pendingTools = it.pendingTools.filterNot { item -> item.id == approval.id },
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "mobile",
+                        getApplication<Application>().getString(R.string.tool_decision_log, decision),
+                    )
+                ),
+            )
+        }
+    }
+
+    fun decidePatch(proposal: PatchProposal, approved: Boolean) {
+        val decision = if (approved) "approve" else "reject"
+        val payload = JSONObject()
+            .put("id", proposal.id)
+            .put("decision", decision)
+            .put("approved", approved)
+        send(
+            GatewayEnvelope(
+                type = "patch.decide",
+                sessionId = proposal.sessionId ?: state.value.selectedSessionId,
+                payload = payload,
+            )
+        )
+        _state.update {
+            it.copy(
+                patchProposals = it.patchProposals.filterNot { item -> item.id == proposal.id },
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "mobile",
+                        getApplication<Application>().getString(R.string.patch_decision_log, decision),
+                    )
+                ),
+            )
+        }
+    }
+
     override fun onCleared() {
         client.disconnect()
         super.onCleared()
@@ -281,6 +337,22 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             is GatewayEvent.MessageDelta -> {
                 _state.update {
                     it.copy(logLines = it.logLines.append(GatewayLogLine("mac", event.text)))
+                }
+            }
+            is GatewayEvent.ToolPending -> {
+                _state.update {
+                    it.copy(
+                        pendingTools = (it.pendingTools.filterNot { item -> item.id == event.approval.id } + event.approval),
+                        logLines = it.logLines.append(GatewayLogLine("mac", event.approval.title)),
+                    )
+                }
+            }
+            is GatewayEvent.PatchUpsert -> {
+                _state.update {
+                    it.copy(
+                        patchProposals = (it.patchProposals.filterNot { item -> item.id == event.proposal.id } + event.proposal),
+                        logLines = it.logLines.append(GatewayLogLine("mac", event.proposal.title)),
+                    )
                 }
             }
             is GatewayEvent.Raw -> Unit
