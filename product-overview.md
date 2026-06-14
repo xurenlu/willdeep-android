@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.14.0-rc1
+> Last updated: 2026-06-14 | Current version: v1.14.0-rc2
 
 ## Project Summary
 
@@ -37,6 +37,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - QR scanning: CameraX preview + ML Kit barcode scanning
 - Storage: AndroidX Security encrypted shared preferences
 - Build: Gradle Kotlin DSL, Android Gradle Plugin, Kotlin Compose compiler plugin
+- Integration verification: Ruby stdlib mock gateway script with JSON and Markdown reports
 
 ## Gateway API Overview
 
@@ -60,6 +61,15 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 ```
 
 Install the debug APK on an Android device on the same LAN as the Mac running WillDeep Mobile Gateway.
+
+## Verification
+
+```bash
+ruby scripts/mobile_gateway_mock_integration.rb
+./gradlew :app:testDebugUnitTest :app:assembleDebug
+```
+
+The Ruby integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`.
 
 ## Known Gaps
 

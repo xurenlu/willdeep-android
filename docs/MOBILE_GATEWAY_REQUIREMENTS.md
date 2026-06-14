@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.14.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.14.0-rc2 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.14.0-rc1:
+Implemented through v1.14.0-rc2:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -54,10 +54,11 @@ Implemented through v1.14.0-rc1:
 - Failed WebSocket sends preserve composer text, pending approvals, patch proposals, queued messages, and job controls so the user can retry after reconnect.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml` and Simplified Chinese resources in `res/values-zh-rCN/strings.xml`.
+- Ruby mock integration script at `scripts/mobile_gateway_mock_integration.rb` that writes JSON and Markdown reports under `build/mobile_gateway_mock_integration/`.
 
 Planned next:
 
-- Instrumented integration test against the Mac gateway mock.
+- Instrumented Android device test for the Compose client against the Mac gateway mock.
 - Foreground/background lifecycle polish after full device testing.
 
 ## Pairing Payload
@@ -126,7 +127,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.14.0-rc1:
+Gateway events parsed by Android v1.14.0-rc2:
 
 - `state.snapshot`
 - `session.upsert`
@@ -175,4 +176,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Temporary disconnects retry automatically, and revoked tokens do not loop reconnect attempts forever.
 - Paired devices reconnect automatically on app start and foreground resume unless the user manually disconnected.
 - Failed sends do not discard user-entered task text or remove still-pending action cards.
-- Version `1.14.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- `ruby scripts/mobile_gateway_mock_integration.rb` verifies the mock pairing, WebSocket, streaming, changed-file read, and unknown-command paths and writes JSON/Markdown reports.
+- Version `1.14.0-rc2` is visible in Gradle metadata and sent through gateway request headers.

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.14.0-rc2] - 2026-06-14
+
+### Added
+
+- Added `scripts/mobile_gateway_mock_integration.rb`, a Ruby stdlib integration harness that starts a local Mac Gateway mock and verifies pairing, WebSocket authentication, state snapshots, streaming message events, changed-file `file.read`, and unknown command errors.
+- Added JSON and Markdown integration reports under `build/mobile_gateway_mock_integration/`.
+
+### Changed
+
+- Bumped Android client version to `1.14.0-rc2`.
+
+### Tests
+
+- Verified the mock integration script with `ruby scripts/mobile_gateway_mock_integration.rb`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.14.0-rc1] - 2026-06-14
 
 ### Added
