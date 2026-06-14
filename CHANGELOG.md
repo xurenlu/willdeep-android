@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc14] - 2026-06-14
+
+### Added
+
+- Added live Mac gateway health preflight to the connected smoke runner, checking `/mobile/health` for reachability, protocol compatibility, server version, and pairing availability before Android instrumentation runs.
+
+### Changed
+
+- Connected smoke reports now show whether the live gateway health preflight is enabled and include a non-sensitive health result.
+- Bumped Android client version to `1.17.0-rc14`.
+
+### Tests
+
+- Verified the connected smoke runner can validate a fresh-looking payload with the health preflight explicitly skipped and still produce a skipped no-device report without leaking token contents.
+
 ## [1.17.0-rc13] - 2026-06-14
 
 ### Added

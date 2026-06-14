@@ -3,8 +3,10 @@
 
 require "fileutils"
 require "json"
+require "net/http"
 require "open3"
 require "time"
+require "uri"
 
 ROOT_DIR = File.expand_path("..", __dir__)
 OUT_DIR = File.join(ROOT_DIR, "build", "android_connected_smoke")
@@ -18,6 +20,8 @@ LIVE_MESSAGE = ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", "")
 EXPECT_AGENT_ACTIVITY = ENV["MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY"] == "1"
 AGENT_ACTIVITY_TIMEOUT_MS = ENV.fetch("MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS", "60000")
 RUN_AGENT_ACTIVITY_CHECK = EXPECT_AGENT_ACTIVITY && !LIVE_PAIRING_PAYLOAD.empty? && !LIVE_MESSAGE.empty?
+SKIP_HEALTH_PREFLIGHT = ENV["MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT"] == "1"
+HEALTH_PREFLIGHT_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS", "5").to_f
 SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD, LIVE_MESSAGE].reject(&:empty?)
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
@@ -99,22 +103,64 @@ def parse_adb_devices(output)
   end
 end
 
+def parse_live_pairing_payload(payload)
+  JSON.parse(payload)
+rescue JSON::ParserError => e
+  raise "invalid pairing payload JSON: #{e.message}"
+end
+
 def validate_live_pairing_payload(payload)
   return "no live payload provided" if payload.empty?
 
-  data = JSON.parse(payload)
+  data = parse_live_pairing_payload(payload)
   required_fields = %w[base_url pairing_token protocol_version desktop_name expires_at]
   missing_fields = required_fields.select { |field| data[field].to_s.strip.empty? }
   raise "missing pairing payload fields: #{missing_fields.join(", ")}" unless missing_fields.empty?
   raise "unsupported protocol_version: #{data["protocol_version"]}" unless data["protocol_version"] == "mobile-gateway.v1"
+  base_url = URI.parse(data["base_url"])
+  raise "unsupported base_url scheme: #{base_url.scheme}" unless %w[http https].include?(base_url.scheme)
 
   expires_at = Time.parse(data["expires_at"])
   seconds_remaining = (expires_at - Time.now.utc).round
   raise "pairing payload expired at #{expires_at.utc.iso8601}" unless seconds_remaining.positive?
 
   "valid payload; expires in #{seconds_remaining}s"
+end
+
+def check_live_gateway_health(payload)
+  return "no live payload provided" if payload.empty?
+  return "skipped by MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT=1" if SKIP_HEALTH_PREFLIGHT
+
+  pairing = parse_live_pairing_payload(payload)
+  base_url = pairing.fetch("base_url").to_s.sub(%r{/+\z}, "")
+  uri = URI.parse("#{base_url}/mobile/health")
+  request = Net::HTTP::Get.new(uri)
+  request["X-App-Version"] = APP_VERSION
+  response = Net::HTTP.start(
+    uri.host,
+    uri.port,
+    use_ssl: uri.scheme == "https",
+    open_timeout: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
+    read_timeout: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
+  ) do |http|
+    http.request(request)
+  end
+  raise "health status #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+
+  body = JSON.parse(response.body)
+  data = body.fetch("data")
+  protocol_version = data.fetch("protocol_version")
+  raise "health protocol mismatch: #{protocol_version}" unless protocol_version == "mobile-gateway.v1"
+
+  pairing_allowed = data["pairing_allowed"]
+  raise "gateway health reports pairing_allowed=false" unless pairing_allowed == true
+
+  server_version = response["X-Server-Version"] || data.dig("version", "version") || "unknown"
+  "health ok; server=#{server_version}; pairing_allowed=true"
 rescue JSON::ParserError => e
-  raise "invalid pairing payload JSON: #{e.message}"
+  raise "invalid health JSON: #{e.message}"
+rescue KeyError => e
+  raise "health response missing #{e.key}"
 end
 
 def write_reports(result)
@@ -134,6 +180,7 @@ def markdown_report(result)
   lines << "- Live Mac payload: `#{result[:live_payload_provided] ? "provided" : "not provided"}`"
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
+  lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
   lines << ""
   lines << "## Steps"
   lines << ""
@@ -153,6 +200,7 @@ error = nil
 
 begin
   runner.check("validate live pairing payload") { validate_live_pairing_payload(LIVE_PAIRING_PAYLOAD) }
+  runner.check("check live gateway health") { check_live_gateway_health(LIVE_PAIRING_PAYLOAD) }
   adb = runner.run("detect connected Android devices", "adb", "devices", allow_failure: !REQUIRE_DEVICE)
   if adb[:status] == "failed"
     status = "failed"
@@ -208,6 +256,8 @@ result = {
   expect_agent_activity: EXPECT_AGENT_ACTIVITY,
   agent_activity_check_enabled: RUN_AGENT_ACTIVITY_CHECK,
   agent_activity_timeout_ms: AGENT_ACTIVITY_TIMEOUT_MS,
+  health_preflight_enabled: !LIVE_PAIRING_PAYLOAD.empty? && !SKIP_HEALTH_PREFLIGHT,
+  health_preflight_timeout_seconds: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
   steps: runner.steps,
 }
 
