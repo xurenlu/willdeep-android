@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc6 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc7 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc6:
+Implemented through v1.17.0-rc7:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -59,6 +59,7 @@ Implemented through v1.17.0-rc6:
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml` and Simplified Chinese resources in `res/values-zh-rCN/strings.xml`.
 - Ruby mock integration script at `scripts/mobile_gateway_mock_integration.rb` that writes JSON and Markdown reports under `build/mobile_gateway_mock_integration/`.
+- Ruby connected-device smoke runner at `scripts/android_connected_smoke_test.rb` that detects attached Android devices, runs connected instrumentation when available, and writes JSON/Markdown reports under `build/android_connected_smoke/`.
 - JVM `MobileGatewayClientIntegrationTest` that verifies real client pairing and WebSocket behavior against a local mock gateway.
 - Android instrumented Compose smoke test that drives the pairing UI against an in-process mock gateway for `/mobile/health`, `/mobile/pair/claim`, `/mobile/ws`, initial `state.snapshot` display, `message.send`, streamed assistant text, `tool.pending`, `tool.decide`, `patch.upsert`, `diff.get`, and `patch.decide`.
 
@@ -134,7 +135,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc6:
+Gateway events parsed by Android v1.17.0-rc7:
 
 - `state.snapshot`
 - `session.upsert`
@@ -191,6 +192,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Failed sends do not discard user-entered task text or remove still-pending action cards.
 - Recent mobile command statuses are visible as pending, accepted, or failed after sending requests to the Mac gateway.
 - `ruby scripts/mobile_gateway_mock_integration.rb` verifies the mock pairing, WebSocket snapshot approval restore, streaming, changed-file read, and unknown-command paths and writes JSON/Markdown reports.
+- `ruby scripts/android_connected_smoke_test.rb` writes a connected-device JSON/Markdown report and records `skipped` when no Android device is attached; set `REQUIRE_ANDROID_DEVICE=1` to fail on missing devices.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc6` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc7` is visible in Gradle metadata and sent through gateway request headers.

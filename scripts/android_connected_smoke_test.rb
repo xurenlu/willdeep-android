@@ -1,0 +1,133 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "json"
+require "open3"
+require "time"
+
+ROOT_DIR = File.expand_path("..", __dir__)
+OUT_DIR = File.join(ROOT_DIR, "build", "android_connected_smoke")
+REPORT_JSON = File.join(OUT_DIR, "report.json")
+REPORT_MD = File.join(OUT_DIR, "report.md")
+APP_VERSION = File.read(File.join(ROOT_DIR, "app", "build.gradle.kts"))[/versionName\s*=\s*"([^"]+)"/, 1]
+REQUIRE_DEVICE = ENV["REQUIRE_ANDROID_DEVICE"] == "1"
+
+raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
+
+class CommandRunner
+  attr_reader :steps
+
+  def initialize(root_dir)
+    @root_dir = root_dir
+    @steps = []
+  end
+
+  def run(name, *command, allow_failure: false)
+    started = Time.now
+    stdout, stderr, status = Open3.capture3(*command, chdir: @root_dir)
+    step = {
+      name: name,
+      command: command.join(" "),
+      status: status.success? ? "passed" : "failed",
+      exit_code: status.exitstatus,
+      duration_ms: ((Time.now - started) * 1000).round,
+      stdout: stdout.strip,
+      stderr: stderr.strip,
+    }
+    @steps << step
+    raise "#{name} failed with exit #{status.exitstatus}" if !status.success? && !allow_failure
+
+    step
+  end
+
+  def skip(name, reason)
+    @steps << {
+      name: name,
+      status: "skipped",
+      duration_ms: 0,
+      reason: reason,
+    }
+  end
+end
+
+def parse_adb_devices(output)
+  output.lines.filter_map do |line|
+    next if line.strip.empty?
+    next if line.start_with?("List of devices")
+
+    serial, state = line.split(/\s+/, 2)
+    next if serial.nil? || state.nil?
+
+    { serial: serial, state: state.strip }
+  end
+end
+
+def write_reports(result)
+  FileUtils.mkdir_p(OUT_DIR)
+  File.write(REPORT_JSON, JSON.pretty_generate(result) + "\n")
+  File.write(REPORT_MD, markdown_report(result))
+end
+
+def markdown_report(result)
+  lines = []
+  lines << "# Android Connected Smoke Test"
+  lines << ""
+  lines << "- Generated at: `#{result[:generated_at]}`"
+  lines << "- Android version: `#{result[:app_version]}`"
+  lines << "- Status: `#{result[:status]}`"
+  lines << "- Devices: #{result[:devices].empty? ? "_none_" : result[:devices].map { |device| "`#{device[:serial]}` (#{device[:state]})" }.join(", ")}"
+  lines << ""
+  lines << "## Steps"
+  lines << ""
+  lines << "| Step | Status | Duration | Detail |"
+  lines << "| --- | --- | ---: | --- |"
+  result[:steps].each do |step|
+    detail = step[:reason] || step[:command] || ""
+    lines << "| #{step[:name]} | `#{step[:status]}` | #{step[:duration_ms]} ms | #{detail.gsub("|", "\\|")} |"
+  end
+  lines << ""
+  lines.join("\n")
+end
+
+runner = CommandRunner.new(ROOT_DIR)
+status = "passed"
+error = nil
+
+begin
+  adb = runner.run("detect connected Android devices", "adb", "devices", allow_failure: !REQUIRE_DEVICE)
+  if adb[:status] == "failed"
+    status = "failed"
+    error = "adb devices failed"
+    devices = []
+  else
+    devices = parse_adb_devices(adb[:stdout]).select { |device| device[:state] == "device" }
+    if devices.empty?
+      status = REQUIRE_DEVICE ? "failed" : "skipped"
+      runner.skip("run connectedDebugAndroidTest", "no connected Android device")
+      error = "no connected Android device" if REQUIRE_DEVICE
+    else
+      runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
+      runner.run("run connected instrumented smoke", "./gradlew", ":app:connectedDebugAndroidTest")
+    end
+  end
+rescue StandardError => e
+  status = "failed"
+  error = "#{e.class}: #{e.message}"
+end
+
+result = {
+  generated_at: Time.now.utc.iso8601,
+  app_version: APP_VERSION,
+  status: status,
+  error: error,
+  devices: devices || [],
+  require_device: REQUIRE_DEVICE,
+  steps: runner.steps,
+}
+
+write_reports(result)
+
+puts "Wrote #{REPORT_JSON}"
+puts "Wrote #{REPORT_MD}"
+exit(status == "failed" ? 1 : 0)

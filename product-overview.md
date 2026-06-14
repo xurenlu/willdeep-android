@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.17.0-rc6
+> Last updated: 2026-06-14 | Current version: v1.17.0-rc7
 
 ## Project Summary
 
@@ -39,7 +39,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - QR scanning: CameraX preview + ML Kit barcode scanning
 - Storage: AndroidX Security encrypted shared preferences
 - Build: Gradle Kotlin DSL, Android Gradle Plugin, Kotlin Compose compiler plugin
-- Integration verification: JVM local mock gateway tests, Android instrumented Compose pairing/WebSocket/message streaming/tool and patch approval smoke test, plus Ruby stdlib mock gateway script with JSON and Markdown reports
+- Integration verification: JVM local mock gateway tests, Android instrumented Compose pairing/WebSocket/message streaming/tool and patch approval smoke test, connected-device smoke runner, plus Ruby stdlib mock gateway script with JSON and Markdown reports
 
 ## Gateway API Overview
 
@@ -69,11 +69,12 @@ Install the debug APK on an Android device on the same LAN as the Mac running Wi
 
 ```bash
 ruby scripts/mobile_gateway_mock_integration.rb
+ruby scripts/android_connected_smoke_test.rb
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ./gradlew :app:assembleDebugAndroidTest
 ```
 
-The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The instrumented Compose smoke test drives pairing, WebSocket connection, initial snapshot display, `message.send`, streamed assistant text, `tool.pending`, `tool.decide`, `patch.upsert`, `diff.get`, and `patch.decide` against an in-process gateway mock. The Ruby integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`, verifies that `ack` and `error` envelope IDs correlate with the originating mobile command IDs, and checks that snapshots include pending tools plus patch proposals.
+The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The instrumented Compose smoke test drives pairing, WebSocket connection, initial snapshot display, `message.send`, streamed assistant text, `tool.pending`, `tool.decide`, `patch.upsert`, `diff.get`, and `patch.decide` against an in-process gateway mock. The connected-device smoke runner writes `build/android_connected_smoke/report.json` and `build/android_connected_smoke/report.md`, and records a skipped report when no Android device is attached. The Ruby gateway integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`, verifies that `ack` and `error` envelope IDs correlate with the originating mobile command IDs, and checks that snapshots include pending tools plus patch proposals.
 
 ## Known Gaps
 

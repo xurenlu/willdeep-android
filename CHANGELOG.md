@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.17.0-rc7] - 2026-06-14
+
+### Added
+
+- Added `scripts/android_connected_smoke_test.rb` to run Android connected smoke verification, detect attached devices, and write JSON/Markdown reports.
+
+### Changed
+
+- Documented connected smoke reporting and the no-device skipped state for live Android validation.
+- Bumped Android client version to `1.17.0-rc7`.
+
+### Tests
+
+- Verified the connected smoke script with `ruby scripts/android_connected_smoke_test.rb`.
+- Verified the instrumented test APK builds with `./gradlew :app:assembleDebugAndroidTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.17.0-rc6] - 2026-06-14
 
 ### Changed
