@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.15.0-rc3 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.16.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.15.0-rc3:
+Implemented through v1.16.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -55,6 +55,7 @@ Implemented through v1.15.0-rc3:
 - Temporary WebSocket disconnects retry with bounded backoff, while 401/403 gateway rejection clears the stored token and requires pairing again.
 - A paired device automatically reconnects when the app starts or returns to the foreground, while a manual Disconnect intentionally pauses auto-resume.
 - Failed WebSocket sends preserve composer text, pending approvals, patch proposals, queued messages, and job controls so the user can retry after reconnect.
+- Recent Commands panel tracks pending, accepted, and failed mobile commands using gateway envelope IDs when available.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
 - Localized user-visible UI strings in `res/values/strings.xml` and Simplified Chinese resources in `res/values-zh-rCN/strings.xml`.
 - Ruby mock integration script at `scripts/mobile_gateway_mock_integration.rb` that writes JSON and Markdown reports under `build/mobile_gateway_mock_integration/`.
@@ -132,7 +133,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.15.0-rc3:
+Gateway events parsed by Android v1.16.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -149,6 +150,8 @@ Gateway events parsed by Android v1.15.0-rc3:
 - `job.updated`
 - `error`
 - `command.error`
+
+`ack` and `command.error` envelope IDs are used to update Recent Commands when present. If the Mac gateway omits the ID, Android falls back to the pending command type or latest pending command.
 
 `state.snapshot` may include `queued_messages` with `id`, `text_preview`, `image_count`, `text_attachment_count`, and `session_id`.
 `state.snapshot` may include `messages` with `id`, `role`, `content`, `created_at`, and `session_id`.
@@ -183,6 +186,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Temporary disconnects retry automatically, and revoked tokens do not loop reconnect attempts forever.
 - Paired devices reconnect automatically on app start and foreground resume unless the user manually disconnected.
 - Failed sends do not discard user-entered task text or remove still-pending action cards.
+- Recent mobile command statuses are visible as pending, accepted, or failed after sending requests to the Mac gateway.
 - `ruby scripts/mobile_gateway_mock_integration.rb` verifies the mock pairing, WebSocket, streaming, changed-file read, and unknown-command paths and writes JSON/Markdown reports.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
-- Version `1.15.0-rc3` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.16.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

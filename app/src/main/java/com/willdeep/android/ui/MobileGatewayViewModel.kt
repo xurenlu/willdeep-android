@@ -48,6 +48,19 @@ data class GatewayLogLine(
     val text: String,
 )
 
+enum class MobileCommandState {
+    Pending,
+    Accepted,
+    Failed,
+}
+
+data class MobileCommandStatus(
+    val id: String,
+    val type: String,
+    val state: MobileCommandState,
+    val detail: String = "",
+)
+
 data class MobileGatewayUiState(
     val pairingPayloadText: String = "",
     val deviceName: String = Build.MODEL ?: "Android Device",
@@ -75,6 +88,7 @@ data class MobileGatewayUiState(
     val queuedMessages: List<GatewayQueuedMessage> = emptyList(),
     val conversationMessages: List<GatewayMessage> = emptyList(),
     val worktree: GatewayWorktree? = null,
+    val commandStatuses: List<MobileCommandStatus> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
@@ -666,12 +680,31 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     private fun send(envelope: GatewayEnvelope): Boolean {
         val sent = client.sendCommand(envelope)
-        if (!sent) {
-            _state.update {
-                it.copy(
+        _state.update {
+            val commandStatus = if (sent) {
+                MobileCommandStatus(
+                    id = envelope.id,
+                    type = envelope.type,
+                    state = MobileCommandState.Pending,
+                )
+            } else {
+                MobileCommandStatus(
+                    id = envelope.id,
+                    type = envelope.type,
+                    state = MobileCommandState.Failed,
+                    detail = getApplication<Application>().getString(R.string.error_websocket_not_connected),
+                )
+            }
+            val updated = it.copy(
+                commandStatuses = it.commandStatuses.upsertCommandStatus(commandStatus),
+            )
+            if (!sent) {
+                updated.copy(
                     status = ConnectionStatus.Error,
                     errorMessage = getApplication<Application>().getString(R.string.error_websocket_not_connected),
                 )
+            } else {
+                updated
             }
         }
         return sent
@@ -755,6 +788,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update {
                     it.copy(
                         selectedSessionId = event.sessionId ?: it.selectedSessionId,
+                        commandStatuses = it.commandStatuses.markCommandAccepted(
+                            commandId = event.commandId,
+                            commandType = event.commandType,
+                        ),
                         logLines = it.logLines.append(GatewayLogLine("ack", event.commandType)),
                     )
                 }
@@ -764,6 +801,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     it.copy(
                         status = ConnectionStatus.Error,
                         errorMessage = event.message,
+                        commandStatuses = it.commandStatuses.markCommandFailed(
+                            commandId = event.commandId,
+                            message = event.message,
+                        ),
                         logLines = it.logLines.append(GatewayLogLine("error", event.message)),
                     )
                 }
@@ -842,6 +883,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update {
                     it.copy(
                         patchDiffs = it.patchDiffs + (event.diff.patchId to event.diff),
+                        commandStatuses = it.commandStatuses.markCommandAccepted(
+                            commandId = event.commandId,
+                            commandType = "diff.get",
+                        ),
                         logLines = it.logLines.append(
                             GatewayLogLine(
                                 "ack",
@@ -865,6 +910,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     it.copy(
                         loadedFile = event.file,
                         filePathText = event.file.path.ifBlank { it.filePathText },
+                        commandStatuses = it.commandStatuses.markCommandAccepted(
+                            commandId = event.commandId,
+                            commandType = "file.read",
+                        ),
                         logLines = it.logLines.append(
                             GatewayLogLine(
                                 "ack",
@@ -904,6 +953,77 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
 private fun List<GatewayLogLine>.append(line: GatewayLogLine): List<GatewayLogLine> {
     return (this + line).takeLast(80)
+}
+
+internal fun List<MobileCommandStatus>.upsertCommandStatus(
+    status: MobileCommandStatus,
+): List<MobileCommandStatus> {
+    return (filterNot { it.id == status.id } + status).takeLast(20)
+}
+
+internal fun List<MobileCommandStatus>.markCommandAccepted(
+    commandId: String?,
+    commandType: String,
+): List<MobileCommandStatus> {
+    val index = indexForCommand(commandId, commandType)
+    if (index < 0) {
+        return upsertCommandStatus(
+            MobileCommandStatus(
+                id = commandId ?: "ack-$commandType-${size + 1}",
+                type = commandType,
+                state = MobileCommandState.Accepted,
+            )
+        )
+    }
+    return mapIndexed { currentIndex, status ->
+        if (currentIndex == index) {
+            status.copy(
+                type = commandType.ifBlank { status.type },
+                state = MobileCommandState.Accepted,
+                detail = "",
+            )
+        } else {
+            status
+        }
+    }
+}
+
+internal fun List<MobileCommandStatus>.markCommandFailed(
+    commandId: String?,
+    message: String,
+): List<MobileCommandStatus> {
+    val index = indexForCommand(commandId, commandType = "")
+    if (index < 0) {
+        return upsertCommandStatus(
+            MobileCommandStatus(
+                id = commandId ?: "error-${size + 1}",
+                type = "command",
+                state = MobileCommandState.Failed,
+                detail = message,
+            )
+        )
+    }
+    return mapIndexed { currentIndex, status ->
+        if (currentIndex == index) {
+            status.copy(state = MobileCommandState.Failed, detail = message)
+        } else {
+            status
+        }
+    }
+}
+
+private fun List<MobileCommandStatus>.indexForCommand(
+    commandId: String?,
+    commandType: String,
+): Int {
+    if (!commandId.isNullOrBlank()) {
+        val idIndex = indexOfLast { it.id == commandId }
+        if (idIndex >= 0) return idIndex
+    }
+    if (commandType.isNotBlank()) {
+        return indexOfLast { it.type == commandType && it.state == MobileCommandState.Pending }
+    }
+    return indexOfLast { it.state == MobileCommandState.Pending }
 }
 
 internal fun resolveGatewayHealthTarget(state: MobileGatewayUiState): GatewayHealthTarget? {

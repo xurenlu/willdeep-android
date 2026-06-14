@@ -169,17 +169,17 @@ sealed interface GatewayEvent {
     ) : GatewayEvent
 
     data class SessionUpsert(val session: GatewaySession) : GatewayEvent
-    data class Ack(val commandType: String, val sessionId: String?) : GatewayEvent
-    data class Error(val message: String) : GatewayEvent
+    data class Ack(val commandId: String?, val commandType: String, val sessionId: String?) : GatewayEvent
+    data class Error(val commandId: String?, val message: String) : GatewayEvent
     data class MessageAppend(val message: GatewayMessage) : GatewayEvent
     data class MessageDelta(val sessionId: String?, val messageId: String?, val text: String) : GatewayEvent
     data class MessageDone(val sessionId: String?, val messageId: String?) : GatewayEvent
     data class WorktreeUpdated(val worktree: GatewayWorktree) : GatewayEvent
     data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
-    data class PatchDiffLoaded(val diff: PatchDiff) : GatewayEvent
+    data class PatchDiffLoaded(val commandId: String?, val diff: PatchDiff) : GatewayEvent
     data class JobUpdated(val job: GatewayJob) : GatewayEvent
-    data class FileLoaded(val file: GatewayFile) : GatewayEvent
+    data class FileLoaded(val commandId: String?, val file: GatewayFile) : GatewayEvent
     data class Raw(val type: String) : GatewayEvent
 }
 
@@ -206,6 +206,7 @@ fun parsePairingClaim(raw: String): PairingClaim {
 
 fun parseGatewayEvent(raw: String): GatewayEvent {
     val json = JSONObject(raw)
+    val id = json.optString("id").ifBlank { null }
     val type = json.optString("type")
     val payload = json.optJSONObject("payload") ?: JSONObject()
     val sessionId = json.optString("session_id").ifBlank { null }
@@ -219,8 +220,8 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
             worktrees = payload.optJSONArray("worktree_changes").toWorktrees(),
         )
         "session.upsert" -> GatewayEvent.SessionUpsert(payload.getJSONObject("session").toSession())
-        "ack" -> payload.toAckEvent(sessionId)
-        "error", "command.error" -> GatewayEvent.Error(payload.optString("message", "Unknown gateway error"))
+        "ack" -> payload.toAckEvent(id, sessionId)
+        "error", "command.error" -> GatewayEvent.Error(id, payload.optString("message", "Unknown gateway error"))
         "message.append" -> GatewayEvent.MessageAppend(payload.toMessage(sessionId))
         "message.delta" -> GatewayEvent.MessageDelta(
             sessionId = sessionId,
@@ -240,11 +241,12 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
     }
 }
 
-private fun JSONObject.toAckEvent(sessionId: String?): GatewayEvent {
+private fun JSONObject.toAckEvent(commandId: String?, sessionId: String?): GatewayEvent {
     val commandType = optString("type", "command")
     if (commandType == "diff.get" && optString("diff").isNotBlank()) {
         return GatewayEvent.PatchDiffLoaded(
-            PatchDiff(
+            commandId = commandId,
+            diff = PatchDiff(
                 patchId = firstString("patch_id", "id"),
                 title = firstString("title"),
                 diff = optString("diff"),
@@ -254,7 +256,8 @@ private fun JSONObject.toAckEvent(sessionId: String?): GatewayEvent {
     }
     if (commandType == "file.read" && has("content")) {
         return GatewayEvent.FileLoaded(
-            GatewayFile(
+            commandId = commandId,
+            file = GatewayFile(
                 path = firstString("path", "file_path"),
                 content = optString("content"),
                 truncated = optBoolean("truncated", false),
@@ -264,6 +267,7 @@ private fun JSONObject.toAckEvent(sessionId: String?): GatewayEvent {
         )
     }
     return GatewayEvent.Ack(
+        commandId = commandId,
         commandType = commandType,
         sessionId = sessionId,
     )

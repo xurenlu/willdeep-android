@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.16.0-rc1] - 2026-06-14
+
+### Added
+
+- Added a Recent Commands panel that shows pending, accepted, and failed mobile commands after they are sent to the Mac gateway.
+- Added command tracking for gateway `ack`, `command.error`, `diff.get`, and `file.read` responses using envelope IDs when available.
+- Added command status reducer coverage for pending, accepted, failed, and fallback matching paths.
+
+### Changed
+
+- Bumped Android client version to `1.16.0-rc1`.
+
+### Tests
+
+- Verified targeted command coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.ui.MobileCommandStatusTest --tests com.willdeep.android.mobile.MobileGatewayModelsTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest`.
+- Verified the mock integration script with `ruby scripts/mobile_gateway_mock_integration.rb`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.15.0-rc3] - 2026-06-14
 
 ### Fixed

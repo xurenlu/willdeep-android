@@ -12,6 +12,8 @@
     <string name="section_jobs">后台任务</string>
     <string name="section_composer">询问 WillDeep</string>
     <string name="section_queue">排队请求</string>
+    <string name="section_recent_commands">最近命令</string>
+    <string name="section_event_log">事件日志</string>
     <string name="pairing_payload_label">配对 payload</string>
     <string name="pairing_payload_placeholder">粘贴 WillDeep 设置中的二维码 payload</string>
     <string name="device_name_label">设备名称</string>
@@ -77,6 +79,11 @@
     <string name="qr_scanner_payload_loaded">已从二维码载入配对 payload。</string>
     <string name="ws_ack">Gateway 已确认 %1$s</string>
     <string name="ws_error">Gateway 错误：%1$s</string>
+    <string name="command_status_empty">还没有发送手机端命令。</string>
+    <string name="command_status_line">%1$s · %2$s</string>
+    <string name="command_status_pending">等待确认</string>
+    <string name="command_status_accepted">已接收</string>
+    <string name="command_status_failed">失败</string>
     <string name="log_mobile">你：%1$s</string>
     <string name="log_mac">Mac：%1$s</string>
     <string name="log_ack">确认：%1$s</string>

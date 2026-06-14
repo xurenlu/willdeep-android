@@ -71,6 +71,7 @@ class MobileGatewayClientIntegrationTest {
             assertEquals("s1", snapshot.activeSessionId)
             assertEquals("Mock coding session", snapshot.sessions.single().title)
             assertEquals("app/src/main/java/com/willdeep/android/ui/WillDeepApp.kt", snapshot.worktrees.single().files.single().path)
+            assertTrue(ack.commandId?.isNotBlank() == true)
             assertEquals("session.list", ack.commandType)
             assertTrue(gateway.sessionListLatch.await(2, TimeUnit.SECONDS))
             assertEquals("Bearer ${gateway.deviceToken}", gateway.websocketHeaders.single().getValue("authorization"))

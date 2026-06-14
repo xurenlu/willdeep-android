@@ -76,7 +76,7 @@ class MobileGatewayClient(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 runCatching { parseGatewayEvent(text) }
                     .onSuccess { trySend(it) }
-                    .onFailure { trySend(GatewayEvent.Error(it.message ?: "Invalid gateway event")) }
+                    .onFailure { trySend(GatewayEvent.Error(null, it.message ?: "Invalid gateway event")) }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {

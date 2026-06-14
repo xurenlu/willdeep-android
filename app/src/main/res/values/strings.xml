@@ -12,6 +12,8 @@
     <string name="section_jobs">Background Jobs</string>
     <string name="section_composer">Ask WillDeep</string>
     <string name="section_queue">Queued Requests</string>
+    <string name="section_recent_commands">Recent Commands</string>
+    <string name="section_event_log">Event Log</string>
     <string name="pairing_payload_label">Pairing payload</string>
     <string name="pairing_payload_placeholder">Paste the QR payload from WillDeep Settings</string>
     <string name="device_name_label">Device name</string>
@@ -77,6 +79,11 @@
     <string name="qr_scanner_payload_loaded">Pairing payload loaded from QR.</string>
     <string name="ws_ack">Gateway acknowledged %1$s</string>
     <string name="ws_error">Gateway error: %1$s</string>
+    <string name="command_status_empty">No mobile commands sent yet.</string>
+    <string name="command_status_line">%1$s · %2$s</string>
+    <string name="command_status_pending">Pending</string>
+    <string name="command_status_accepted">Accepted</string>
+    <string name="command_status_failed">Failed</string>
     <string name="log_mobile">You: %1$s</string>
     <string name="log_mac">Mac: %1$s</string>
     <string name="log_ack">Ack: %1$s</string>

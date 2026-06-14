@@ -1090,6 +1090,19 @@ private fun EventLogCard(state: MobileGatewayUiState) {
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
+            SectionTitle(stringResource(R.string.section_recent_commands))
+            if (state.commandStatuses.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.command_status_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            } else {
+                state.commandStatuses.takeLast(6).forEach { command ->
+                    CommandStatusRow(command)
+                }
+            }
+            SectionTitle(stringResource(R.string.section_event_log))
             state.logLines.takeLast(12).forEach { line ->
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -1110,6 +1123,42 @@ private fun EventLogCard(state: MobileGatewayUiState) {
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
+        }
+    }
+}
+
+@Composable
+private fun CommandStatusRow(command: MobileCommandStatus) {
+    val statusText = when (command.state) {
+        MobileCommandState.Pending -> stringResource(R.string.command_status_pending)
+        MobileCommandState.Accepted -> stringResource(R.string.command_status_accepted)
+        MobileCommandState.Failed -> stringResource(R.string.command_status_failed)
+    }
+    Surface(
+        color = when (command.state) {
+            MobileCommandState.Pending -> MaterialTheme.colorScheme.secondaryContainer
+            MobileCommandState.Accepted -> MaterialTheme.colorScheme.primaryContainer
+            MobileCommandState.Failed -> MaterialTheme.colorScheme.errorContainer
+        },
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.command_status_line, command.type, statusText),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (command.detail.isNotBlank()) {
+                Text(
+                    text = command.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
         }
     }
 }

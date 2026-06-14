@@ -350,6 +350,7 @@ class MobileGatewayModelsTest {
 
         assertTrue(event is GatewayEvent.PatchDiffLoaded)
         val loaded = event as GatewayEvent.PatchDiffLoaded
+        assertEquals("cmd_diff", loaded.commandId)
         assertEquals("patch_1", loaded.diff.patchId)
         assertEquals("Agent Patch", loaded.diff.title)
         assertEquals("diff --git a/App.kt b/App.kt\n+println(\"hi\")", loaded.diff.diff)
@@ -409,6 +410,7 @@ class MobileGatewayModelsTest {
 
         assertTrue(event is GatewayEvent.FileLoaded)
         val loaded = event as GatewayEvent.FileLoaded
+        assertEquals("cmd_file", loaded.commandId)
         assertEquals("README.md", loaded.file.path)
         assertEquals("# WillDeep\n", loaded.file.content)
         assertEquals(false, loaded.file.truncated)
