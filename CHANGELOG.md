@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc44] - 2026-06-14
+
+### Added
+
+- Added a strict Mac code-activity live acceptance gate: Android instrumentation can now wait for a post-`message.send` tool, patch, background job, or worktree signal and report `mac_code_activity_signal`.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc44`.
+- The final live acceptance wrapper now enables `MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1` by default, so the one-command gate distinguishes a normal assistant response from a real code/workspace activity signal.
+
+### Tests
+
+- Added JVM coverage proving assistant text alone does not satisfy the code-activity signal.
+
 ## [1.17.0-rc43] - 2026-06-14
 
 ### Added

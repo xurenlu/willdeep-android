@@ -44,6 +44,8 @@ class AgentActivityEvidenceTest {
             AgentActivitySignal.AssistantText,
             streamingState.agentActivitySignalAfter(baseline),
         )
+        assertFalse(streamingState.hasCodeActivityAfter(baseline))
+        assertEquals(null, streamingState.codeActivitySignalAfter(baseline))
     }
 
     @Test
@@ -55,6 +57,8 @@ class AgentActivityEvidenceTest {
 
         assertTrue(state.hasAgentActivityAfter(baseline))
         assertEquals(AgentActivitySignal.AssistantMessage, state.agentActivitySignalAfter(baseline))
+        assertFalse(state.hasCodeActivityAfter(baseline))
+        assertEquals(null, state.codeActivitySignalAfter(baseline))
     }
 
     @Test
@@ -97,6 +101,71 @@ class AgentActivityEvidenceTest {
             AgentActivitySignal.WorktreeFile,
             MobileGatewayUiState(worktree = worktree()).agentActivitySignalAfter(baseline),
         )
+    }
+
+    @Test
+    fun codeActivityOnlyIncludesToolPatchJobAndWorktreeSignals() {
+        val baseline = AgentActivityBaseline.capture(MobileGatewayUiState())
+
+        assertEquals(
+            AgentActivitySignal.PendingTool,
+            MobileGatewayUiState(pendingTools = listOf(pendingTool())).codeActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            AgentActivitySignal.PatchProposal,
+            MobileGatewayUiState(patchProposals = listOf(patchProposal())).codeActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            AgentActivitySignal.LiveJob,
+            MobileGatewayUiState(jobs = listOf(liveJob())).codeActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            AgentActivitySignal.WorktreeFile,
+            MobileGatewayUiState(worktree = worktree()).codeActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            null,
+            MobileGatewayUiState(
+                sessions = listOf(
+                    GatewaySession(
+                        id = "s1",
+                        title = "Coding",
+                        workspaceName = "WillDeep",
+                        messageCount = 1,
+                        isActive = true,
+                        isResponding = true,
+                    )
+                ),
+            ).codeActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            null,
+            MobileGatewayUiState(
+                conversationMessages = listOf(assistantMessage("assistant_1", "Starting work")),
+            ).codeActivitySignalAfter(baseline),
+        )
+    }
+
+    @Test
+    fun codeActivityStillFindsToolSignalWhenSessionIsResponding() {
+        val baseline = AgentActivityBaseline.capture(MobileGatewayUiState())
+        val state = MobileGatewayUiState(
+            sessions = listOf(
+                GatewaySession(
+                    id = "s1",
+                    title = "Coding",
+                    workspaceName = "WillDeep",
+                    messageCount = 1,
+                    isActive = true,
+                    isResponding = true,
+                )
+            ),
+            pendingTools = listOf(pendingTool()),
+        )
+
+        assertEquals(AgentActivitySignal.RespondingSession, state.agentActivitySignalAfter(baseline))
+        assertTrue(state.hasCodeActivityAfter(baseline))
+        assertEquals(AgentActivitySignal.PendingTool, state.codeActivitySignalAfter(baseline))
     }
 
     private fun userMessage(id: String, content: String): GatewayMessage {

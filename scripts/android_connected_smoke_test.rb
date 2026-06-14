@@ -47,6 +47,7 @@ DESKTOP_PAIRING_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PAIRING_TIME
 LIVE_DEVICE_NAME = ENV.fetch("MOBILE_GATEWAY_DEVICE_NAME", "Android Live Smoke")
 LIVE_MESSAGE = ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", "")
 EXPECT_AGENT_ACTIVITY = ENV["MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY"] == "1"
+EXPECT_CODE_ACTIVITY = ENV["MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY"] == "1"
 AGENT_ACTIVITY_TIMEOUT_MS = ENV.fetch("MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS", "60000")
 SKIP_HEALTH_PREFLIGHT = ENV["MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT"] == "1"
 HEALTH_PREFLIGHT_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS", "5").to_f
@@ -62,11 +63,18 @@ FINAL_ACCEPTANCE_KEYS = %w[
   instrumented_pair_and_ws
   mobile_message_send_ack
   mac_agent_activity_after_send
+  mac_code_activity_after_send
 ].freeze
 FINAL_ACTIVITY_SIGNALS = %w[
   responding_session
   assistant_message
   assistant_text
+  pending_tool
+  patch_proposal
+  live_job
+  worktree_file
+].freeze
+FINAL_CODE_ACTIVITY_SIGNALS = %w[
   pending_tool
   patch_proposal
   live_job
@@ -419,6 +427,7 @@ def live_smoke_markers(steps)
   {
     mobile_message_send_ack: log_output[/mobile_message_send_ack=([a-z_]+)/, 1],
     mac_agent_activity_signal: log_output[/mac_agent_activity_signal=([a-z_]+)/, 1],
+    mac_code_activity_signal: log_output[/mac_code_activity_signal=([a-z_]+)/, 1],
   }
 end
 
@@ -455,6 +464,9 @@ def build_next_actions(result)
   if result[:live_message_provided] && !result[:expect_agent_activity]
     actions << "Set MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 for final acceptance so the live test waits for Mac-side Agent activity after message.send."
   end
+  if result[:live_message_provided] && !result[:expect_code_activity]
+    actions << "Set MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 for final acceptance so the live test waits for a Mac-side tool, patch, job, or worktree signal after message.send."
+  end
   actions.uniq
 end
 
@@ -470,6 +482,7 @@ def final_live_acceptance_failures(result)
   end
   failures << "MOBILE_GATEWAY_LIVE_MESSAGE is required" unless result[:live_message_provided]
   failures << "MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 is required" unless result[:expect_agent_activity]
+  failures << "MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 is required" unless result[:expect_code_activity]
   failures << "Mac gateway health preflight must run" unless result[:health_preflight_enabled]
   failures << "Android device reachability check must run" unless result[:device_reachability_check_enabled]
   unless result[:mobile_message_send_ack] == "accepted"
@@ -477,6 +490,9 @@ def final_live_acceptance_failures(result)
   end
   unless FINAL_ACTIVITY_SIGNALS.include?(result[:mac_agent_activity_signal].to_s)
     failures << "Mac Agent activity signal marker is required"
+  end
+  unless FINAL_CODE_ACTIVITY_SIGNALS.include?(result[:mac_code_activity_signal].to_s)
+    failures << "Mac code activity signal marker is required"
   end
   failures
 end
@@ -566,6 +582,21 @@ def build_acceptance_evidence(result)
                                       [instrumentation_status, instrumentation_detail]
                                     end
 
+  code_activity_status, code_activity_detail = if !result[:expect_code_activity]
+                                                 ["pending", "Set MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 for final acceptance."]
+                                               elsif !result[:code_activity_check_enabled]
+                                                 ["pending", "Code activity check needs both a live payload and MOBILE_GATEWAY_LIVE_MESSAGE."]
+                                               elsif instrumentation_status == "passed"
+                                                 detail = if result[:mac_code_activity_signal]
+                                                            "Instrumentation observed #{result[:mac_code_activity_signal]} after message.send."
+                                                          else
+                                                            "Instrumentation observed post-send Mac code activity."
+                                                          end
+                                                 ["passed", detail]
+                                               else
+                                                 [instrumentation_status, instrumentation_detail]
+                                               end
+
   [
     {
       key: "live_pairing_payload",
@@ -602,6 +633,11 @@ def build_acceptance_evidence(result)
       status: activity_status,
       evidence: activity_detail || "Android observed Mac Agent activity after the mobile-originated message.",
     },
+    {
+      key: "mac_code_activity_after_send",
+      status: code_activity_status,
+      evidence: code_activity_detail || "Android observed a Mac-side tool, patch, job, or worktree signal after the mobile-originated message.",
+    },
   ]
 end
 
@@ -621,6 +657,10 @@ def markdown_report(result)
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   if result[:mac_agent_activity_signal]
     lines << "- Agent activity signal: `#{result[:mac_agent_activity_signal]}`"
+  end
+  lines << "- Code activity check: `#{result[:code_activity_check_enabled] ? "enabled" : "disabled"}`"
+  if result[:mac_code_activity_signal]
+    lines << "- Code activity signal: `#{result[:mac_code_activity_signal]}`"
   end
   lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
   lines << "- Device reachability check: `#{result[:device_reachability_check_enabled] ? "enabled" : "disabled"}`"
@@ -666,6 +706,7 @@ device_reachability_check_enabled = false
 live_pairing_payload = LIVE_PAIRING_PAYLOAD_ENV
 live_payload_source = live_pairing_payload.empty? ? "none" : "env"
 run_agent_activity_check = false
+run_code_activity_check = false
 
 begin
   runner.check("resolve live pairing payload") do
@@ -682,6 +723,7 @@ begin
     end
   end
   run_agent_activity_check = EXPECT_AGENT_ACTIVITY && !live_pairing_payload.empty? && !LIVE_MESSAGE.empty?
+  run_code_activity_check = EXPECT_CODE_ACTIVITY && !live_pairing_payload.empty? && !LIVE_MESSAGE.empty?
   runner.check("validate live pairing payload") { validate_live_pairing_payload(live_pairing_payload) }
   runner.check("check live gateway health") { check_live_gateway_health(live_pairing_payload) }
   adb = runner.run("detect connected Android devices", "adb", "devices", allow_failure: !REQUIRE_DEVICE)
@@ -722,6 +764,10 @@ begin
             redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectAgentActivity=1"
             redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayAgentActivityTimeoutMillis=#{AGENT_ACTIVITY_TIMEOUT_MS}"
           end
+          if run_code_activity_check
+            connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectCodeActivity=1"
+            redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectCodeActivity=1"
+          end
         end
         runner.run(
           "run connected instrumented smoke",
@@ -752,7 +798,9 @@ result = {
   desktop_pairing_auto_discovered: DESKTOP_PAIRING_AUTO_DISCOVERED,
   live_message_provided: !LIVE_MESSAGE.empty?,
   expect_agent_activity: EXPECT_AGENT_ACTIVITY,
+  expect_code_activity: EXPECT_CODE_ACTIVITY,
   agent_activity_check_enabled: run_agent_activity_check,
+  code_activity_check_enabled: run_code_activity_check,
   agent_activity_timeout_ms: AGENT_ACTIVITY_TIMEOUT_MS,
   health_preflight_enabled: !live_pairing_payload.empty? && !SKIP_HEALTH_PREFLIGHT,
   health_preflight_timeout_seconds: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
@@ -760,6 +808,7 @@ result = {
   device_reachability_timeout_seconds: DEVICE_REACHABILITY_TIMEOUT_SECONDS,
   mobile_message_send_ack: markers[:mobile_message_send_ack],
   mac_agent_activity_signal: markers[:mac_agent_activity_signal],
+  mac_code_activity_signal: markers[:mac_code_activity_signal],
   steps: runner.steps,
 }
 result[:acceptance_evidence] = build_acceptance_evidence(result)

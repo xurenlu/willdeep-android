@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc43 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc44 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc43:
+Implemented through v1.17.0-rc44:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -75,22 +75,23 @@ Implemented through v1.17.0-rc43:
 - Ruby connected-device smoke runner at `scripts/android_connected_smoke_test.rb` that detects attached Android devices, runs connected instrumentation when available, and writes JSON/Markdown reports under `build/android_connected_smoke/`.
 - Ruby final live acceptance wrapper at `scripts/mobile_gateway_live_acceptance.rb` that enables strict live acceptance, requires Mac Agent activity, runs the connected smoke runner, and writes JSON/Markdown handoff reports under `build/mobile_gateway_live_acceptance/`.
 - The final live acceptance wrapper records Mac Gateway preflight diagnostics for the default desktop token file and public `GET /mobile/health` reachability, version, protocol, desktop name, and pairing availability without exposing token contents.
-- The connected-device smoke runner accepts `MOBILE_GATEWAY_PAIRING_PAYLOAD`, `MOBILE_GATEWAY_DEVICE_NAME`, `MOBILE_GATEWAY_LIVE_MESSAGE`, `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY`, `MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS`, `MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT`, `MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS`, `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY`, `MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS`, and `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE` to run an optional live Mac gateway instrumentation path; pairing payloads and live messages are redacted from generated reports.
+- The connected-device smoke runner accepts `MOBILE_GATEWAY_PAIRING_PAYLOAD`, `MOBILE_GATEWAY_DEVICE_NAME`, `MOBILE_GATEWAY_LIVE_MESSAGE`, `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY`, `MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY`, `MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS`, `MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT`, `MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS`, `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY`, `MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS`, and `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE` to run an optional live Mac gateway instrumentation path; pairing payloads and live messages are redacted from generated reports.
 - The connected-device smoke runner can fetch a fresh desktop-authenticated pairing payload when `MOBILE_GATEWAY_PAIRING_PAYLOAD` is not set and `MOBILE_GATEWAY_DESKTOP_BASE_URL` plus `MOBILE_GATEWAY_DESKTOP_TOKEN` or `MOBILE_GATEWAY_DESKTOP_TOKEN_FILE` are provided. It prefers `POST /mobile/pairing/rotate` so the payload is fresh even after an old token was claimed, falls back to legacy `GET /mobile/pairing` only for older Mac gateways, and redacts fetched pairing payloads, pairing tokens, desktop bearer tokens, and live messages from generated reports.
 - The connected-device smoke runner validates live pairing payload JSON, required fields, protocol version, HTTP/HTTPS base URL with host, and strict ISO8601 expiry before invoking Android instrumentation.
 - The connected-device smoke runner uses direct Mac gateway HTTP connections for desktop pairing fetch and health preflight so local proxy environment variables do not divert LAN requests.
 - The connected-device smoke runner can auto-discover the default WillDeep Mac runtime desktop-token file under `~/Library/Application Support/com.willdeep.app/MobileGateway/desktop-token` and use `http://127.0.0.1:8876` for desktop-authenticated pairing rotation when no live payload or explicit desktop gateway variables are provided.
 - The connected-device smoke runner writes `next_actions` into JSON/Markdown reports when live payloads, Android devices, health preflight, live messages, agent-activity checks, or pairing windows still need attention.
-- The connected-device smoke runner writes structured `acceptance_evidence` into JSON/Markdown reports for live payload validation, Mac health preflight, Android device detection, device-to-gateway reachability, live instrumentation, `message.send` acknowledgement, and post-send Mac Agent activity.
+- The connected-device smoke runner writes structured `acceptance_evidence` into JSON/Markdown reports for live payload validation, Mac health preflight, Android device detection, device-to-gateway reachability, live instrumentation, `message.send` acknowledgement, post-send Mac Agent activity, and post-send Mac code activity.
 - Live Mac Agent activity evidence ignores mobile user-message echoes and only passes on Mac-side responding state, assistant output, tool updates, patch updates, live job changes, or worktree changes.
-- Live instrumentation emits `WillDeepLiveSmoke` markers for accepted `message.send` acknowledgements and the specific Mac Agent activity signal; the connected smoke runner collects those markers into generated JSON/Markdown reports when an Android device is attached.
-- `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1` makes the connected smoke runner fail unless live payload, Mac health, Android device, device reachability, live instrumentation, `message.send` acknowledgement, accepted ack marker, enabled Agent activity check, and a concrete Mac Agent activity signal all pass.
+- Live code activity evidence only passes on Mac-side tool updates, patch updates, live job changes, or worktree changes; assistant text alone is not enough for this stricter final gate.
+- Live instrumentation emits `WillDeepLiveSmoke` markers for accepted `message.send` acknowledgements, the specific Mac Agent activity signal, and the specific Mac code activity signal; the connected smoke runner collects those markers into generated JSON/Markdown reports when an Android device is attached.
+- `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1` makes the connected smoke runner fail unless live payload, Mac health, Android device, device reachability, live instrumentation, `message.send` acknowledgement, accepted ack marker, enabled Agent activity check, concrete Mac Agent activity signal, enabled code activity check, and a concrete Mac code activity signal all pass.
 - The connected-device smoke runner checks `GET /mobile/health` without consuming the pairing token, verifying Mac gateway reachability, protocol compatibility, and `pairing_allowed=true` before invoking Android instrumentation.
 - The connected-device smoke runner checks attached Android device reachability to the live gateway host and port before invoking Android instrumentation.
 - The connected-device smoke runner collects Android device network diagnostics with IPv4 addresses redacted before live reachability checks.
 - JVM `MobileGatewayClientIntegrationTest` that verifies real client pairing and WebSocket behavior against a local mock gateway.
 - Android instrumented Compose smoke test that drives the pairing UI against an in-process mock gateway for `/mobile/health`, `/mobile/pair/claim`, `/mobile/ws`, initial `state.snapshot` display, `message.send`, streamed assistant text, `tool.pending`, `tool.decide`, `patch.upsert`, `diff.get`, and `patch.decide`, plus imported text loading and append behavior in Ask WillDeep.
-- Optional Android instrumented live smoke test that consumes a fresh Mac pairing payload through the `mobileGatewayPairingPayload` instrumentation argument, pairs with the real LAN gateway, verifies the UI reaches the connected state, can send a real `message.send` request when `mobileGatewayLiveMessage` is provided, and can wait for post-send Mac Agent activity when `mobileGatewayExpectAgentActivity` is enabled.
+- Optional Android instrumented live smoke test that consumes a fresh Mac pairing payload through the `mobileGatewayPairingPayload` instrumentation argument, pairs with the real LAN gateway, verifies the UI reaches the connected state, can send a real `message.send` request when `mobileGatewayLiveMessage` is provided, can wait for post-send Mac Agent activity when `mobileGatewayExpectAgentActivity` is enabled, and can wait for post-send Mac code activity when `mobileGatewayExpectCodeActivity` is enabled.
 
 Planned next:
 
@@ -165,7 +166,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc43:
+Gateway events parsed by Android v1.17.0-rc44:
 
 - `state.snapshot`
 - `session.upsert`
@@ -245,9 +246,9 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - When Android devices are attached and `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided, `ruby scripts/android_connected_smoke_test.rb` checks gateway host/port reachability from each device unless `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY=1` is set.
 - When Android devices are attached but no live pairing payload is available, normal connected smoke records skipped device instrumentation steps instead of running a guaranteed-failing live gateway test; strict final live acceptance still fails through `final_live_acceptance_failures`.
 - When Android devices are attached and a live pairing payload is available, `ruby scripts/android_connected_smoke_test.rb` records IPv4-redacted route and global-address diagnostics before device-side reachability checks.
-- `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path, sends a real mobile request into WillDeep, waits for Mac acknowledgement, and then waits for Mac Agent activity when an Android device is attached and the token is still valid.
-- `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1 MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` is the final acceptance command when WillDeep Mac Gateway is already running and the runner can auto-discover the desktop token; it must exit 0 and produce all-passed `acceptance_evidence` before this end-to-end goal is considered complete.
+- `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path, sends a real mobile request into WillDeep, waits for Mac acknowledgement, then waits for Mac Agent activity and Mac code activity when an Android device is attached and the token is still valid.
+- `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1 MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` is the final acceptance command when WillDeep Mac Gateway is already running and the runner can auto-discover the desktop token; it must exit 0 and produce all-passed `acceptance_evidence` before this end-to-end goal is considered complete.
 - `ruby scripts/mobile_gateway_live_acceptance.rb` runs the same final acceptance gate with strict defaults and writes a concise wrapper report for the live device handoff.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc43` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc44` is visible in Gradle metadata and sent through gateway request headers.

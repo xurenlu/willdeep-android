@@ -39,6 +39,22 @@ fun MobileGatewayUiState.hasAgentActivityAfter(baseline: AgentActivityBaseline):
     return agentActivitySignalAfter(baseline) != null
 }
 
+fun MobileGatewayUiState.hasCodeActivityAfter(baseline: AgentActivityBaseline): Boolean {
+    return codeActivitySignalAfter(baseline) != null
+}
+
+fun MobileGatewayUiState.codeActivitySignalAfter(
+    baseline: AgentActivityBaseline,
+): AgentActivitySignal? {
+    return when {
+        pendingTools.size > baseline.pendingToolCount -> AgentActivitySignal.PendingTool
+        patchProposals.size > baseline.patchProposalCount -> AgentActivitySignal.PatchProposal
+        jobs.count { job -> job.isAlive } > baseline.liveJobCount -> AgentActivitySignal.LiveJob
+        (worktree?.fileCount ?: 0) > baseline.worktreeFileCount -> AgentActivitySignal.WorktreeFile
+        else -> null
+    }
+}
+
 fun MobileGatewayUiState.agentActivitySignalAfter(
     baseline: AgentActivityBaseline,
 ): AgentActivitySignal? {

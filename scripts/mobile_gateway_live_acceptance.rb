@@ -40,6 +40,7 @@ def run_smoke
   env = {
     "REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE" => "1",
     "MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY" => "1",
+    "MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY" => "1",
     "MOBILE_GATEWAY_LIVE_MESSAGE" => ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", DEFAULT_LIVE_MESSAGE),
   }
   Open3.capture3(env, "ruby", SMOKE_SCRIPT, chdir: ROOT_DIR)
@@ -110,9 +111,11 @@ def build_report(stdout, stderr, exit_status, smoke, preflight)
     live_message_provided: true,
     strict_live_acceptance_required: true,
     agent_activity_required: true,
+    code_activity_required: true,
     attached_device_count: smoke.fetch("devices", []).size,
     mobile_message_send_ack: smoke["mobile_message_send_ack"],
     mac_agent_activity_signal: smoke["mac_agent_activity_signal"],
+    mac_code_activity_signal: smoke["mac_code_activity_signal"],
     acceptance_evidence: smoke.fetch("acceptance_evidence", []),
     final_live_acceptance_failures: smoke.fetch("final_live_acceptance_failures", []),
     next_actions: smoke.fetch("next_actions", []),
@@ -139,6 +142,7 @@ def write_reports(report)
     "- Smoke Markdown: `#{report[:smoke_report_md]}`",
     "- Smoke Markdown SHA256: `#{report[:smoke_report_md_sha256] || "missing"}`",
     "- Agent activity signal: `#{report[:mac_agent_activity_signal] || "missing"}`",
+    "- Code activity signal: `#{report[:mac_code_activity_signal] || "missing"}`",
     "",
   ]
   lines << "## Mac Gateway Preflight"

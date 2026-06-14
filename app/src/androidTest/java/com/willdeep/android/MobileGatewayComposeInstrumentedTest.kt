@@ -19,7 +19,9 @@ import com.willdeep.android.ui.MobileCommandState
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.WillDeepApp
 import com.willdeep.android.ui.agentActivitySignalAfter
+import com.willdeep.android.ui.codeActivitySignalAfter
 import com.willdeep.android.ui.hasAgentActivityAfter
+import com.willdeep.android.ui.hasCodeActivityAfter
 import com.willdeep.android.ui.theme.WillDeepTheme
 import org.json.JSONObject
 import org.junit.After
@@ -212,6 +214,8 @@ class MobileGatewayComposeInstrumentedTest {
         val liveMessage = arguments.getString("mobileGatewayLiveMessage").orEmpty()
         val expectAgentActivity = arguments.getString("mobileGatewayExpectAgentActivity")
             .toBooleanFlag()
+        val expectCodeActivity = arguments.getString("mobileGatewayExpectCodeActivity")
+            .toBooleanFlag()
         val agentActivityTimeoutMillis = arguments.getString("mobileGatewayAgentActivityTimeoutMillis")
             ?.toLongOrNull()
             ?.coerceAtLeast(1_000)
@@ -284,6 +288,17 @@ class MobileGatewayComposeInstrumentedTest {
                 assertNotNull(signal)
                 reportLiveSmokeSignal(
                     "mac_agent_activity_signal",
+                    signal?.reportValue ?: "unknown",
+                )
+            }
+            if (expectCodeActivity) {
+                composeRule.waitUntil(timeoutMillis = agentActivityTimeoutMillis) {
+                    viewModel.state.value.hasCodeActivityAfter(baseline)
+                }
+                val signal = viewModel.state.value.codeActivitySignalAfter(baseline)
+                assertNotNull(signal)
+                reportLiveSmokeSignal(
+                    "mac_code_activity_signal",
                     signal?.reportValue ?: "unknown",
                 )
             }
