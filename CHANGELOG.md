@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0-rc6] - 2026-06-14
+
+### Changed
+
+- Extended the Android instrumented Compose smoke test to render `patch.upsert`, request `diff.get`, display the returned diff, and verify Android sends `patch.decide` after approving the patch.
+- Bumped Android client version to `1.17.0-rc6`.
+
+### Tests
+
+- Verified the instrumented test APK builds with `./gradlew :app:assembleDebugAndroidTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.17.0-rc5] - 2026-06-14
 
 ### Changed

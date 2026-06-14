@@ -126,6 +126,24 @@ class MobileGatewayComposeInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.approvedToolIds.contains(gateway.toolApprovalId)
         }
+        composeRule.onNodeWithText(targetContext.getString(R.string.patch_proposal_title, gateway.patchTitle))
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetContext.getString(R.string.view_diff_button))
+            .performScrollTo()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            gateway.seenCommands.contains("diff.get")
+        }
+        composeRule.onNodeWithText(gateway.patchDiff)
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetContext.getString(R.string.approve_button))
+            .performScrollTo()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            gateway.approvedPatchIds.contains(gateway.patchId)
+        }
     }
 }
 
@@ -137,9 +155,13 @@ private class InstrumentedGatewayMock : AutoCloseable {
     val assistantDelta = "Mac WillDeep is applying the Android change."
     val toolApprovalId = "tool_instrumented"
     val toolApprovalTitle = "Run Gradle tests"
+    val patchId = "patch_instrumented"
+    val patchTitle = "Review generated Android patch"
+    val patchDiff = "diff --git a/app/src/main/java/WillDeep.kt b/app/src/main/java/WillDeep.kt\n+val mobileGateway = true"
     val seenPaths = CopyOnWriteArrayList<String>()
     val seenCommands = CopyOnWriteArrayList<String>()
     val approvedToolIds = CopyOnWriteArrayList<String>()
+    val approvedPatchIds = CopyOnWriteArrayList<String>()
 
     private val ready = CountDownLatch(1)
     private val server = ServerSocket(0)
@@ -293,6 +315,18 @@ private class InstrumentedGatewayMock : AutoCloseable {
                         approvedToolIds += command.optJSONObject("payload")?.optString("id").orEmpty()
                     }
                     writeWebSocketText(socket, ackEnvelope(command).toString())
+                    writeWebSocketText(socket, patchUpsertEnvelope().toString())
+                    socket.getOutputStream().flush()
+                }
+                "diff.get" -> {
+                    writeWebSocketText(socket, patchDiffAckEnvelope(command).toString())
+                    socket.getOutputStream().flush()
+                }
+                "patch.decide" -> {
+                    if (command.optJSONObject("payload")?.optBoolean("approved") == true) {
+                        approvedPatchIds += command.optJSONObject("payload")?.optString("id").orEmpty()
+                    }
+                    writeWebSocketText(socket, ackEnvelope(command).toString())
                     socket.getOutputStream().flush()
                 }
                 else -> {
@@ -390,6 +424,39 @@ private class InstrumentedGatewayMock : AutoCloseable {
                     .put("tool_name", "shell")
                     .put("summary", "Mac WillDeep wants to run tests before applying the change.")
                     .put("command", "./gradlew :app:testDebugUnitTest"),
+            )
+    }
+
+    private fun patchUpsertEnvelope(): JSONObject {
+        return JSONObject()
+            .put("id", "patch_upsert_instrumented")
+            .put("type", "patch.upsert")
+            .put("session_id", "s1")
+            .put("ts", "2026-06-14T12:00:06Z")
+            .put(
+                "payload",
+                JSONObject()
+                    .put("patch_id", patchId)
+                    .put("title", patchTitle)
+                    .put("summary", "Mac WillDeep generated a patch for Android review.")
+                    .put("path", "app/src/main/java/com/willdeep/android/ui/WillDeepApp.kt")
+                    .put("diffstat", "+1 -0"),
+            )
+    }
+
+    private fun patchDiffAckEnvelope(command: JSONObject): JSONObject {
+        return JSONObject()
+            .put("id", command.optString("id"))
+            .put("type", "ack")
+            .put("session_id", "s1")
+            .put("ts", "2026-06-14T12:00:07Z")
+            .put(
+                "payload",
+                JSONObject()
+                    .put("type", "diff.get")
+                    .put("patch_id", patchId)
+                    .put("title", patchTitle)
+                    .put("diff", patchDiff),
             )
     }
 
