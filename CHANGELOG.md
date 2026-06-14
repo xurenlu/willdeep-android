@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0-rc5] - 2026-06-14
+
+### Changed
+
+- Extended the Android instrumented Compose smoke test to render a Mac-side `tool.pending` approval and verify Android sends `tool.decide` after tapping Approve.
+- Bumped Android client version to `1.17.0-rc5`.
+
+### Tests
+
+- Verified the instrumented test APK builds with `./gradlew :app:assembleDebugAndroidTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.17.0-rc4] - 2026-06-14
 
 ### Changed
