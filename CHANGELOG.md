@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc23] - 2026-06-14
+
+### Changed
+
+- Improved Android share-sheet import so shared text titles and body/URL content are combined before loading Ask WillDeep.
+- Bumped Android client version to `1.17.0-rc23`.
+
+### Tests
+
+- Added parser coverage for shared subject/body combinations, subject-only shares, and duplicate subject/body de-duplication.
+
 ## [1.17.0-rc22] - 2026-06-14
 
 ### Added

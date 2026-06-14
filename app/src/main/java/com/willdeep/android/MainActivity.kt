@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
             action = intent?.action,
             mimeType = intent?.type,
             extraText = intent?.getStringExtra(Intent.EXTRA_TEXT),
+            extraSubject = intent?.getStringExtra(Intent.EXTRA_SUBJECT),
         )
         if (text.isBlank()) return
         sharedMessageRequest = SharedMessageRequest(
