@@ -172,7 +172,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             runCatching {
                 _state.update { it.copy(status = ConnectionStatus.Pairing, errorMessage = null) }
                 val payload = PairingPayload.parse(current.pairingPayloadText)
-                ensurePairingPayloadNotExpired(payload)
+                ensurePairingPayloadUsable(payload)
                 val health = client.checkHealth(payload.baseUrl)
                 updateGatewayHealth(payload, health)
                 ensureCompatibleGateway(health)
@@ -214,7 +214,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update { it.copy(isCheckingGateway = true, errorMessage = null) }
                 state.value.pairingPayloadText
                     .takeIf { it.isNotBlank() }
-                    ?.let { ensurePairingPayloadNotExpired(PairingPayload.parse(it)) }
+                    ?.let { ensurePairingPayloadUsable(PairingPayload.parse(it)) }
                 val target = resolveGatewayHealthTarget(state.value)
                     ?: throw IllegalStateException(
                         getApplication<Application>().getString(R.string.error_gateway_health_target_missing)
@@ -653,7 +653,15 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    private fun ensurePairingPayloadNotExpired(payload: PairingPayload) {
+    private fun ensurePairingPayloadUsable(payload: PairingPayload) {
+        if (!payload.hasCompatibleProtocol()) {
+            throw IllegalStateException(
+                getApplication<Application>().getString(
+                    R.string.error_gateway_protocol_mismatch,
+                    payload.protocolVersion,
+                )
+            )
+        }
         if (payload.isExpired()) {
             throw IllegalStateException(
                 getApplication<Application>().getString(R.string.error_pairing_payload_expired)

@@ -21,6 +21,10 @@ data class PairingPayload(
         return !expiry.isAfter(now)
     }
 
+    fun hasCompatibleProtocol(): Boolean {
+        return protocolVersion == MOBILE_GATEWAY_PROTOCOL_VERSION
+    }
+
     companion object {
         fun parse(raw: String): PairingPayload {
             val json = JSONObject(raw.trim())

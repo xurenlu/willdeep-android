@@ -63,6 +63,33 @@ class MobileGatewayModelsTest {
     }
 
     @Test
+    fun pairingPayloadDetectsProtocolCompatibility() {
+        val compatible = PairingPayload.parse(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac"
+            }
+            """.trimIndent()
+        )
+        val incompatible = PairingPayload.parse(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v2",
+              "desktop_name": "Rocky's Mac"
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(compatible.hasCompatibleProtocol())
+        assertFalse(incompatible.hasCompatibleProtocol())
+    }
+
+    @Test
     fun pairingClaimParsesApiEnvelope() {
         val claim = parsePairingClaim(
             """

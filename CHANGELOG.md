@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc18] - 2026-06-14
+
+### Added
+
+- Added Android-side pairing payload protocol compatibility checks so unsupported QR payload versions fail locally before network requests are sent.
+
+### Changed
+
+- Reused the localized gateway protocol mismatch error for incompatible pairing payloads.
+- Bumped Android client version to `1.17.0-rc18`.
+
+### Tests
+
+- Added model coverage for compatible and incompatible pairing payload protocol versions.
+
 ## [1.17.0-rc17] - 2026-06-14
 
 ### Added
