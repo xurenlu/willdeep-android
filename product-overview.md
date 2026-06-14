@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.17.0-rc8
+> Last updated: 2026-06-14 | Current version: v1.17.0-rc9
 
 ## Project Summary
 
@@ -25,6 +25,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Send `session.list`, `session.create`, `session.select`, `message.send`, and `turn.stop` commands.
 - Restore pending tool and patch approvals from the initial Mac snapshot, then send `tool.decide` or `patch.decide` back to the Mac.
 - Remove completed Mac tool approvals from the approval panel when `tool.updated` reports a non-pending state.
+- Remove completed Mac patch proposals from the approval panel when `patch.upsert` reports a non-pending state.
 - Answer Mac-side `ask_user` prompts from the Android approval panel.
 - Request and view pending patch diffs before approving or rejecting them.
 - Display Mac background jobs and kill running jobs through the gateway.

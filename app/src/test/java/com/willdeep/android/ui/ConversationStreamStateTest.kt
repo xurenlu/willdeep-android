@@ -1,6 +1,8 @@
 package com.willdeep.android.ui
 
 import com.willdeep.android.mobile.GatewayMessage
+import com.willdeep.android.mobile.PatchDiff
+import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PendingToolApproval
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -105,5 +107,48 @@ class ConversationStreamStateTest {
 
         assertEquals(listOf("tool_1"), updated.pendingTools.map { it.id })
         assertEquals(mapOf("tool_1" to ""), updated.toolAnswers)
+    }
+
+    @Test
+    fun patchUpdatedRemovalClearsProposalAndDiff() {
+        val state = MobileGatewayUiState(
+            patchProposals = listOf(
+                PatchProposal(
+                    id = "patch_1",
+                    title = "Patch one",
+                    summary = "First patch",
+                    path = "README.md",
+                    stats = "+1 -0",
+                    sessionId = "s1",
+                ),
+                PatchProposal(
+                    id = "patch_2",
+                    title = "Patch two",
+                    summary = "Second patch",
+                    path = "app.kt",
+                    stats = "+2 -1",
+                    sessionId = "s1",
+                ),
+            ),
+            patchDiffs = mapOf(
+                "patch_1" to PatchDiff(
+                    patchId = "patch_1",
+                    title = "Patch one",
+                    diff = "diff --git a/README.md b/README.md",
+                    sessionId = "s1",
+                ),
+                "patch_2" to PatchDiff(
+                    patchId = "patch_2",
+                    title = "Patch two",
+                    diff = "diff --git a/app.kt b/app.kt",
+                    sessionId = "s1",
+                ),
+            ),
+        )
+
+        val updated = state.removePatchProposal("patch_1")
+
+        assertEquals(listOf("patch_2"), updated.patchProposals.map { it.id })
+        assertEquals(setOf("patch_2"), updated.patchDiffs.keys)
     }
 }

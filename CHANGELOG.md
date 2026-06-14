@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.17.0-rc9] - 2026-06-14
+
+### Fixed
+
+- Treated completed `patch.upsert` gateway events as patch removals so applied or rejected patches do not linger in the Android approval panel.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc9`.
+
+### Tests
+
+- Added model and UI-state coverage for pending and completed `patch.upsert` events.
+- Verified targeted coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayModelsTest --tests com.willdeep.android.ui.ConversationStreamStateTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.17.0-rc8] - 2026-06-14
 
 ### Fixed

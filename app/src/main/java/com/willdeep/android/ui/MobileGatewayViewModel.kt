@@ -890,6 +890,11 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     )
                 }
             }
+            is GatewayEvent.PatchUpdated -> {
+                _state.update {
+                    it.removePatchProposal(event.id)
+                }
+            }
             is GatewayEvent.PatchDiffLoaded -> {
                 _state.update {
                     it.copy(
@@ -1126,6 +1131,13 @@ internal fun MobileGatewayUiState.removeToolApproval(approvalId: String): Mobile
     return copy(
         pendingTools = pendingTools.filterNot { item -> item.id == approvalId },
         toolAnswers = toolAnswers - approvalId,
+    )
+}
+
+internal fun MobileGatewayUiState.removePatchProposal(patchId: String): MobileGatewayUiState {
+    return copy(
+        patchProposals = patchProposals.filterNot { item -> item.id == patchId },
+        patchDiffs = patchDiffs - patchId,
     )
 }
 

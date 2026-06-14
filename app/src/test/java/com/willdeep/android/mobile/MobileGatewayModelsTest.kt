@@ -401,6 +401,52 @@ class MobileGatewayModelsTest {
     }
 
     @Test
+    fun patchUpsertWithPendingStatusKeepsProposalPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "patch.upsert",
+              "session_id": "s1",
+              "payload": {
+                "patch_id": "patch_1",
+                "status": "pending_review",
+                "title": "Update Android gateway client",
+                "path": "app/src/main/java/MainActivity.kt"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.PatchUpsert)
+        val proposal = event as GatewayEvent.PatchUpsert
+        assertEquals("patch_1", proposal.proposal.id)
+        assertEquals("Update Android gateway client", proposal.proposal.title)
+    }
+
+    @Test
+    fun patchUpsertWithCompletedStatusRemovesProposalPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "patch.upsert",
+              "session_id": "s1",
+              "payload": {
+                "patch_id": "patch_1",
+                "status": "applied",
+                "title": "Update Android gateway client"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.PatchUpdated)
+        val updated = event as GatewayEvent.PatchUpdated
+        assertEquals("patch_1", updated.id)
+        assertEquals("applied", updated.status)
+        assertEquals("s1", updated.sessionId)
+    }
+
+    @Test
     fun diffGetAckParsesPatchDiffPayload() {
         val event = parseGatewayEvent(
             """

@@ -180,6 +180,7 @@ sealed interface GatewayEvent {
     data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
     data class ToolUpdated(val id: String, val status: String, val sessionId: String?) : GatewayEvent
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
+    data class PatchUpdated(val id: String, val status: String, val sessionId: String?) : GatewayEvent
     data class PatchDiffLoaded(val commandId: String?, val diff: PatchDiff) : GatewayEvent
     data class JobUpdated(val job: GatewayJob) : GatewayEvent
     data class FileLoaded(val commandId: String?, val file: GatewayFile) : GatewayEvent
@@ -240,7 +241,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         "worktree.updated" -> GatewayEvent.WorktreeUpdated(payload.toWorktree(sessionId))
         "tool.pending" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
         "tool.updated" -> payload.toToolUpdatedEvent(sessionId)
-        "patch.upsert" -> GatewayEvent.PatchUpsert(payload.toPatchProposal(sessionId))
+        "patch.upsert" -> payload.toPatchEvent(sessionId)
         "job.updated" -> GatewayEvent.JobUpdated(payload.toJob(sessionId))
         else -> GatewayEvent.Raw(type)
     }
@@ -394,6 +395,18 @@ private fun JSONObject.toPatchProposal(sessionId: String?): PatchProposal {
     )
 }
 
+private fun JSONObject.toPatchEvent(sessionId: String?): GatewayEvent {
+    val status = firstString("status", "state", "decision").lowercase()
+    if (status.isBlank() || status in PENDING_PATCH_STATUSES) {
+        return GatewayEvent.PatchUpsert(toPatchProposal(sessionId))
+    }
+    return GatewayEvent.PatchUpdated(
+        id = firstString("id", "patch_id").ifBlank { firstString("path", "file", "file_path") },
+        status = status,
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
 private fun JSONObject.toQueuedMessage(sessionId: String?): GatewayQueuedMessage {
     return GatewayQueuedMessage(
         id = firstString("id", "message_id", "queued_id"),
@@ -484,4 +497,11 @@ private val PENDING_TOOL_STATUSES = setOf(
     "awaiting_user_answer",
     "waiting",
     "needs_approval",
+)
+
+private val PENDING_PATCH_STATUSES = setOf(
+    "pending",
+    "pending_review",
+    "waiting",
+    "needs_review",
 )
