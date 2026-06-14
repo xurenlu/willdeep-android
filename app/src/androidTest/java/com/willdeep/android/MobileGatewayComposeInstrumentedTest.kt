@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.willdeep.android.mobile.DeviceTokenStore
+import com.willdeep.android.ui.MobileCommandState
 import com.willdeep.android.ui.ConnectionStatus
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.WillDeepApp
@@ -160,6 +161,7 @@ class MobileGatewayComposeInstrumentedTest {
         val deviceName = arguments.getString("mobileGatewayDeviceName")
             ?.takeIf { it.isNotBlank() }
             ?: "Android Live Smoke"
+        val liveMessage = arguments.getString("mobileGatewayLiveMessage").orEmpty()
         val desktopName = runCatching { JSONObject(payload).optString("desktop_name") }
             .getOrDefault("")
             .ifBlank { "Mac" }
@@ -201,6 +203,24 @@ class MobileGatewayComposeInstrumentedTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText(targetContext.getString(R.string.status_connected))
             .assertIsDisplayed()
+
+        if (liveMessage.isNotBlank()) {
+            composeRule.onNodeWithText(targetContext.getString(R.string.message_label))
+                .performScrollTo()
+                .performTextReplacement(liveMessage)
+            composeRule.onNodeWithText(targetContext.getString(R.string.send_button))
+                .performScrollTo()
+                .performClick()
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                viewModel.state.value.commandStatuses.any { command ->
+                    command.type == "message.send" && command.state != MobileCommandState.Pending
+                }
+            }
+            assertEquals(
+                MobileCommandState.Accepted,
+                viewModel.state.value.commandStatuses.last { it.type == "message.send" }.state,
+            )
+        }
     }
 }
 

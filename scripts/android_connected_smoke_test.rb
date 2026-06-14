@@ -14,6 +14,8 @@ APP_VERSION = File.read(File.join(ROOT_DIR, "app", "build.gradle.kts"))[/version
 REQUIRE_DEVICE = ENV["REQUIRE_ANDROID_DEVICE"] == "1"
 LIVE_PAIRING_PAYLOAD = ENV.fetch("MOBILE_GATEWAY_PAIRING_PAYLOAD", "")
 LIVE_DEVICE_NAME = ENV.fetch("MOBILE_GATEWAY_DEVICE_NAME", "Android Live Smoke")
+LIVE_MESSAGE = ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", "")
+SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD, LIVE_MESSAGE].reject(&:empty?)
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
 
@@ -55,9 +57,11 @@ class CommandRunner
   private
 
   def redact(text)
-    return text if LIVE_PAIRING_PAYLOAD.empty?
+    return text if SENSITIVE_REPORT_VALUES.empty?
 
-    text.gsub(LIVE_PAIRING_PAYLOAD, "<redacted>")
+    SENSITIVE_REPORT_VALUES.reduce(text) do |current, value|
+      current.gsub(value, "<redacted>")
+    end
   end
 end
 
@@ -88,6 +92,7 @@ def markdown_report(result)
   lines << "- Status: `#{result[:status]}`"
   lines << "- Devices: #{result[:devices].empty? ? "_none_" : result[:devices].map { |device| "`#{device[:serial]}` (#{device[:state]})" }.join(", ")}"
   lines << "- Live Mac payload: `#{result[:live_payload_provided] ? "provided" : "not provided"}`"
+  lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
   lines << ""
   lines << "## Steps"
   lines << ""
@@ -126,6 +131,10 @@ begin
         connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayDeviceName=#{LIVE_DEVICE_NAME}"
         redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=<redacted>"
         redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayDeviceName=#{LIVE_DEVICE_NAME}"
+        unless LIVE_MESSAGE.empty?
+          connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayLiveMessage=#{LIVE_MESSAGE}"
+          redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayLiveMessage=<redacted>"
+        end
       end
       runner.run(
         "run connected instrumented smoke",
@@ -147,6 +156,7 @@ result = {
   devices: devices || [],
   require_device: REQUIRE_DEVICE,
   live_payload_provided: !LIVE_PAIRING_PAYLOAD.empty?,
+  live_message_provided: !LIVE_MESSAGE.empty?,
   steps: runner.steps,
 }
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc11] - 2026-06-14
+
+### Added
+
+- Added optional live Mac gateway message dispatch verification through `MOBILE_GATEWAY_LIVE_MESSAGE`, allowing connected smoke tests to prove Android can send a real `message.send` request into WillDeep after pairing.
+
+### Changed
+
+- Redact both live pairing payloads and live smoke messages from connected smoke JSON/Markdown reports.
+- Bumped Android client version to `1.17.0-rc11`.
+
+### Tests
+
+- Extended the live gateway instrumentation path to wait for a non-pending `message.send` command result and require an accepted Mac acknowledgement when a live message is provided.
+
 ## [1.17.0-rc10] - 2026-06-14
 
 ### Added
