@@ -35,7 +35,13 @@ data class PairingPayload(
                 val json = JSONObject(raw.trim())
                 val baseUrl = json.optString("base_url").trim().trimEnd('/')
                 val pairingToken = json.optString("pairing_token").trim()
-                if (baseUrl.isBlank() || baseUrl.toHttpUrlOrNull() == null || pairingToken.isBlank()) {
+                val protocolVersion = json.optString("protocol_version").trim()
+                if (
+                    baseUrl.isBlank() ||
+                    baseUrl.toHttpUrlOrNull() == null ||
+                    pairingToken.isBlank() ||
+                    protocolVersion.isBlank()
+                ) {
                     throw InvalidPairingPayloadException()
                 }
                 val expiresAt = json.optString("expires_at")
@@ -45,7 +51,7 @@ data class PairingPayload(
                 return PairingPayload(
                     baseUrl = baseUrl,
                     pairingToken = pairingToken,
-                    protocolVersion = json.optString("protocol_version", MOBILE_GATEWAY_PROTOCOL_VERSION),
+                    protocolVersion = protocolVersion,
                     desktopName = json.optString("desktop_name", "WillDeep Mac"),
                     expiresAt = expiresAt,
                 )

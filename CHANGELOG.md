@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc28] - 2026-06-14
+
+### Changed
+
+- Rejected pairing payloads that omit `protocol_version` instead of defaulting them to the current protocol.
+- Bumped Android client version to `1.17.0-rc28`.
+
+### Tests
+
+- Added model coverage for missing pairing payload protocol versions.
+
 ## [1.17.0-rc27] - 2026-06-14
 
 ### Changed
