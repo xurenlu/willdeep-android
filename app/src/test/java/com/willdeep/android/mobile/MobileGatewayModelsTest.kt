@@ -131,6 +131,17 @@ class MobileGatewayModelsTest {
             }
             """.trimIndent()
         )
+        assertInvalidPairingPayload(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "not an instant"
+            }
+            """.trimIndent()
+        )
     }
 
     @Test

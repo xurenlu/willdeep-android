@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc27] - 2026-06-14
+
+### Changed
+
+- Rejected pairing payloads with malformed `expires_at` values locally before gateway health or claim requests.
+- Bumped Android client version to `1.17.0-rc27`.
+
+### Tests
+
+- Added model coverage for malformed pairing payload expiry timestamps.
+
 ## [1.17.0-rc26] - 2026-06-14
 
 ### Changed

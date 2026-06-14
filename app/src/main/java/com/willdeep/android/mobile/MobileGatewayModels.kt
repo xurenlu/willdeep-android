@@ -21,9 +21,7 @@ data class PairingPayload(
     val expiresAt: String,
 ) {
     fun isExpired(now: Instant = Instant.now()): Boolean {
-        val expiry = runCatching {
-            expiresAt.takeIf { it.isNotBlank() }?.let(Instant::parse)
-        }.getOrNull() ?: return false
+        val expiry = expiresAt.takeIf { it.isNotBlank() }?.let(Instant::parse) ?: return false
         return !expiry.isAfter(now)
     }
 
@@ -40,12 +38,16 @@ data class PairingPayload(
                 if (baseUrl.isBlank() || baseUrl.toHttpUrlOrNull() == null || pairingToken.isBlank()) {
                     throw InvalidPairingPayloadException()
                 }
+                val expiresAt = json.optString("expires_at")
+                if (expiresAt.isNotBlank()) {
+                    Instant.parse(expiresAt)
+                }
                 return PairingPayload(
                     baseUrl = baseUrl,
                     pairingToken = pairingToken,
                     protocolVersion = json.optString("protocol_version", MOBILE_GATEWAY_PROTOCOL_VERSION),
                     desktopName = json.optString("desktop_name", "WillDeep Mac"),
-                    expiresAt = json.optString("expires_at"),
+                    expiresAt = expiresAt,
                 )
             } catch (error: InvalidPairingPayloadException) {
                 throw error
