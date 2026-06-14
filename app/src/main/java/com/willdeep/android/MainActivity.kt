@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
             mimeType = intent?.type,
             extraText = intent?.getStringExtra(Intent.EXTRA_TEXT),
             extraSubject = intent?.getStringExtra(Intent.EXTRA_SUBJECT),
+            extraTitle = intent?.getCharSequenceExtra(Intent.EXTRA_TITLE)?.toString(),
             extraProcessText = intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString(),
         )
         if (text.isBlank()) return

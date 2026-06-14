@@ -9,6 +9,7 @@ object SharedMessageIntentParser {
         mimeType: String?,
         extraText: String? = null,
         extraSubject: String? = null,
+        extraTitle: String? = null,
         extraProcessText: String? = null,
     ): String {
         if (!mimeType.isTextMimeType()) return ""
@@ -16,7 +17,10 @@ object SharedMessageIntentParser {
             return extraProcessText?.trim().orEmpty()
         }
         if (action != ACTION_SEND) return ""
-        val subject = extraSubject?.trim().orEmpty()
+        val subject = extraSubject
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: extraTitle?.trim().orEmpty()
         val text = extraText?.trim().orEmpty()
         return when {
             subject.isBlank() -> text

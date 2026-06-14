@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc26] - 2026-06-14
+
+### Changed
+
+- Improved Android share import to use `EXTRA_TITLE` as a fallback title when `EXTRA_SUBJECT` is missing.
+- Bumped Android client version to `1.17.0-rc26`.
+
+### Tests
+
+- Added parser coverage for title fallback and subject-over-title precedence.
+
 ## [1.17.0-rc25] - 2026-06-14
 
 ### Changed

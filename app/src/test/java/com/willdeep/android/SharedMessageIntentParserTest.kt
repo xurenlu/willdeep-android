@@ -28,6 +28,31 @@ class SharedMessageIntentParserTest {
     }
 
     @Test
+    fun usesSharedTitleWhenSubjectIsMissing() {
+        val text = SharedMessageIntentParser.extractText(
+            action = "android.intent.action.SEND",
+            mimeType = "text/plain",
+            extraTitle = "Android crash report",
+            extraText = "https://example.test/crashes/7",
+        )
+
+        assertEquals("Android crash report\n\nhttps://example.test/crashes/7", text)
+    }
+
+    @Test
+    fun prefersSubjectOverSharedTitle() {
+        val text = SharedMessageIntentParser.extractText(
+            action = "android.intent.action.SEND",
+            mimeType = "text/plain",
+            extraSubject = "Issue subject",
+            extraTitle = "Chooser title",
+            extraText = "https://example.test/issues/9",
+        )
+
+        assertEquals("Issue subject\n\nhttps://example.test/issues/9", text)
+    }
+
+    @Test
     fun keepsSubjectWhenSharedTextIsMissing() {
         val text = SharedMessageIntentParser.extractText(
             action = "android.intent.action.SEND",

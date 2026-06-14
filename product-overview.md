@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.17.0-rc25
+> Last updated: 2026-06-14 | Current version: v1.17.0-rc26
 
 ## Project Summary
 
@@ -17,7 +17,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Store the long-lived device token securely on Android.
 - Connect to the Mac gateway over WebSocket.
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
-- Accept shared plain text from other Android apps, combining shared title and body/URL content before loading it into Ask WillDeep for forwarding to the Mac.
+- Accept shared plain text from other Android apps, combining shared subject/title and body/URL content before loading it into Ask WillDeep for forwarding to the Mac.
 - Import highlighted Android text actions directly into Ask WillDeep for forwarding selected requirements or code snippets to the Mac.
 - Automatically resume the Mac gateway connection on app start and foreground return for paired devices.
 - Reconnect temporary WebSocket disconnects with bounded backoff and require pairing again when the Mac rejects a revoked token.
