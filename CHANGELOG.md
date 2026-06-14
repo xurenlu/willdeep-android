@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc40] - 2026-06-14
+
+### Added
+
+- Added `scripts/mobile_gateway_live_acceptance.rb`, a one-command final acceptance wrapper that always enables strict live acceptance, requires Mac Agent activity, runs the connected smoke test, and writes JSON/Markdown summary reports.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc40`.
+
+### Tests
+
+- Verified the live acceptance wrapper fails intentionally without a connected Android device/live Mac payload and records actionable final acceptance failures.
+
 ## [1.17.0-rc39] - 2026-06-14
 
 ### Added
