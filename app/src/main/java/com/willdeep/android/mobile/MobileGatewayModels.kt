@@ -7,6 +7,11 @@ import java.util.UUID
 
 const val MOBILE_GATEWAY_PROTOCOL_VERSION = "mobile-gateway.v1"
 
+class InvalidPairingPayloadException(cause: Throwable? = null) : IllegalArgumentException(
+    "Invalid pairing payload",
+    cause,
+)
+
 data class PairingPayload(
     val baseUrl: String,
     val pairingToken: String,
@@ -27,14 +32,25 @@ data class PairingPayload(
 
     companion object {
         fun parse(raw: String): PairingPayload {
-            val json = JSONObject(raw.trim())
-            return PairingPayload(
-                baseUrl = json.getString("base_url").trimEnd('/'),
-                pairingToken = json.getString("pairing_token"),
-                protocolVersion = json.optString("protocol_version", MOBILE_GATEWAY_PROTOCOL_VERSION),
-                desktopName = json.optString("desktop_name", "WillDeep Mac"),
-                expiresAt = json.optString("expires_at"),
-            )
+            try {
+                val json = JSONObject(raw.trim())
+                val baseUrl = json.optString("base_url").trim().trimEnd('/')
+                val pairingToken = json.optString("pairing_token").trim()
+                if (baseUrl.isBlank() || pairingToken.isBlank()) {
+                    throw InvalidPairingPayloadException()
+                }
+                return PairingPayload(
+                    baseUrl = baseUrl,
+                    pairingToken = pairingToken,
+                    protocolVersion = json.optString("protocol_version", MOBILE_GATEWAY_PROTOCOL_VERSION),
+                    desktopName = json.optString("desktop_name", "WillDeep Mac"),
+                    expiresAt = json.optString("expires_at"),
+                )
+            } catch (error: InvalidPairingPayloadException) {
+                throw error
+            } catch (error: RuntimeException) {
+                throw InvalidPairingPayloadException(error)
+            }
         }
     }
 }

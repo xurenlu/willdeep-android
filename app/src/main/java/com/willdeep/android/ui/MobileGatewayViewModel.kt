@@ -16,6 +16,7 @@ import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorktree
 import com.willdeep.android.mobile.GatewayWorktreeFile
+import com.willdeep.android.mobile.InvalidPairingPayloadException
 import com.willdeep.android.mobile.MOBILE_GATEWAY_PROTOCOL_VERSION
 import com.willdeep.android.mobile.MobileGatewayClient
 import com.willdeep.android.mobile.PatchDiff
@@ -171,7 +172,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             runCatching {
                 _state.update { it.copy(status = ConnectionStatus.Pairing, errorMessage = null) }
-                val payload = PairingPayload.parse(current.pairingPayloadText)
+                val payload = parsePairingPayload(current.pairingPayloadText)
                 ensurePairingPayloadUsable(payload)
                 val health = client.checkHealth(payload.baseUrl)
                 updateGatewayHealth(payload, health)
@@ -214,7 +215,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update { it.copy(isCheckingGateway = true, errorMessage = null) }
                 state.value.pairingPayloadText
                     .takeIf { it.isNotBlank() }
-                    ?.let { ensurePairingPayloadUsable(PairingPayload.parse(it)) }
+                    ?.let { ensurePairingPayloadUsable(parsePairingPayload(it)) }
                 val target = resolveGatewayHealthTarget(state.value)
                     ?: throw IllegalStateException(
                         getApplication<Application>().getString(R.string.error_gateway_health_target_missing)
@@ -665,6 +666,16 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         if (payload.isExpired()) {
             throw IllegalStateException(
                 getApplication<Application>().getString(R.string.error_pairing_payload_expired)
+            )
+        }
+    }
+
+    private fun parsePairingPayload(raw: String): PairingPayload {
+        return try {
+            PairingPayload.parse(raw)
+        } catch (_: InvalidPairingPayloadException) {
+            throw IllegalStateException(
+                getApplication<Application>().getString(R.string.error_pairing_payload_invalid)
             )
         }
     }

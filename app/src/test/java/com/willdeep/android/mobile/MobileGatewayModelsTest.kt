@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Assert.fail
 import java.time.Instant
 
 class MobileGatewayModelsTest {
@@ -87,6 +88,29 @@ class MobileGatewayModelsTest {
 
         assertTrue(compatible.hasCompatibleProtocol())
         assertFalse(incompatible.hasCompatibleProtocol())
+    }
+
+    @Test
+    fun pairingPayloadRejectsInvalidQrContent() {
+        assertInvalidPairingPayload("not json")
+        assertInvalidPairingPayload(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac"
+            }
+            """.trimIndent()
+        )
+        assertInvalidPairingPayload(
+            """
+            {
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac"
+            }
+            """.trimIndent()
+        )
     }
 
     @Test
@@ -667,5 +691,13 @@ class MobileGatewayModelsTest {
         assertEquals("s1", json.getString("session_id"))
         assertEquals("send_now", json.getJSONObject("payload").getString("action"))
         assertEquals("queue_1", json.getJSONObject("payload").getString("message_id"))
+    }
+
+    private fun assertInvalidPairingPayload(raw: String) {
+        try {
+            PairingPayload.parse(raw)
+            fail("Expected InvalidPairingPayloadException")
+        } catch (_: InvalidPairingPayloadException) {
+        }
     }
 }

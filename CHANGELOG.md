@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc19] - 2026-06-14
+
+### Added
+
+- Added a stable invalid pairing payload error path for malformed QR content and missing required pairing fields.
+
+### Changed
+
+- Localized invalid pairing payload feedback in English and Simplified Chinese instead of surfacing low-level JSON parsing errors.
+- Bumped Android client version to `1.17.0-rc19`.
+
+### Tests
+
+- Added model coverage for malformed pairing payload JSON and missing `base_url` or `pairing_token`.
+
 ## [1.17.0-rc18] - 2026-06-14
 
 ### Added
