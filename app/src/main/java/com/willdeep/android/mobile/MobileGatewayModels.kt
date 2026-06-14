@@ -178,6 +178,7 @@ sealed interface GatewayEvent {
     data class MessageDone(val sessionId: String?, val messageId: String?) : GatewayEvent
     data class WorktreeUpdated(val worktree: GatewayWorktree) : GatewayEvent
     data class ToolPending(val approval: PendingToolApproval) : GatewayEvent
+    data class ToolUpdated(val id: String, val status: String, val sessionId: String?) : GatewayEvent
     data class PatchUpsert(val proposal: PatchProposal) : GatewayEvent
     data class PatchDiffLoaded(val commandId: String?, val diff: PatchDiff) : GatewayEvent
     data class JobUpdated(val job: GatewayJob) : GatewayEvent
@@ -238,7 +239,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         )
         "worktree.updated" -> GatewayEvent.WorktreeUpdated(payload.toWorktree(sessionId))
         "tool.pending" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
-        "tool.updated" -> GatewayEvent.ToolPending(payload.toPendingToolApproval(sessionId))
+        "tool.updated" -> payload.toToolUpdatedEvent(sessionId)
         "patch.upsert" -> GatewayEvent.PatchUpsert(payload.toPatchProposal(sessionId))
         "job.updated" -> GatewayEvent.JobUpdated(payload.toJob(sessionId))
         else -> GatewayEvent.Raw(type)
@@ -369,6 +370,18 @@ private fun JSONObject.toPendingToolApproval(sessionId: String?): PendingToolApp
     )
 }
 
+private fun JSONObject.toToolUpdatedEvent(sessionId: String?): GatewayEvent {
+    val status = firstString("status", "state", "decision").lowercase()
+    if (status in PENDING_TOOL_STATUSES) {
+        return GatewayEvent.ToolPending(toPendingToolApproval(sessionId))
+    }
+    return GatewayEvent.ToolUpdated(
+        id = firstString("id", "approval_id", "tool_call_id").ifBlank { firstString("tool_name", "tool", "name") },
+        status = status,
+        sessionId = firstString("session_id").ifBlank { sessionId },
+    )
+}
+
 private fun JSONObject.toPatchProposal(sessionId: String?): PatchProposal {
     val path = firstString("path", "file", "file_path")
     return PatchProposal(
@@ -463,3 +476,12 @@ private fun JSONObject.firstString(vararg keys: String): String {
 private fun String.limitPreview(maxLength: Int = 300): String {
     return if (length <= maxLength) this else take(maxLength).trimEnd() + "..."
 }
+
+private val PENDING_TOOL_STATUSES = setOf(
+    "pending",
+    "pending_approval",
+    "awaiting_confirm",
+    "awaiting_user_answer",
+    "waiting",
+    "needs_approval",
+)

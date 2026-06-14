@@ -877,6 +877,11 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     )
                 }
             }
+            is GatewayEvent.ToolUpdated -> {
+                _state.update {
+                    it.removeToolApproval(event.id)
+                }
+            }
             is GatewayEvent.PatchUpsert -> {
                 _state.update {
                     it.copy(
@@ -1115,6 +1120,13 @@ internal fun Map<String, String>.keepAnswersFor(approvals: List<PendingToolAppro
     return approvals
         .filter { it.requiresAnswer }
         .associate { approval -> approval.id to this[approval.id].orEmpty() }
+}
+
+internal fun MobileGatewayUiState.removeToolApproval(approvalId: String): MobileGatewayUiState {
+    return copy(
+        pendingTools = pendingTools.filterNot { item -> item.id == approvalId },
+        toolAnswers = toolAnswers - approvalId,
+    )
 }
 
 private fun List<GatewayWorktree>.forSession(sessionId: String?): GatewayWorktree? {

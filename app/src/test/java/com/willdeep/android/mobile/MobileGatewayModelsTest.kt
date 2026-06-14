@@ -327,6 +327,53 @@ class MobileGatewayModelsTest {
     }
 
     @Test
+    fun toolUpdatedWithPendingStatusKeepsApprovalPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "tool.updated",
+              "session_id": "s1",
+              "payload": {
+                "id": "tool_1",
+                "status": "pending_approval",
+                "tool_name": "shell",
+                "summary": "Run tests",
+                "command": "go test ./..."
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.ToolPending)
+        val pending = event as GatewayEvent.ToolPending
+        assertEquals("tool_1", pending.approval.id)
+        assertEquals("shell", pending.approval.toolName)
+    }
+
+    @Test
+    fun toolUpdatedWithCompletedStatusRemovesApprovalPayload() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "tool.updated",
+              "session_id": "s1",
+              "payload": {
+                "approval_id": "tool_1",
+                "status": "approved",
+                "tool_name": "shell"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.ToolUpdated)
+        val updated = event as GatewayEvent.ToolUpdated
+        assertEquals("tool_1", updated.id)
+        assertEquals("approved", updated.status)
+        assertEquals("s1", updated.sessionId)
+    }
+
+    @Test
     fun patchUpsertParsesProposalPayload() {
         val event = parseGatewayEvent(
             """

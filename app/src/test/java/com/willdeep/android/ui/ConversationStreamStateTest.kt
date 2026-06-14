@@ -71,4 +71,39 @@ class ConversationStreamStateTest {
 
         assertEquals(mapOf("ask_1" to "Use main"), kept)
     }
+
+    @Test
+    fun toolUpdatedRemovalClearsPendingApprovalAndAnswerDraft() {
+        val state = MobileGatewayUiState(
+            pendingTools = listOf(
+                PendingToolApproval(
+                    id = "tool_1",
+                    title = "Shell",
+                    summary = "Run tests",
+                    toolName = "shell",
+                    inputPreview = "./gradlew test",
+                    requiresAnswer = false,
+                    sessionId = "s1",
+                ),
+                PendingToolApproval(
+                    id = "ask_1",
+                    title = "Question",
+                    summary = "Which branch?",
+                    toolName = "ask_user",
+                    inputPreview = "",
+                    requiresAnswer = true,
+                    sessionId = "s1",
+                ),
+            ),
+            toolAnswers = mapOf(
+                "tool_1" to "",
+                "ask_1" to "Use main",
+            ),
+        )
+
+        val updated = state.removeToolApproval("ask_1")
+
+        assertEquals(listOf("tool_1"), updated.pendingTools.map { it.id })
+        assertEquals(mapOf("tool_1" to ""), updated.toolAnswers)
+    }
 }

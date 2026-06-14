@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.17.0-rc8] - 2026-06-14
+
+### Fixed
+
+- Treated completed `tool.updated` gateway events as approval removals so approved or rejected tools do not linger in the Android approval panel.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc8`.
+
+### Tests
+
+- Added model and UI-state coverage for pending and completed `tool.updated` events.
+- Verified targeted coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayModelsTest --tests com.willdeep.android.ui.ConversationStreamStateTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.17.0-rc7] - 2026-06-14
 
 ### Added

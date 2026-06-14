@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc7 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc8 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc7:
+Implemented through v1.17.0-rc8:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -42,6 +42,7 @@ Implemented through v1.17.0-rc7:
 - WebSocket connection with `X-App-Version` populated from `BuildConfig.VERSION_NAME`.
 - Session list refresh, session creation, session selection, message send, and turn stop commands.
 - Tool and patch approval panels for `tool.pending`, `patch.upsert`, and initial `state.snapshot` pending approval restoration.
+- Completed `tool.updated` events remove matching Android approval cards and answer drafts.
 - Approval decisions sent as `tool.decide` and `patch.decide`.
 - Answer-required `ask_user` approvals with Compose input and `tool.decide` `answer` payloads.
 - Patch approval cards can request `diff.get` and display the returned unified diff before decision.
@@ -135,7 +136,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc7:
+Gateway events parsed by Android v1.17.0-rc8:
 
 - `state.snapshot`
 - `session.upsert`
@@ -154,6 +155,8 @@ Gateway events parsed by Android v1.17.0-rc7:
 - `command.error`
 
 `ack`, `error`, and `command.error` envelope IDs are used to update Recent Commands when present. The integration mock now matches the Mac Go gateway behavior by returning `error` for unknown commands with the originating command ID. If the Mac gateway omits the ID, Android falls back to the pending command type or latest pending command.
+
+`tool.updated` with a pending or awaiting status refreshes the approval card; other statuses remove the matching approval and any draft answer.
 
 `state.snapshot` may include `queued_messages` with `id`, `text_preview`, `image_count`, `text_attachment_count`, and `session_id`.
 `state.snapshot` may include `messages` with `id`, `role`, `content`, `created_at`, and `session_id`.
@@ -195,4 +198,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - `ruby scripts/android_connected_smoke_test.rb` writes a connected-device JSON/Markdown report and records `skipped` when no Android device is attached; set `REQUIRE_ANDROID_DEVICE=1` to fail on missing devices.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc7` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc8` is visible in Gradle metadata and sent through gateway request headers.
