@@ -14,6 +14,7 @@ import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorktree
+import com.willdeep.android.mobile.GatewayWorktreeFile
 import com.willdeep.android.mobile.MobileGatewayClient
 import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
@@ -483,15 +484,26 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun requestFileRead() {
         val current = state.value
-        val path = current.filePathText.trim()
+        sendFileRead(current.filePathText, current.selectedSessionId)
+    }
+
+    fun requestWorktreeFileRead(file: GatewayWorktreeFile, sessionId: String?) {
+        val path = file.path.trim()
         if (path.isEmpty()) return
+        _state.update { it.copy(filePathText = path) }
+        sendFileRead(path, sessionId ?: state.value.selectedSessionId)
+    }
+
+    private fun sendFileRead(pathText: String, sessionId: String?): Boolean {
+        val path = pathText.trim()
+        if (path.isEmpty()) return false
         val payload = JSONObject()
             .put("path", path)
             .put("max_bytes", 65536)
-        send(
+        return send(
             GatewayEnvelope(
                 type = "file.read",
-                sessionId = current.selectedSessionId,
+                sessionId = sessionId,
                 payload = payload,
             )
         )

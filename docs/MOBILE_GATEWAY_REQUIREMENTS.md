@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.13.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.14.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.13.0-rc1:
+Implemented through v1.14.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -48,6 +48,7 @@ Implemented through v1.13.0-rc1:
 - Conversation panel parses recent `messages` from `state.snapshot` and follows `message.append`, `message.delta`, and `message.done`.
 - Streaming assistant deltas show an in-progress Mac output indicator until `message.done` arrives.
 - Changed Files panel parses `worktree_changes` from `state.snapshot` and follows `worktree.updated` for Mac-side file changes.
+- Changed Files rows can request `file.read` for the selected Mac-side changed path without manually copying it into the Files panel.
 - Temporary WebSocket disconnects retry with bounded backoff, while 401/403 gateway rejection clears the stored token and requires pairing again.
 - A paired device automatically reconnects when the app starts or returns to the foreground, while a manual Disconnect intentionally pauses auto-resume.
 - Failed WebSocket sends preserve composer text, pending approvals, patch proposals, queued messages, and job controls so the user can retry after reconnect.
@@ -125,7 +126,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.13.0-rc1:
+Gateway events parsed by Android v1.14.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -167,10 +168,11 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - A pending `ask_user` approval requires an Android answer before approve and sends that answer in `tool.decide`.
 - Running background jobs can be killed from Android through `job.kill` without direct process access.
 - Text files can be read from the selected Mac session workspace through `file.read`.
+- Changed files can be opened through `file.read` directly from the Android Changed Files panel.
 - Queued Mac requests can be displayed and controlled through `queue.update`.
 - Recent Mac conversation messages are visible in the Android Conversation panel.
 - Mac-side changed files are visible in the Android Changed Files panel.
 - Temporary disconnects retry automatically, and revoked tokens do not loop reconnect attempts forever.
 - Paired devices reconnect automatically on app start and foreground resume unless the user manually disconnected.
 - Failed sends do not discard user-entered task text or remove still-pending action cards.
-- Version `1.13.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.14.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

@@ -36,6 +36,7 @@
     <string name="remove_queue_button">移除</string>
     <string name="clear_queue_button">清空</string>
     <string name="read_file_button">读取文件</string>
+    <string name="read_changed_file_button">读取</string>
     <string name="file_path_label">工作区路径</string>
     <string name="file_path_placeholder">README.md</string>
     <string name="message_label">消息</string>

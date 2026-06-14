@@ -139,7 +139,10 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                 ConversationCard(state)
             }
             item {
-                WorktreeCard(state)
+                WorktreeCard(
+                    state = state,
+                    onReadFile = viewModel::requestWorktreeFileRead,
+                )
             }
             item {
                 FilesCard(
@@ -486,7 +489,10 @@ private fun ConversationMessageRow(message: GatewayMessage) {
 }
 
 @Composable
-private fun WorktreeCard(state: MobileGatewayUiState) {
+private fun WorktreeCard(
+    state: MobileGatewayUiState,
+    onReadFile: (GatewayWorktreeFile, String?) -> Unit,
+) {
     val worktree = state.worktree ?: return
     if (worktree.fileCount == 0 && worktree.files.isEmpty()) {
         return
@@ -500,7 +506,11 @@ private fun WorktreeCard(state: MobileGatewayUiState) {
             SectionTitle(stringResource(R.string.section_worktree))
             WorktreeSummary(worktree)
             worktree.files.take(8).forEach { file ->
-                WorktreeFileRow(file)
+                WorktreeFileRow(
+                    file = file,
+                    isConnected = state.status == ConnectionStatus.Connected,
+                    onReadFile = { onReadFile(file, worktree.sessionId ?: state.selectedSessionId) },
+                )
             }
         }
     }
@@ -534,7 +544,11 @@ private fun WorktreeSummary(worktree: GatewayWorktree) {
 }
 
 @Composable
-private fun WorktreeFileRow(file: GatewayWorktreeFile) {
+private fun WorktreeFileRow(
+    file: GatewayWorktreeFile,
+    isConnected: Boolean,
+    onReadFile: () -> Unit,
+) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.small,
@@ -558,6 +572,12 @@ private fun WorktreeFileRow(file: GatewayWorktreeFile) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
+            }
+            TextButton(
+                onClick = onReadFile,
+                enabled = isConnected && file.path.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.read_changed_file_button))
             }
         }
     }
