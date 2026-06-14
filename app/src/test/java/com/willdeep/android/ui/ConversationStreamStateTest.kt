@@ -75,7 +75,42 @@ class ConversationStreamStateTest {
     }
 
     @Test
-    fun toolUpdatedRemovalClearsPendingApprovalAndAnswerDraft() {
+    fun snapshotKeepsOnlyConfirmationDraftsForDangerApprovals() {
+        val confirmations = mapOf(
+            "danger_1" to "confirm",
+            "danger_removed" to "confirm",
+            "tool_1" to "nope",
+        )
+        val approvals = listOf(
+            PendingToolApproval(
+                id = "danger_1",
+                title = "Shell",
+                summary = "Danger command",
+                toolName = "shell",
+                inputPreview = "rm -rf /tmp/example",
+                requiresAnswer = false,
+                requiresConfirmation = true,
+                sessionId = "s1",
+            ),
+            PendingToolApproval(
+                id = "tool_1",
+                title = "Shell",
+                summary = "Run tests",
+                toolName = "shell",
+                inputPreview = "./gradlew test",
+                requiresAnswer = false,
+                requiresConfirmation = false,
+                sessionId = "s1",
+            ),
+        )
+
+        val kept = confirmations.keepConfirmationsFor(approvals)
+
+        assertEquals(mapOf("danger_1" to "confirm"), kept)
+    }
+
+    @Test
+    fun toolUpdatedRemovalClearsPendingApprovalAnswerAndConfirmationDraft() {
         val state = MobileGatewayUiState(
             pendingTools = listOf(
                 PendingToolApproval(
@@ -85,6 +120,7 @@ class ConversationStreamStateTest {
                     toolName = "shell",
                     inputPreview = "./gradlew test",
                     requiresAnswer = false,
+                    requiresConfirmation = true,
                     sessionId = "s1",
                 ),
                 PendingToolApproval(
@@ -101,12 +137,17 @@ class ConversationStreamStateTest {
                 "tool_1" to "",
                 "ask_1" to "Use main",
             ),
+            toolConfirmations = mapOf(
+                "tool_1" to "confirm",
+                "ask_1" to "confirm",
+            ),
         )
 
         val updated = state.removeToolApproval("ask_1")
 
         assertEquals(listOf("tool_1"), updated.pendingTools.map { it.id })
         assertEquals(mapOf("tool_1" to ""), updated.toolAnswers)
+        assertEquals(mapOf("tool_1" to "confirm"), updated.toolConfirmations)
     }
 
     @Test

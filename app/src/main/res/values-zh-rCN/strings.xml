@@ -71,6 +71,7 @@
     <string name="error_device_revoked">此设备 token 已被拒绝。请重新与 Mac 配对。</string>
     <string name="error_reconnect_exhausted">无法重新连接。请确认 Mac 上的 Mobile Gateway 仍已启用。</string>
     <string name="error_answer_required">批准此请求前需要先输入回答。</string>
+    <string name="error_confirmation_required">批准这个危险级工具前，需要输入 confirm。</string>
     <string name="error_gateway_protocol_mismatch">Gateway 协议不匹配：%1$s。</string>
     <string name="error_gateway_pairing_not_allowed">Mac Mobile Gateway 当前不允许配对。</string>
     <string name="error_gateway_health_target_missing">请先粘贴配对 payload，或先与 Mac 配对后再检查 Gateway 健康状态。</string>
@@ -101,6 +102,9 @@
     <string name="approval_preview">预览：%1$s</string>
     <string name="tool_answer_label">回答</string>
     <string name="tool_answer_placeholder">输入要发回 Mac 的回答</string>
+    <string name="tool_confirmation_hint">此工具需要输入确认词，Mac 才能继续执行。</string>
+    <string name="tool_confirmation_label">确认词</string>
+    <string name="tool_confirmation_placeholder">输入 confirm</string>
     <string name="patch_proposal_title">补丁：%1$s</string>
     <string name="patch_stats">变更：%1$s</string>
     <string name="tool_decision_log">工具决策：%1$s</string>

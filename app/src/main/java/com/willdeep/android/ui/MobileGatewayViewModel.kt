@@ -83,6 +83,7 @@ data class MobileGatewayUiState(
     val messageText: String = "",
     val pendingTools: List<PendingToolApproval> = emptyList(),
     val toolAnswers: Map<String, String> = emptyMap(),
+    val toolConfirmations: Map<String, String> = emptyMap(),
     val patchProposals: List<PatchProposal> = emptyList(),
     val patchDiffs: Map<String, PatchDiff> = emptyMap(),
     val jobs: List<GatewayJob> = emptyList(),
@@ -185,6 +186,12 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     fun updateToolAnswer(approvalId: String, value: String) {
         _state.update {
             it.copy(toolAnswers = it.toolAnswers + (approvalId to value))
+        }
+    }
+
+    fun updateToolConfirmation(approvalId: String, value: String) {
+        _state.update {
+            it.copy(toolConfirmations = it.toolConfirmations + (approvalId to value))
         }
     }
 
@@ -521,6 +528,16 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             }
             payload.put("answer", answer)
         }
+        val confirmation = state.value.toolConfirmations[approval.id].orEmpty().trim()
+        if (approved && approval.requiresConfirmation) {
+            if (!confirmation.equals("confirm", ignoreCase = true)) {
+                _state.update {
+                    it.copy(errorMessage = getApplication<Application>().getString(R.string.error_confirmation_required))
+                }
+                return
+            }
+            payload.put("typed_confirmation", confirmation.lowercase())
+        }
         val sent = send(
             GatewayEnvelope(
                 type = "tool.decide",
@@ -533,6 +550,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             it.copy(
                 pendingTools = it.pendingTools.filterNot { item -> item.id == approval.id },
                 toolAnswers = it.toolAnswers - approval.id,
+                toolConfirmations = it.toolConfirmations - approval.id,
                 logLines = it.logLines.append(
                     GatewayLogLine(
                         "mobile",
@@ -817,6 +835,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         selectedSessionId = event.activeSessionId ?: it.selectedSessionId ?: event.sessions.firstOrNull()?.id,
                         pendingTools = event.pendingTools,
                         toolAnswers = it.toolAnswers.keepAnswersFor(event.pendingTools),
+                        toolConfirmations = it.toolConfirmations.keepConfirmationsFor(event.pendingTools),
                         patchProposals = event.patchProposals,
                         patchDiffs = it.patchDiffs.filterKeys { patchId ->
                             event.patchProposals.any { proposal -> proposal.id == patchId }
@@ -924,6 +943,11 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                             it.toolAnswers + (event.approval.id to it.toolAnswers[event.approval.id].orEmpty())
                         } else {
                             it.toolAnswers - event.approval.id
+                        },
+                        toolConfirmations = if (event.approval.requiresConfirmation) {
+                            it.toolConfirmations + (event.approval.id to it.toolConfirmations[event.approval.id].orEmpty())
+                        } else {
+                            it.toolConfirmations - event.approval.id
                         },
                         logLines = it.logLines.append(GatewayLogLine("mac", event.approval.title)),
                     )
@@ -1179,10 +1203,17 @@ internal fun Map<String, String>.keepAnswersFor(approvals: List<PendingToolAppro
         .associate { approval -> approval.id to this[approval.id].orEmpty() }
 }
 
+internal fun Map<String, String>.keepConfirmationsFor(approvals: List<PendingToolApproval>): Map<String, String> {
+    return approvals
+        .filter { it.requiresConfirmation }
+        .associate { approval -> approval.id to this[approval.id].orEmpty() }
+}
+
 internal fun MobileGatewayUiState.removeToolApproval(approvalId: String): MobileGatewayUiState {
     return copy(
         pendingTools = pendingTools.filterNot { item -> item.id == approvalId },
         toolAnswers = toolAnswers - approvalId,
+        toolConfirmations = toolConfirmations - approvalId,
     )
 }
 

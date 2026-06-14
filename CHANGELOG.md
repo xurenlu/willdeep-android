@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc42] - 2026-06-14
+
+### Added
+
+- Added Android support for Mac danger-tier tool approvals: `requires_confirmation` now shows a typed `confirm` field and sends `typed_confirmation` with `tool.decide`.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc42`.
+- Connected smoke now skips device instrumentation when no live pairing payload is available instead of running a guaranteed-failing connected test on attached devices.
+
+### Tests
+
+- Updated model/state tests, the connected smoke runner, and the Compose instrumentation smoke path to cover danger-tier typed confirmation before tool approval.
+
 ## [1.17.0-rc41] - 2026-06-14
 
 ### Added

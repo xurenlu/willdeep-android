@@ -696,13 +696,19 @@ begin
       runner.skip("run connectedDebugAndroidTest", "no connected Android device")
       error = "no connected Android device" if REQUIRE_DEVICE
     else
-      collect_device_network_diagnostics(runner, devices)
-      device_reachability_check_enabled = check_device_gateway_reachability(runner, devices, live_pairing_payload)
-      clear_live_smoke_logcat(runner, devices)
-      runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
-      connected_command = ["./gradlew", ":app:connectedDebugAndroidTest"]
-      redacted_connected_command = connected_command.dup
-      unless live_pairing_payload.empty?
+      if live_pairing_payload.empty?
+        runner.skip("collect device network diagnostics", "no live pairing payload")
+        runner.skip("check device gateway reachability", "no live pairing payload")
+        runner.skip("clear live smoke logcat", "no live pairing payload")
+        runner.skip("build instrumented test APK", "no live pairing payload")
+        runner.skip("run connected instrumented smoke", "no live pairing payload")
+      else
+        collect_device_network_diagnostics(runner, devices)
+        device_reachability_check_enabled = check_device_gateway_reachability(runner, devices, live_pairing_payload)
+        clear_live_smoke_logcat(runner, devices)
+        runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
+        connected_command = ["./gradlew", ":app:connectedDebugAndroidTest"]
+        redacted_connected_command = connected_command.dup
         connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=#{live_pairing_payload}"
         connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayDeviceName=#{LIVE_DEVICE_NAME}"
         redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=<redacted>"
@@ -717,13 +723,13 @@ begin
             redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayAgentActivityTimeoutMillis=#{AGENT_ACTIVITY_TIMEOUT_MS}"
           end
         end
+        runner.run(
+          "run connected instrumented smoke",
+          *connected_command,
+          redacted_command: redacted_connected_command.join(" "),
+        )
+        collect_live_smoke_logcat(runner, devices)
       end
-      runner.run(
-        "run connected instrumented smoke",
-        *connected_command,
-        redacted_command: redacted_connected_command.join(" "),
-      )
-      collect_live_smoke_logcat(runner, devices)
     end
   end
 rescue StandardError => e

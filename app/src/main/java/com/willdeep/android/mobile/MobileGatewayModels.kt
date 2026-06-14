@@ -101,6 +101,7 @@ data class PendingToolApproval(
     val toolName: String,
     val inputPreview: String,
     val requiresAnswer: Boolean,
+    val requiresConfirmation: Boolean = false,
     val sessionId: String?,
 )
 
@@ -396,6 +397,9 @@ private fun JSONObject.toPendingToolApproval(sessionId: String?): PendingToolApp
     val requiresAnswer = optBoolean("requires_answer", false) ||
         optString("kind").equals("ask_user", ignoreCase = true) ||
         toolName.equals("ask_user", ignoreCase = true)
+    val requiresConfirmation = optBoolean("requires_confirmation", false) ||
+        optBoolean("requires_confirm", false) ||
+        optString("status").equals("awaiting_confirm", ignoreCase = true)
     return PendingToolApproval(
         id = firstString("id", "approval_id", "tool_call_id").ifBlank { toolName },
         title = firstString("title").ifBlank { toolName },
@@ -405,6 +409,7 @@ private fun JSONObject.toPendingToolApproval(sessionId: String?): PendingToolApp
             optJSONObject("input")?.toString()?.limitPreview().orEmpty()
         },
         requiresAnswer = requiresAnswer,
+        requiresConfirmation = requiresConfirmation,
         sessionId = firstString("session_id").ifBlank { sessionId },
     )
 }

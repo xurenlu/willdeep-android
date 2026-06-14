@@ -422,7 +422,8 @@ class MobileGatewayModelsTest {
                 "approval_id": "tool_1",
                 "tool_name": "shell",
                 "summary": "Run tests",
-                "command": "go test ./..."
+                "command": "go test ./...",
+                "requires_confirmation": true
               }
             }
             """.trimIndent()
@@ -435,6 +436,7 @@ class MobileGatewayModelsTest {
         assertEquals("Run tests", pending.approval.summary)
         assertEquals("go test ./...", pending.approval.inputPreview)
         assertEquals(false, pending.approval.requiresAnswer)
+        assertEquals(true, pending.approval.requiresConfirmation)
         assertEquals("s1", pending.approval.sessionId)
     }
 
@@ -682,7 +684,8 @@ class MobileGatewayModelsTest {
                 .put("id", "tool_1")
                 .put("decision", "approve")
                 .put("approved", true)
-                .put("answer", "use main"),
+                .put("answer", "use main")
+                .put("typed_confirmation", "confirm"),
         )
 
         val json = JSONObject(envelope.toJsonString())
@@ -691,6 +694,7 @@ class MobileGatewayModelsTest {
         assertEquals("tool_1", json.getJSONObject("payload").getString("id"))
         assertTrue(json.getJSONObject("payload").getBoolean("approved"))
         assertEquals("use main", json.getJSONObject("payload").getString("answer"))
+        assertEquals("confirm", json.getJSONObject("payload").getString("typed_confirmation"))
     }
 
     @Test

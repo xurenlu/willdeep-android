@@ -181,6 +181,7 @@ fun WillDeepApp(
                     state = state,
                     onToolDecision = viewModel::decideTool,
                     onToolAnswerChange = viewModel::updateToolAnswer,
+                    onToolConfirmationChange = viewModel::updateToolConfirmation,
                     onPatchDiffRequest = viewModel::requestPatchDiff,
                     onPatchDecision = viewModel::decidePatch,
                 )
@@ -707,6 +708,7 @@ private fun ApprovalCard(
     state: MobileGatewayUiState,
     onToolDecision: (PendingToolApproval, Boolean) -> Unit,
     onToolAnswerChange: (String, String) -> Unit,
+    onToolConfirmationChange: (String, String) -> Unit,
     onPatchDiffRequest: (PatchProposal) -> Unit,
     onPatchDecision: (PatchProposal, Boolean) -> Unit,
 ) {
@@ -724,7 +726,9 @@ private fun ApprovalCard(
                 ToolApprovalRow(
                     approval = approval,
                     answer = state.toolAnswers[approval.id].orEmpty(),
+                    confirmation = state.toolConfirmations[approval.id].orEmpty(),
                     onAnswerChange = { onToolAnswerChange(approval.id, it) },
+                    onConfirmationChange = { onToolConfirmationChange(approval.id, it) },
                     onApprove = { onToolDecision(approval, true) },
                     onReject = { onToolDecision(approval, false) },
                 )
@@ -746,7 +750,9 @@ private fun ApprovalCard(
 private fun ToolApprovalRow(
     approval: PendingToolApproval,
     answer: String,
+    confirmation: String,
     onAnswerChange: (String) -> Unit,
+    onConfirmationChange: (String) -> Unit,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
@@ -784,8 +790,24 @@ private fun ToolApprovalRow(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            if (approval.requiresConfirmation) {
+                Text(
+                    text = stringResource(R.string.tool_confirmation_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedTextField(
+                    value = confirmation,
+                    onValueChange = onConfirmationChange,
+                    label = { Text(stringResource(R.string.tool_confirmation_label)) },
+                    placeholder = { Text(stringResource(R.string.tool_confirmation_placeholder)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             DecisionButtons(
-                approveEnabled = !approval.requiresAnswer || answer.isNotBlank(),
+                approveEnabled = (!approval.requiresAnswer || answer.isNotBlank()) &&
+                    (!approval.requiresConfirmation || confirmation.trim().equals("confirm", ignoreCase = true)),
                 onApprove = onApprove,
                 onReject = onReject,
             )

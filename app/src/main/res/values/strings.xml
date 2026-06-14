@@ -71,6 +71,7 @@
     <string name="error_device_revoked">This device token was rejected. Pair with the Mac again.</string>
     <string name="error_reconnect_exhausted">Could not reconnect. Check that Mobile Gateway is still enabled on the Mac.</string>
     <string name="error_answer_required">Enter an answer before approving this request.</string>
+    <string name="error_confirmation_required">Type confirm before approving this danger-tier tool.</string>
     <string name="error_gateway_protocol_mismatch">Gateway protocol mismatch: %1$s.</string>
     <string name="error_gateway_pairing_not_allowed">Mac Mobile Gateway is not allowing pairing right now.</string>
     <string name="error_gateway_health_target_missing">Paste a pairing payload or pair with a Mac before checking gateway health.</string>
@@ -101,6 +102,9 @@
     <string name="approval_preview">Preview: %1$s</string>
     <string name="tool_answer_label">Answer</string>
     <string name="tool_answer_placeholder">Type the answer to send back to the Mac</string>
+    <string name="tool_confirmation_hint">This tool needs typed confirmation before the Mac can run it.</string>
+    <string name="tool_confirmation_label">Confirmation</string>
+    <string name="tool_confirmation_placeholder">Type confirm</string>
     <string name="patch_proposal_title">Patch: %1$s</string>
     <string name="patch_stats">Changes: %1$s</string>
     <string name="tool_decision_log">Tool decision: %1$s</string>

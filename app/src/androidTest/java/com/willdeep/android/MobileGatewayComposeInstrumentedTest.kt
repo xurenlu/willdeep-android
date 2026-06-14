@@ -133,6 +133,9 @@ class MobileGatewayComposeInstrumentedTest {
         composeRule.onNodeWithText(targetContext.getString(R.string.tool_approval_title, gateway.toolApprovalTitle))
             .performScrollTo()
             .assertIsDisplayed()
+        composeRule.onNodeWithText(targetContext.getString(R.string.tool_confirmation_label))
+            .performScrollTo()
+            .performTextReplacement("confirm")
         composeRule.onNodeWithText(targetContext.getString(R.string.approve_button))
             .performScrollTo()
             .performClick()
@@ -467,7 +470,11 @@ private class InstrumentedGatewayMock : AutoCloseable {
                     socket.getOutputStream().flush()
                 }
                 "tool.decide" -> {
-                    if (command.optJSONObject("payload")?.optBoolean("approved") == true) {
+                    val payload = command.optJSONObject("payload")
+                    if (
+                        payload?.optBoolean("approved") == true &&
+                        payload.optString("typed_confirmation") == "confirm"
+                    ) {
                         approvedToolIds += command.optJSONObject("payload")?.optString("id").orEmpty()
                     }
                     writeWebSocketText(socket, ackEnvelope(command).toString())
@@ -579,7 +586,8 @@ private class InstrumentedGatewayMock : AutoCloseable {
                     .put("title", toolApprovalTitle)
                     .put("tool_name", "shell")
                     .put("summary", "Mac WillDeep wants to run tests before applying the change.")
-                    .put("command", "./gradlew :app:testDebugUnitTest"),
+                    .put("command", "./gradlew :app:testDebugUnitTest")
+                    .put("requires_confirmation", true),
             )
     }
 
