@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc10] - 2026-06-14
+
+### Added
+
+- Added an optional live Mac gateway instrumentation path that consumes a fresh pairing payload through `mobileGatewayPairingPayload` and verifies the Android UI reaches the connected state against the real LAN gateway.
+
+### Changed
+
+- Extended `scripts/android_connected_smoke_test.rb` to pass `MOBILE_GATEWAY_PAIRING_PAYLOAD` and `MOBILE_GATEWAY_DEVICE_NAME` into connected Android tests while redacting the payload from JSON and Markdown reports.
+- Bumped Android client version to `1.17.0-rc10`.
+
+### Tests
+
+- Added device-test coverage entry points for live Mac gateway pairing without requiring a live payload in default connected test runs.
+
 ## [1.17.0-rc9] - 2026-06-14
 
 ### Fixed

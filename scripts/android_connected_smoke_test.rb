@@ -12,6 +12,8 @@ REPORT_JSON = File.join(OUT_DIR, "report.json")
 REPORT_MD = File.join(OUT_DIR, "report.md")
 APP_VERSION = File.read(File.join(ROOT_DIR, "app", "build.gradle.kts"))[/versionName\s*=\s*"([^"]+)"/, 1]
 REQUIRE_DEVICE = ENV["REQUIRE_ANDROID_DEVICE"] == "1"
+LIVE_PAIRING_PAYLOAD = ENV.fetch("MOBILE_GATEWAY_PAIRING_PAYLOAD", "")
+LIVE_DEVICE_NAME = ENV.fetch("MOBILE_GATEWAY_DEVICE_NAME", "Android Live Smoke")
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
 
@@ -23,17 +25,17 @@ class CommandRunner
     @steps = []
   end
 
-  def run(name, *command, allow_failure: false)
+  def run(name, *command, allow_failure: false, redacted_command: nil)
     started = Time.now
     stdout, stderr, status = Open3.capture3(*command, chdir: @root_dir)
     step = {
       name: name,
-      command: command.join(" "),
+      command: redacted_command || command.join(" "),
       status: status.success? ? "passed" : "failed",
       exit_code: status.exitstatus,
       duration_ms: ((Time.now - started) * 1000).round,
-      stdout: stdout.strip,
-      stderr: stderr.strip,
+      stdout: redact(stdout.strip),
+      stderr: redact(stderr.strip),
     }
     @steps << step
     raise "#{name} failed with exit #{status.exitstatus}" if !status.success? && !allow_failure
@@ -48,6 +50,14 @@ class CommandRunner
       duration_ms: 0,
       reason: reason,
     }
+  end
+
+  private
+
+  def redact(text)
+    return text if LIVE_PAIRING_PAYLOAD.empty?
+
+    text.gsub(LIVE_PAIRING_PAYLOAD, "<redacted>")
   end
 end
 
@@ -77,6 +87,7 @@ def markdown_report(result)
   lines << "- Android version: `#{result[:app_version]}`"
   lines << "- Status: `#{result[:status]}`"
   lines << "- Devices: #{result[:devices].empty? ? "_none_" : result[:devices].map { |device| "`#{device[:serial]}` (#{device[:state]})" }.join(", ")}"
+  lines << "- Live Mac payload: `#{result[:live_payload_provided] ? "provided" : "not provided"}`"
   lines << ""
   lines << "## Steps"
   lines << ""
@@ -108,7 +119,19 @@ begin
       error = "no connected Android device" if REQUIRE_DEVICE
     else
       runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
-      runner.run("run connected instrumented smoke", "./gradlew", ":app:connectedDebugAndroidTest")
+      connected_command = ["./gradlew", ":app:connectedDebugAndroidTest"]
+      redacted_connected_command = connected_command.dup
+      unless LIVE_PAIRING_PAYLOAD.empty?
+        connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=#{LIVE_PAIRING_PAYLOAD}"
+        connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayDeviceName=#{LIVE_DEVICE_NAME}"
+        redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=<redacted>"
+        redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayDeviceName=#{LIVE_DEVICE_NAME}"
+      end
+      runner.run(
+        "run connected instrumented smoke",
+        *connected_command,
+        redacted_command: redacted_connected_command.join(" "),
+      )
     end
   end
 rescue StandardError => e
@@ -123,6 +146,7 @@ result = {
   error: error,
   devices: devices || [],
   require_device: REQUIRE_DEVICE,
+  live_payload_provided: !LIVE_PAIRING_PAYLOAD.empty?,
   steps: runner.steps,
 }
 

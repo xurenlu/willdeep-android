@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc9 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc10 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc9:
+Implemented through v1.17.0-rc10:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -62,8 +62,10 @@ Implemented through v1.17.0-rc9:
 - Localized user-visible UI strings in `res/values/strings.xml` and Simplified Chinese resources in `res/values-zh-rCN/strings.xml`.
 - Ruby mock integration script at `scripts/mobile_gateway_mock_integration.rb` that writes JSON and Markdown reports under `build/mobile_gateway_mock_integration/`.
 - Ruby connected-device smoke runner at `scripts/android_connected_smoke_test.rb` that detects attached Android devices, runs connected instrumentation when available, and writes JSON/Markdown reports under `build/android_connected_smoke/`.
+- The connected-device smoke runner accepts `MOBILE_GATEWAY_PAIRING_PAYLOAD` and `MOBILE_GATEWAY_DEVICE_NAME` to run an optional live Mac gateway instrumentation path; pairing payloads are redacted from generated reports.
 - JVM `MobileGatewayClientIntegrationTest` that verifies real client pairing and WebSocket behavior against a local mock gateway.
 - Android instrumented Compose smoke test that drives the pairing UI against an in-process mock gateway for `/mobile/health`, `/mobile/pair/claim`, `/mobile/ws`, initial `state.snapshot` display, `message.send`, streamed assistant text, `tool.pending`, `tool.decide`, `patch.upsert`, `diff.get`, and `patch.decide`.
+- Optional Android instrumented live smoke test that consumes a fresh Mac pairing payload through the `mobileGatewayPairingPayload` instrumentation argument, pairs with the real LAN gateway, and verifies the UI reaches the connected state.
 
 Planned next:
 
@@ -137,7 +139,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc9:
+Gateway events parsed by Android v1.17.0-rc10:
 
 - `state.snapshot`
 - `session.upsert`
@@ -199,6 +201,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Recent mobile command statuses are visible as pending, accepted, or failed after sending requests to the Mac gateway.
 - `ruby scripts/mobile_gateway_mock_integration.rb` verifies the mock pairing, WebSocket snapshot approval restore, streaming, changed-file read, and unknown-command paths and writes JSON/Markdown reports.
 - `ruby scripts/android_connected_smoke_test.rb` writes a connected-device JSON/Markdown report and records `skipped` when no Android device is attached; set `REQUIRE_ANDROID_DEVICE=1` to fail on missing devices.
+- `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path when an Android device is attached and the token is still valid.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc9` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc10` is visible in Gradle metadata and sent through gateway request headers.

@@ -10,14 +10,17 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.willdeep.android.mobile.DeviceTokenStore
+import com.willdeep.android.ui.ConnectionStatus
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.WillDeepApp
 import com.willdeep.android.ui.theme.WillDeepTheme
 import org.json.JSONObject
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assume.assumeTrue
 import org.junit.runner.RunWith
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -144,6 +147,60 @@ class MobileGatewayComposeInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.approvedPatchIds.contains(gateway.patchId)
         }
+    }
+
+    @Test
+    fun liveMacGatewayPairingPayloadConnectsAndDisplaysConnectedState() {
+        val arguments = InstrumentationRegistry.getArguments()
+        val payload = arguments.getString("mobileGatewayPairingPayload").orEmpty()
+        assumeTrue(
+            "Set mobileGatewayPairingPayload to run live Mac gateway smoke.",
+            payload.isNotBlank(),
+        )
+        val deviceName = arguments.getString("mobileGatewayDeviceName")
+            ?.takeIf { it.isNotBlank() }
+            ?: "Android Live Smoke"
+        val desktopName = runCatching { JSONObject(payload).optString("desktop_name") }
+            .getOrDefault("")
+            .ifBlank { "Mac" }
+        val viewModel = MobileGatewayViewModel(appContext)
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+
+        composeRule.setContent {
+            WillDeepTheme {
+                WillDeepApp(viewModel)
+            }
+        }
+
+        composeRule.onNodeWithText(targetContext.getString(R.string.screen_title))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetContext.getString(R.string.pairing_payload_label))
+            .performTextReplacement(payload)
+        composeRule.onNodeWithText(targetContext.getString(R.string.device_name_label))
+            .performTextReplacement(deviceName)
+
+        composeRule.onNodeWithText(targetContext.getString(R.string.check_gateway_button))
+            .performScrollTo()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            viewModel.state.value.pairingAllowed != null || viewModel.state.value.errorMessage != null
+        }
+        composeRule.onNodeWithText(targetContext.getString(R.string.gateway_pairing_allowed))
+            .assertIsDisplayed()
+
+        composeRule.onNodeWithText(targetContext.getString(R.string.pair_button))
+            .performScrollTo()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            viewModel.state.value.status == ConnectionStatus.Connected ||
+                viewModel.state.value.status == ConnectionStatus.Error
+        }
+
+        assertEquals(ConnectionStatus.Connected, viewModel.state.value.status)
+        composeRule.onNodeWithText(targetContext.getString(R.string.paired_to, desktopName))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetContext.getString(R.string.status_connected))
+            .assertIsDisplayed()
     }
 }
 
