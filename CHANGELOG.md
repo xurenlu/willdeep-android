@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc17] - 2026-06-14
+
+### Added
+
+- Added Android-side pairing payload expiry detection so expired QR payloads fail locally before `/mobile/health` or `/mobile/pair/claim` requests are sent.
+
+### Changed
+
+- Added localized English and Simplified Chinese expired-pairing-payload errors.
+- Bumped Android client version to `1.17.0-rc17`.
+
+### Tests
+
+- Added model coverage for expired, valid, and missing-expiry pairing payloads.
+
 ## [1.17.0-rc16] - 2026-06-14
 
 ### Added

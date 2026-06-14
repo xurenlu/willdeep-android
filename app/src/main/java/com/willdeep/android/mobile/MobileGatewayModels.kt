@@ -2,6 +2,7 @@ package com.willdeep.android.mobile
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
 import java.util.UUID
 
 const val MOBILE_GATEWAY_PROTOCOL_VERSION = "mobile-gateway.v1"
@@ -13,6 +14,13 @@ data class PairingPayload(
     val desktopName: String,
     val expiresAt: String,
 ) {
+    fun isExpired(now: Instant = Instant.now()): Boolean {
+        val expiry = runCatching {
+            expiresAt.takeIf { it.isNotBlank() }?.let(Instant::parse)
+        }.getOrNull() ?: return false
+        return !expiry.isAfter(now)
+    }
+
     companion object {
         fun parse(raw: String): PairingPayload {
             val json = JSONObject(raw.trim())

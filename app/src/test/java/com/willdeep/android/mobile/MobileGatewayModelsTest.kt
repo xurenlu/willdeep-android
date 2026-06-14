@@ -2,8 +2,10 @@ package com.willdeep.android.mobile
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
 
 class MobileGatewayModelsTest {
     @Test
@@ -24,6 +26,40 @@ class MobileGatewayModelsTest {
         assertEquals("pair_123", payload.pairingToken)
         assertEquals("mobile-gateway.v1", payload.protocolVersion)
         assertEquals("Rocky's Mac", payload.desktopName)
+    }
+
+    @Test
+    fun pairingPayloadDetectsExpiredQrContent() {
+        val payload = PairingPayload.parse(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(payload.isExpired(Instant.parse("2026-06-13T12:02:01Z")))
+        assertFalse(payload.isExpired(Instant.parse("2026-06-13T12:01:59Z")))
+    }
+
+    @Test
+    fun pairingPayloadWithoutExpiryIsNotLocallyExpired() {
+        val payload = PairingPayload.parse(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac"
+            }
+            """.trimIndent()
+        )
+
+        assertFalse(payload.isExpired(Instant.parse("2026-06-13T12:02:01Z")))
     }
 
     @Test
