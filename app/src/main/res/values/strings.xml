@@ -45,6 +45,7 @@
     <string name="file_path_placeholder">README.md</string>
     <string name="message_label">Message</string>
     <string name="message_placeholder">Tell the Mac WillDeep what to build or change</string>
+    <string name="shared_message_loaded_log">Shared text loaded into Ask WillDeep.</string>
     <string name="conversation_empty">No conversation messages yet.</string>
     <string name="message_role_user">You</string>
     <string name="message_role_assistant">WillDeep</string>

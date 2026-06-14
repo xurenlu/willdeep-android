@@ -157,6 +157,27 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update { it.copy(messageText = value) }
     }
 
+    fun importSharedMessage(value: String) {
+        val text = value.trim()
+        if (text.isBlank()) return
+        _state.update {
+            val nextMessage = if (it.messageText.isBlank()) {
+                text
+            } else {
+                it.messageText.trimEnd() + "\n\n" + text
+            }
+            it.copy(
+                messageText = nextMessage,
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "ack",
+                        getApplication<Application>().getString(R.string.shared_message_loaded_log),
+                    )
+                ),
+            )
+        }
+    }
+
     fun updateFilePath(value: String) {
         _state.update { it.copy(filePathText = value) }
     }

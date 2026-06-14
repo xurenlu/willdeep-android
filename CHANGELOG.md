@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc22] - 2026-06-14
+
+### Added
+
+- Added an Android share-sheet text entry point so text shared from other apps can be loaded into Ask WillDeep and sent to the Mac gateway.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc22`.
+
+### Tests
+
+- Added parser coverage for accepted text shares and rejected non-text/non-send intents.
+
 ## [1.17.0-rc21] - 2026-06-14
 
 ### Changed

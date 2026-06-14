@@ -65,10 +65,17 @@ import com.willdeep.android.mobile.PendingToolApproval
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
+fun WillDeepApp(
+    viewModel: MobileGatewayViewModel = viewModel(),
+    sharedMessageText: String = "",
+    sharedMessageVersion: Int = 0,
+) {
     val state by viewModel.state.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     var scannerVisible by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(sharedMessageVersion) {
+        viewModel.importSharedMessage(sharedMessageText)
+    }
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START) {

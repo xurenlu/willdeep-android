@@ -45,6 +45,7 @@
     <string name="file_path_placeholder">README.md</string>
     <string name="message_label">消息</string>
     <string name="message_placeholder">告诉 Mac 上的 WillDeep 要构建或修改什么</string>
+    <string name="shared_message_loaded_log">已将分享文本载入“询问 WillDeep”。</string>
     <string name="conversation_empty">还没有对话消息。</string>
     <string name="message_role_user">你</string>
     <string name="message_role_assistant">WillDeep</string>
