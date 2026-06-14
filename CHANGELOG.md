@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc47] - 2026-06-14
+
+### Fixed
+
+- Target-file live acceptance now treats changed kind or diff stats for an already-listed target file as valid Mac target-file activity, so create-or-update requests do not require a newly observed path.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc47`.
+
+### Tests
+
+- Added JVM coverage for target-file activity when an existing worktree file is updated.
+
 ## [1.17.0-rc46] - 2026-06-14
 
 ### Added

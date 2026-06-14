@@ -224,6 +224,36 @@ class AgentActivityEvidenceTest {
         )
     }
 
+    @Test
+    fun targetFileActivityCountsExistingWorktreeFileWhenStatsChange() {
+        val baselineState = MobileGatewayUiState(
+            worktree = worktree(
+                files = listOf(
+                    worktreeFile(
+                        path = "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md",
+                        addedLines = 1,
+                    ),
+                ),
+            ),
+        )
+        val baseline = AgentActivityBaseline.capture(baselineState)
+        val updatedState = baselineState.copy(
+            worktree = worktree(
+                files = listOf(
+                    worktreeFile(
+                        path = "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md",
+                        addedLines = 2,
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(
+            AgentActivitySignal.WorktreeFile,
+            updatedState.targetFileActivitySignalAfter(baseline, "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"),
+        )
+    }
+
     private fun userMessage(id: String, content: String): GatewayMessage {
         return GatewayMessage(
             id = id,
@@ -287,18 +317,23 @@ class AgentActivityEvidenceTest {
             repositoryRoot = "/workspace",
             fileCount = files.size,
             totalAddedLines = files.sumOf { file -> file.addedLines },
-            totalDeletedLines = 0,
+            totalDeletedLines = files.sumOf { file -> file.deletedLines },
             files = files,
             sessionId = "s1",
         )
     }
 
-    private fun worktreeFile(path: String): GatewayWorktreeFile {
+    private fun worktreeFile(
+        path: String,
+        kind: String = "modified",
+        addedLines: Int = 1,
+        deletedLines: Int = 0,
+    ): GatewayWorktreeFile {
         return GatewayWorktreeFile(
             path = path,
-            kind = "modified",
-            addedLines = 1,
-            deletedLines = 0,
+            kind = kind,
+            addedLines = addedLines,
+            deletedLines = deletedLines,
         )
     }
 }

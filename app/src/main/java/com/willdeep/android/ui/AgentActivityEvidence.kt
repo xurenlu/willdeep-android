@@ -1,5 +1,7 @@
 package com.willdeep.android.ui
 
+import com.willdeep.android.mobile.GatewayWorktreeFile
+
 enum class AgentActivitySignal(val reportValue: String) {
     RespondingSession("responding_session"),
     AssistantMessage("assistant_message"),
@@ -18,6 +20,7 @@ data class AgentActivityBaseline(
     val liveJobCount: Int,
     val worktreeFileCount: Int,
     val worktreeFilePaths: Set<String>,
+    val worktreeFileSignatures: Set<String>,
 ) {
     companion object {
         fun capture(state: MobileGatewayUiState): AgentActivityBaseline {
@@ -33,6 +36,10 @@ data class AgentActivityBaseline(
                 worktreeFileCount = state.worktree?.fileCount ?: 0,
                 worktreeFilePaths = state.worktree?.files
                     ?.map { file -> normalizeActivityPath(file.path) }
+                    ?.toSet()
+                    ?: emptySet(),
+                worktreeFileSignatures = state.worktree?.files
+                    ?.map { file -> file.activitySignature() }
                     ?.toSet()
                     ?: emptySet(),
             )
@@ -80,7 +87,11 @@ fun MobileGatewayUiState.targetFileActivitySignalAfter(
             .any { proposal -> proposal.path.matchesActivityPath(normalizedTarget) } ->
             AgentActivitySignal.PatchProposal
         worktree?.files
-            ?.filter { file -> normalizeActivityPath(file.path) !in baseline.worktreeFilePaths }
+            ?.filter { file ->
+                val normalizedPath = normalizeActivityPath(file.path)
+                normalizedPath !in baseline.worktreeFilePaths ||
+                    file.activitySignature() !in baseline.worktreeFileSignatures
+            }
             ?.any { file -> file.path.matchesActivityPath(normalizedTarget) } == true ->
             AgentActivitySignal.WorktreeFile
         else -> null
@@ -109,6 +120,15 @@ fun MobileGatewayUiState.agentActivitySignalAfter(
 private fun String.matchesActivityPath(normalizedTarget: String): Boolean {
     val normalizedPath = normalizeActivityPath(this)
     return normalizedPath == normalizedTarget || normalizedPath.endsWith("/$normalizedTarget")
+}
+
+private fun GatewayWorktreeFile.activitySignature(): String {
+    return listOf(
+        normalizeActivityPath(path),
+        kind,
+        addedLines.toString(),
+        deletedLines.toString(),
+    ).joinToString("|")
 }
 
 private fun normalizeActivityPath(path: String): String {
