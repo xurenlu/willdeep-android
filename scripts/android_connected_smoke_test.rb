@@ -172,21 +172,22 @@ rescue Errno::EACCES
   raise "desktop token file is not readable: #{DESKTOP_PAIRING_TOKEN_FILE}"
 end
 
-def fetch_desktop_pairing_payload
-  raise "MOBILE_GATEWAY_DESKTOP_BASE_URL is required to fetch pairing payload" if DESKTOP_PAIRING_BASE_URL.to_s.strip.empty?
-  if DESKTOP_PAIRING_TOKEN.to_s.strip.empty? && DESKTOP_PAIRING_TOKEN_FILE.to_s.strip.empty?
-    raise "MOBILE_GATEWAY_DESKTOP_TOKEN or MOBILE_GATEWAY_DESKTOP_TOKEN_FILE is required to fetch pairing payload"
-  end
-
-  token = desktop_pairing_token
-
+def desktop_pairing_request(method, path, token)
   base_url = DESKTOP_PAIRING_BASE_URL.to_s.sub(%r{/+\z}, "")
   parse_gateway_base_url(base_url)
-  uri = URI.parse("#{base_url}/mobile/pairing")
-  request = Net::HTTP::Get.new(uri)
+  uri = URI.parse("#{base_url}#{path}")
+  request = case method
+            when :get then Net::HTTP::Get.new(uri)
+            when :post then Net::HTTP::Post.new(uri)
+            else raise "unsupported desktop pairing method: #{method}"
+            end
   request["Authorization"] = "Bearer #{token}"
   request["X-App-Version"] = APP_VERSION
-  response = Net::HTTP.start(
+  if method == :post
+    request["Content-Type"] = "application/json"
+    request.body = "{}"
+  end
+  Net::HTTP.start(
     uri.host,
     uri.port,
     use_ssl: uri.scheme == "https",
@@ -195,7 +196,10 @@ def fetch_desktop_pairing_payload
   ) do |http|
     http.request(request)
   end
-  raise "desktop pairing status #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+end
+
+def pairing_payload_from_desktop_response(response, action)
+  raise "desktop pairing #{action} status #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 
   body = JSON.parse(response.body)
   payload = body.dig("data", "pairing_payload")
@@ -209,11 +213,37 @@ rescue JSON::ParserError => e
   raise "invalid desktop pairing JSON: #{e.message}"
 end
 
+def fetch_desktop_pairing_payload
+  raise "MOBILE_GATEWAY_DESKTOP_BASE_URL is required to fetch pairing payload" if DESKTOP_PAIRING_BASE_URL.to_s.strip.empty?
+  if DESKTOP_PAIRING_TOKEN.to_s.strip.empty? && DESKTOP_PAIRING_TOKEN_FILE.to_s.strip.empty?
+    raise "MOBILE_GATEWAY_DESKTOP_TOKEN or MOBILE_GATEWAY_DESKTOP_TOKEN_FILE is required to fetch pairing payload"
+  end
+
+  token = desktop_pairing_token
+  rotate_response = desktop_pairing_request(:post, "/mobile/pairing/rotate", token)
+  if rotate_response.is_a?(Net::HTTPSuccess)
+    return [
+      pairing_payload_from_desktop_response(rotate_response, "rotate"),
+      "desktop-rotate",
+    ]
+  end
+
+  unless %w[404 405].include?(rotate_response.code)
+    raise "desktop pairing rotate status #{rotate_response.code}"
+  end
+
+  get_response = desktop_pairing_request(:get, "/mobile/pairing", token)
+  [
+    pairing_payload_from_desktop_response(get_response, "fetch"),
+    "desktop-get",
+  ]
+end
+
 def resolve_live_pairing_payload(current_payload)
   return [current_payload, "env"] unless current_payload.empty?
   return ["", "none"] unless desktop_pairing_fetch_requested?
 
-  [fetch_desktop_pairing_payload, "desktop"]
+  fetch_desktop_pairing_payload
 end
 
 def check_live_gateway_health(payload)
@@ -359,8 +389,10 @@ begin
     case live_payload_source
     when "env"
       "using MOBILE_GATEWAY_PAIRING_PAYLOAD"
-    when "desktop"
-      "fetched from desktop pairing endpoint"
+    when "desktop-rotate"
+      "rotated and fetched from desktop pairing endpoint"
+    when "desktop-get"
+      "fetched from legacy desktop pairing endpoint"
     else
       "no live payload configured"
     end

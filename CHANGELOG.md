@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0-rc32] - 2026-06-14
+
+### Changed
+
+- Updated the connected smoke desktop payload path to prefer `POST /mobile/pairing/rotate`, falling back to legacy `GET /mobile/pairing` only when the Mac gateway does not support rotation.
+- Connected smoke reports now distinguish `desktop-rotate` from legacy `desktop-get` payload sources.
+- Bumped Android client version to `1.17.0-rc32`.
+
+### Tests
+
+- Verified the connected smoke runner fetches a rotated pairing payload from a mock desktop endpoint and still redacts bearer and pairing tokens.
+
 ## [1.17.0-rc31] - 2026-06-14
 
 ### Added
