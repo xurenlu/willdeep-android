@@ -103,6 +103,20 @@ class MobileGatewayComposeInstrumentedTest {
         composeRule.onNodeWithText(gateway.sessionTitle)
             .performScrollTo()
             .assertIsDisplayed()
+
+        val taskText = "Update the Android gateway UI"
+        composeRule.onNodeWithText(targetContext.getString(R.string.message_label))
+            .performScrollTo()
+            .performTextReplacement(taskText)
+        composeRule.onNodeWithText(targetContext.getString(R.string.send_button))
+            .performScrollTo()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            gateway.seenCommands.contains("message.send")
+        }
+        composeRule.onNodeWithText(gateway.assistantDelta)
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 }
 
@@ -111,7 +125,9 @@ private class InstrumentedGatewayMock : AutoCloseable {
     val desktopName = "Instrumented Mac"
     val serverVersion = "1.67.0-rc1"
     val sessionTitle = "Instrumented coding session"
+    val assistantDelta = "Mac WillDeep is applying the Android change."
     val seenPaths = CopyOnWriteArrayList<String>()
+    val seenCommands = CopyOnWriteArrayList<String>()
 
     private val ready = CountDownLatch(1)
     private val server = ServerSocket(0)
@@ -246,7 +262,25 @@ private class InstrumentedGatewayMock : AutoCloseable {
         socket.getOutputStream().write(response)
         writeWebSocketText(socket, snapshotEnvelope().toString())
         socket.getOutputStream().flush()
-        socket.getInputStream().read()
+        while (running && !socket.isClosed) {
+            val text = readWebSocketText(socket) ?: break
+            val command = JSONObject(text)
+            val commandType = command.optString("type")
+            seenCommands += commandType
+            when (commandType) {
+                "message.send" -> {
+                    writeWebSocketText(socket, ackEnvelope(command).toString())
+                    writeWebSocketText(socket, messageAppendEnvelope(command).toString())
+                    writeWebSocketText(socket, messageDeltaEnvelope().toString())
+                    writeWebSocketText(socket, messageDoneEnvelope().toString())
+                    socket.getOutputStream().flush()
+                }
+                else -> {
+                    writeWebSocketText(socket, ackEnvelope(command).toString())
+                    socket.getOutputStream().flush()
+                }
+            }
+        }
     }
 
     private fun snapshotEnvelope(): JSONObject {
@@ -274,6 +308,54 @@ private class InstrumentedGatewayMock : AutoCloseable {
             )
     }
 
+    private fun ackEnvelope(command: JSONObject): JSONObject {
+        return JSONObject()
+            .put("id", command.optString("id"))
+            .put("type", "ack")
+            .put("session_id", "s1")
+            .put("ts", "2026-06-14T12:00:01Z")
+            .put("payload", JSONObject().put("type", command.optString("type")))
+    }
+
+    private fun messageAppendEnvelope(command: JSONObject): JSONObject {
+        return JSONObject()
+            .put("id", "message_user_instrumented")
+            .put("type", "message.append")
+            .put("session_id", "s1")
+            .put("ts", "2026-06-14T12:00:02Z")
+            .put(
+                "payload",
+                JSONObject()
+                    .put("id", "m_user")
+                    .put("role", "user")
+                    .put("content", command.optJSONObject("payload")?.optString("text").orEmpty())
+                    .put("created_at", "2026-06-14T12:00:02Z"),
+            )
+    }
+
+    private fun messageDeltaEnvelope(): JSONObject {
+        return JSONObject()
+            .put("id", "message_delta_instrumented")
+            .put("type", "message.delta")
+            .put("session_id", "s1")
+            .put("ts", "2026-06-14T12:00:03Z")
+            .put(
+                "payload",
+                JSONObject()
+                    .put("message_id", "m_assistant")
+                    .put("delta", assistantDelta),
+            )
+    }
+
+    private fun messageDoneEnvelope(): JSONObject {
+        return JSONObject()
+            .put("id", "message_done_instrumented")
+            .put("type", "message.done")
+            .put("session_id", "s1")
+            .put("ts", "2026-06-14T12:00:04Z")
+            .put("payload", JSONObject().put("message_id", "m_assistant"))
+    }
+
     private fun writeWebSocketText(socket: Socket, text: String) {
         val body = text.toByteArray(StandardCharsets.UTF_8)
         val output = socket.getOutputStream()
@@ -288,6 +370,35 @@ private class InstrumentedGatewayMock : AutoCloseable {
             else -> error("snapshot frame too large")
         }
         output.write(body)
+    }
+
+    private fun readWebSocketText(socket: Socket): String? {
+        val input = socket.getInputStream()
+        val first = input.read()
+        if (first < 0) return null
+        val second = input.read()
+        if (second < 0) return null
+        val opcode = first and 0x0f
+        if (opcode == 0x8) return null
+        val masked = (second and 0x80) != 0
+        var length = second and 0x7f
+        if (length == 126) {
+            length = (input.read() shl 8) or input.read()
+        } else if (length == 127) {
+            repeat(4) { input.read() }
+            length = 0
+            repeat(4) { length = (length shl 8) or input.read() }
+        }
+        val mask = if (masked) ByteArray(4) { input.read().toByte() } else ByteArray(0)
+        val payload = ByteArray(length) { index ->
+            val value = input.read()
+            if (masked) {
+                (value xor mask[index % 4].toInt()).toByte()
+            } else {
+                value.toByte()
+            }
+        }
+        return payload.toString(StandardCharsets.UTF_8)
     }
 
     private companion object {

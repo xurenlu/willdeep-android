@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc3 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc4 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc3:
+Implemented through v1.17.0-rc4:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -60,7 +60,7 @@ Implemented through v1.17.0-rc3:
 - Localized user-visible UI strings in `res/values/strings.xml` and Simplified Chinese resources in `res/values-zh-rCN/strings.xml`.
 - Ruby mock integration script at `scripts/mobile_gateway_mock_integration.rb` that writes JSON and Markdown reports under `build/mobile_gateway_mock_integration/`.
 - JVM `MobileGatewayClientIntegrationTest` that verifies real client pairing and WebSocket behavior against a local mock gateway.
-- Android instrumented Compose smoke test that drives the pairing UI against an in-process mock gateway for `/mobile/health`, `/mobile/pair/claim`, `/mobile/ws`, and initial `state.snapshot` display.
+- Android instrumented Compose smoke test that drives the pairing UI against an in-process mock gateway for `/mobile/health`, `/mobile/pair/claim`, `/mobile/ws`, initial `state.snapshot` display, `message.send`, and streamed assistant text.
 
 Planned next:
 
@@ -134,7 +134,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc3:
+Gateway events parsed by Android v1.17.0-rc4:
 
 - `state.snapshot`
 - `session.upsert`
@@ -192,5 +192,5 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Recent mobile command statuses are visible as pending, accepted, or failed after sending requests to the Mac gateway.
 - `ruby scripts/mobile_gateway_mock_integration.rb` verifies the mock pairing, WebSocket snapshot approval restore, streaming, changed-file read, and unknown-command paths and writes JSON/Markdown reports.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
-- `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing and WebSocket snapshot smoke test compiles for device execution.
-- Version `1.17.0-rc3` is visible in Gradle metadata and sent through gateway request headers.
+- `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, and message streaming smoke test compiles for device execution.
+- Version `1.17.0-rc4` is visible in Gradle metadata and sent through gateway request headers.
