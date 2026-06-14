@@ -14,7 +14,7 @@ class MobileGatewayModelsTest {
         val payload = PairingPayload.parse(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac",
@@ -23,7 +23,7 @@ class MobileGatewayModelsTest {
             """.trimIndent()
         )
 
-        assertEquals("http://192.168.1.20:8876", payload.baseUrl)
+        assertEquals("http://192.168.1.20:8877", payload.baseUrl)
         assertEquals("pair_123", payload.pairingToken)
         assertEquals("mobile-gateway.v1", payload.protocolVersion)
         assertEquals("Rocky's Mac", payload.desktopName)
@@ -34,7 +34,7 @@ class MobileGatewayModelsTest {
         val payload = PairingPayload.parse(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac",
@@ -52,7 +52,7 @@ class MobileGatewayModelsTest {
         val compatible = PairingPayload.parse(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac",
@@ -63,7 +63,7 @@ class MobileGatewayModelsTest {
         val incompatible = PairingPayload.parse(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v2",
               "desktop_name": "Rocky's Mac",
@@ -82,7 +82,7 @@ class MobileGatewayModelsTest {
         assertInvalidPairingPayload(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac",
               "expires_at": "2026-06-13T12:02:00Z"
@@ -102,7 +102,7 @@ class MobileGatewayModelsTest {
         assertInvalidPairingPayload(
             """
             {
-              "base_url": "ftp://192.168.1.20:8876/",
+              "base_url": "ftp://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac",
@@ -124,7 +124,7 @@ class MobileGatewayModelsTest {
         assertInvalidPairingPayload(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "desktop_name": "Rocky's Mac",
               "expires_at": "2026-06-13T12:02:00Z"
@@ -134,7 +134,7 @@ class MobileGatewayModelsTest {
         assertInvalidPairingPayload(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "expires_at": "2026-06-13T12:02:00Z"
@@ -144,7 +144,7 @@ class MobileGatewayModelsTest {
         assertInvalidPairingPayload(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac"
@@ -154,7 +154,7 @@ class MobileGatewayModelsTest {
         assertInvalidPairingPayload(
             """
             {
-              "base_url": "http://192.168.1.20:8876/",
+              "base_url": "http://192.168.1.20:8877/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac",

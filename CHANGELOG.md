@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc48] - 2026-06-15
+
+### Fixed
+
+- Aligned Android live acceptance and connected-device smoke defaults with the Mac Mobile Gateway default port `8877`.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc48`.
+- Updated Mobile Gateway docs, examples, and pairing payload tests from the old `8876` default to `8877`.
+
+### Tests
+
+- Verified Ruby smoke scripts and JVM tests still use the updated default Mac Gateway port.
+
 ## [1.17.0-rc47] - 2026-06-14
 
 ### Fixed

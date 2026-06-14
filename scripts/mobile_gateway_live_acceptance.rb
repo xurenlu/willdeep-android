@@ -23,7 +23,7 @@ DEFAULT_LIVE_MESSAGE = [
   "Do not only describe the change; make the workspace file edit so the live smoke can observe code activity.",
 ].join("\n")
 MAC_BUNDLE_ID = ENV.fetch("MOBILE_GATEWAY_MAC_BUNDLE_ID", "com.willdeep.app")
-DEFAULT_DESKTOP_PAIRING_PORT = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PORT", "8876")
+DEFAULT_DESKTOP_PAIRING_PORT = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PORT", "8877")
 DEFAULT_DESKTOP_PAIRING_BASE_URL = "http://127.0.0.1:#{DEFAULT_DESKTOP_PAIRING_PORT}"
 DEFAULT_DESKTOP_PAIRING_TOKEN_FILE = File.join(
   Dir.home,
