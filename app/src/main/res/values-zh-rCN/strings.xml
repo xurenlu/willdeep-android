@@ -70,6 +70,7 @@
     <string name="error_answer_required">批准此请求前需要先输入回答。</string>
     <string name="error_gateway_protocol_mismatch">Gateway 协议不匹配：%1$s。</string>
     <string name="error_gateway_pairing_not_allowed">Mac Mobile Gateway 当前不允许配对。</string>
+    <string name="error_gateway_health_target_missing">请先粘贴配对 payload，或先与 Mac 配对后再检查 Gateway 健康状态。</string>
     <string name="camera_permission_required">需要相机权限才能扫描 Mac 配对二维码。</string>
     <string name="qr_scanner_title">扫描 Mac 配对二维码</string>
     <string name="qr_scanner_hint">将相机对准 WillDeep 设置中显示的二维码。</string>

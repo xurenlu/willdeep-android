@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.15.0-rc2] - 2026-06-14
+
+### Fixed
+
+- Allowed Check Gateway to use the saved paired Mac gateway when the pairing payload field is empty.
+
+### Changed
+
+- Bumped Android client version to `1.15.0-rc2`.
+
+### Tests
+
+- Added target resolution coverage for pairing payload and saved paired gateway health checks.
+- Verified targeted UI coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.ui.GatewayHealthTargetTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.15.0-rc1] - 2026-06-14
 
 ### Added

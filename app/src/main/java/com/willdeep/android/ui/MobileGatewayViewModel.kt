@@ -78,6 +78,12 @@ data class MobileGatewayUiState(
     val logLines: List<GatewayLogLine> = emptyList(),
 )
 
+internal data class GatewayHealthTarget(
+    val baseUrl: String,
+    val desktopName: String,
+    val protocolVersion: String,
+)
+
 class MobileGatewayViewModel(application: Application) : AndroidViewModel(application) {
     private val tokenStore = DeviceTokenStore(application)
     private val client = MobileGatewayClient()
@@ -187,13 +193,15 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun checkGatewayHealth() {
-        val rawPayload = state.value.pairingPayloadText
         viewModelScope.launch {
             runCatching {
                 _state.update { it.copy(isCheckingGateway = true, errorMessage = null) }
-                val payload = PairingPayload.parse(rawPayload)
-                val health = client.checkHealth(payload.baseUrl)
-                updateGatewayHealth(payload, health)
+                val target = resolveGatewayHealthTarget(state.value)
+                    ?: throw IllegalStateException(
+                        getApplication<Application>().getString(R.string.error_gateway_health_target_missing)
+                    )
+                val health = client.checkHealth(target.baseUrl)
+                updateGatewayHealth(target, health)
                 ensureCompatibleGateway(health)
                 health
             }.onSuccess { health ->
@@ -624,11 +632,22 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun updateGatewayHealth(payload: PairingPayload, health: GatewayHealth) {
-        _state.update {
-            it.copy(
+        updateGatewayHealth(
+            GatewayHealthTarget(
                 baseUrl = payload.baseUrl,
                 desktopName = payload.desktopName,
-                protocolVersion = health.protocolVersion.ifBlank { payload.protocolVersion },
+                protocolVersion = payload.protocolVersion,
+            ),
+            health,
+        )
+    }
+
+    private fun updateGatewayHealth(target: GatewayHealthTarget, health: GatewayHealth) {
+        _state.update {
+            it.copy(
+                baseUrl = target.baseUrl,
+                desktopName = target.desktopName,
+                protocolVersion = health.protocolVersion.ifBlank { target.protocolVersion },
                 gatewayServerVersion = health.serverVersion.ifBlank { health.appVersion },
                 pairingAllowed = health.pairingAllowed,
             )
@@ -880,6 +899,25 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
 private fun List<GatewayLogLine>.append(line: GatewayLogLine): List<GatewayLogLine> {
     return (this + line).takeLast(80)
+}
+
+internal fun resolveGatewayHealthTarget(state: MobileGatewayUiState): GatewayHealthTarget? {
+    if (state.pairingPayloadText.isNotBlank()) {
+        val payload = PairingPayload.parse(state.pairingPayloadText)
+        return GatewayHealthTarget(
+            baseUrl = payload.baseUrl,
+            desktopName = payload.desktopName,
+            protocolVersion = payload.protocolVersion,
+        )
+    }
+    if (state.baseUrl.isBlank()) {
+        return null
+    }
+    return GatewayHealthTarget(
+        baseUrl = state.baseUrl,
+        desktopName = state.desktopName,
+        protocolVersion = state.protocolVersion,
+    )
 }
 
 internal fun List<GatewayMessage>.filterForSession(sessionId: String?): List<GatewayMessage> {

@@ -267,7 +267,8 @@ private fun PairingCard(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = onCheckGateway,
-                    enabled = state.pairingPayloadText.isNotBlank() && !state.isCheckingGateway,
+                    enabled = (state.pairingPayloadText.isNotBlank() || state.baseUrl.isNotBlank()) &&
+                        !state.isCheckingGateway,
                 ) {
                     Text(
                         if (state.isCheckingGateway) {
