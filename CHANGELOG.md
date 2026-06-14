@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.17.0-rc2] - 2026-06-14
+
+### Added
+
+- Added an Android instrumented Compose smoke test that drives the real pairing UI against an in-process mock gateway for `/mobile/health` and `/mobile/pair/claim`.
+
+### Changed
+
+- Replaced the default generated instrumented test with Mobile Gateway pairing coverage.
+- Bumped Android client version to `1.17.0-rc2`.
+
+### Tests
+
+- Verified the instrumented test APK builds with `./gradlew :app:assembleDebugAndroidTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.17.0-rc1] - 2026-06-14
 
 ### Added
