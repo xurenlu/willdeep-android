@@ -381,7 +381,127 @@ def build_next_actions(result)
   if result[:devices].any? && !result[:live_payload_provided]
     actions << "Provide or auto-discover a live Mac pairing payload before connected instrumentation can pair with the gateway."
   end
+  if result[:live_payload_provided] && result[:devices].any? && !result[:live_message_provided]
+    actions << "Set MOBILE_GATEWAY_LIVE_MESSAGE to send a real Android-originated request into the Mac Agent runtime."
+  end
+  if result[:live_message_provided] && !result[:expect_agent_activity]
+    actions << "Set MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 for final acceptance so the live test waits for Mac-side Agent activity after message.send."
+  end
   actions.uniq
+end
+
+def step_status(result, name)
+  result[:steps].find { |step| step[:name] == name }&.fetch(:status, nil)
+end
+
+def evidence_status(result, step_name, pending:, skipped: nil)
+  status = step_status(result, step_name)
+  return ["passed", nil] if status == "passed"
+  return ["failed", nil] if status == "failed"
+  return ["skipped", skipped] if skipped
+
+  ["pending", pending]
+end
+
+def build_acceptance_evidence(result)
+  payload_status, payload_detail = if result[:live_payload_provided]
+                                     evidence_status(
+                                       result,
+                                       "validate live pairing payload",
+                                       pending: "Validate a live Mac pairing payload before instrumentation."
+                                     )
+                                   else
+                                     ["pending", "Provide or auto-discover a live Mac pairing payload."]
+                                   end
+
+  health_status, health_detail = if !result[:live_payload_provided]
+                                   ["pending", "Health preflight needs a live pairing payload."]
+                                 elsif !result[:health_preflight_enabled]
+                                   ["skipped", "MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT=1 was set."]
+                                 else
+                                   evidence_status(
+                                     result,
+                                     "check live gateway health",
+                                     pending: "Run the Mac gateway health preflight."
+                                   )
+                                 end
+
+  device_status = result[:devices].any? ? "passed" : (result[:require_device] ? "failed" : "pending")
+  device_detail = result[:devices].any? ? nil : "Attach an Android device with adb state `device`."
+
+  reachability_status, reachability_detail = if !result[:live_payload_provided] || result[:devices].empty?
+                                               ["pending", "Needs both a live payload and an attached Android device."]
+                                             elsif !result[:device_reachability_check_enabled]
+                                               ["skipped", "MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY=1 was set or the check did not run."]
+                                             else
+                                               evidence_status(
+                                                 result,
+                                                 "check device gateway reachability",
+                                                 pending: "Run device-side gateway reachability checks."
+                                               )
+                                             end
+
+  instrumentation_status, instrumentation_detail = evidence_status(
+    result,
+    "run connected instrumented smoke",
+    pending: "Run connectedDebugAndroidTest against an attached device."
+  )
+
+  message_status, message_detail = if !result[:live_message_provided]
+                                     ["pending", "Set MOBILE_GATEWAY_LIVE_MESSAGE to verify Android-originated message.send."]
+                                   elsif instrumentation_status == "passed"
+                                     ["passed", "Instrumentation asserted message.send was acknowledged by the Mac gateway."]
+                                   else
+                                     [instrumentation_status, instrumentation_detail]
+                                   end
+
+  activity_status, activity_detail = if !result[:expect_agent_activity]
+                                      ["pending", "Set MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 for final acceptance."]
+                                    elsif !result[:agent_activity_check_enabled]
+                                      ["pending", "Agent activity check needs both a live payload and MOBILE_GATEWAY_LIVE_MESSAGE."]
+                                    elsif instrumentation_status == "passed"
+                                      ["passed", "Instrumentation observed post-send Mac Agent activity."]
+                                    else
+                                      [instrumentation_status, instrumentation_detail]
+                                    end
+
+  [
+    {
+      key: "live_pairing_payload",
+      status: payload_status,
+      evidence: payload_detail || "Live pairing payload parsed, protocol-checked, and not expired.",
+    },
+    {
+      key: "mac_gateway_health",
+      status: health_status,
+      evidence: health_detail || "Host-side /mobile/health preflight passed with pairing_allowed=true.",
+    },
+    {
+      key: "android_device",
+      status: device_status,
+      evidence: device_detail || "#{result[:devices].size} attached Android device(s) are ready.",
+    },
+    {
+      key: "device_gateway_reachability",
+      status: reachability_status,
+      evidence: reachability_detail || "Attached Android device can reach the Mac gateway host/port.",
+    },
+    {
+      key: "instrumented_pair_and_ws",
+      status: instrumentation_status,
+      evidence: instrumentation_detail || "Connected instrumentation paired with the live gateway and reached WebSocket connected state.",
+    },
+    {
+      key: "mobile_message_send_ack",
+      status: message_status,
+      evidence: message_detail || "Android sent message.send and observed an accepted command status.",
+    },
+    {
+      key: "mac_agent_activity_after_send",
+      status: activity_status,
+      evidence: activity_detail || "Android observed Mac Agent activity after the mobile-originated message.",
+    },
+  ]
 end
 
 def markdown_report(result)
@@ -404,6 +524,16 @@ def markdown_report(result)
     lines << "## Next Actions"
     lines << ""
     result[:next_actions].each { |action| lines << "- #{action}" }
+  end
+  unless result[:acceptance_evidence].empty?
+    lines << ""
+    lines << "## Acceptance Evidence"
+    lines << ""
+    lines << "| Requirement | Status | Evidence |"
+    lines << "| --- | --- | --- |"
+    result[:acceptance_evidence].each do |item|
+      lines << "| `#{item[:key]}` | `#{item[:status]}` | #{item[:evidence].gsub("|", "\\|")} |"
+    end
   end
   lines << ""
   lines << "## Steps"
@@ -509,6 +639,7 @@ result = {
   device_reachability_timeout_seconds: DEVICE_REACHABILITY_TIMEOUT_SECONDS,
   steps: runner.steps,
 }
+result[:acceptance_evidence] = build_acceptance_evidence(result)
 result[:next_actions] = build_next_actions(result)
 
 write_reports(result)

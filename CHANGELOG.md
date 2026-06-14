@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc36] - 2026-06-14
+
+### Added
+
+- Added structured `acceptance_evidence` to connected smoke JSON/Markdown reports, covering live payload validation, Mac health preflight, attached device detection, device-to-gateway reachability, live instrumentation, `message.send` acknowledgement, and post-send Mac Agent activity.
+- Added connected smoke next actions for missing `MOBILE_GATEWAY_LIVE_MESSAGE` and missing `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1` so final live acceptance is easier to drive.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc36`.
+
+### Tests
+
+- Verified the no-device connected smoke report includes pending acceptance evidence and actionable final-acceptance follow-ups.
+
 ## [1.17.0-rc35] - 2026-06-14
 
 ### Added
