@@ -131,6 +131,14 @@ rescue ArgumentError => e
   raise "invalid expires_at: #{e.message}"
 end
 
+def perform_direct_http_request(uri, request, timeout_seconds)
+  http = Net::HTTP.new(uri.host, uri.port, nil)
+  http.use_ssl = uri.scheme == "https"
+  http.open_timeout = timeout_seconds
+  http.read_timeout = timeout_seconds
+  http.start { |connection| connection.request(request) }
+end
+
 def validate_live_pairing_payload(payload)
   return "no live payload provided" if payload.empty?
 
@@ -187,15 +195,7 @@ def desktop_pairing_request(method, path, token)
     request["Content-Type"] = "application/json"
     request.body = "{}"
   end
-  Net::HTTP.start(
-    uri.host,
-    uri.port,
-    use_ssl: uri.scheme == "https",
-    open_timeout: DESKTOP_PAIRING_TIMEOUT_SECONDS,
-    read_timeout: DESKTOP_PAIRING_TIMEOUT_SECONDS,
-  ) do |http|
-    http.request(request)
-  end
+  perform_direct_http_request(uri, request, DESKTOP_PAIRING_TIMEOUT_SECONDS)
 end
 
 def pairing_payload_from_desktop_response(response, action)
@@ -255,15 +255,7 @@ def check_live_gateway_health(payload)
   uri = URI.parse("#{base_url}/mobile/health")
   request = Net::HTTP::Get.new(uri)
   request["X-App-Version"] = APP_VERSION
-  response = Net::HTTP.start(
-    uri.host,
-    uri.port,
-    use_ssl: uri.scheme == "https",
-    open_timeout: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
-    read_timeout: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
-  ) do |http|
-    http.request(request)
-  end
+  response = perform_direct_http_request(uri, request, HEALTH_PREFLIGHT_TIMEOUT_SECONDS)
   raise "health status #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 
   body = JSON.parse(response.body)

@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc32 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc33 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc32:
+Implemented through v1.17.0-rc33:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -75,6 +75,7 @@ Implemented through v1.17.0-rc32:
 - The connected-device smoke runner accepts `MOBILE_GATEWAY_PAIRING_PAYLOAD`, `MOBILE_GATEWAY_DEVICE_NAME`, `MOBILE_GATEWAY_LIVE_MESSAGE`, `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY`, `MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS`, `MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT`, `MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS`, `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY`, and `MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS` to run an optional live Mac gateway instrumentation path; pairing payloads and live messages are redacted from generated reports.
 - The connected-device smoke runner can fetch a fresh desktop-authenticated pairing payload when `MOBILE_GATEWAY_PAIRING_PAYLOAD` is not set and `MOBILE_GATEWAY_DESKTOP_BASE_URL` plus `MOBILE_GATEWAY_DESKTOP_TOKEN` or `MOBILE_GATEWAY_DESKTOP_TOKEN_FILE` are provided. It prefers `POST /mobile/pairing/rotate` so the payload is fresh even after an old token was claimed, falls back to legacy `GET /mobile/pairing` only for older Mac gateways, and redacts fetched pairing payloads, pairing tokens, desktop bearer tokens, and live messages from generated reports.
 - The connected-device smoke runner validates live pairing payload JSON, required fields, protocol version, HTTP/HTTPS base URL with host, and strict ISO8601 expiry before invoking Android instrumentation.
+- The connected-device smoke runner uses direct Mac gateway HTTP connections for desktop pairing fetch and health preflight so local proxy environment variables do not divert LAN requests.
 - The connected-device smoke runner checks `GET /mobile/health` without consuming the pairing token, verifying Mac gateway reachability, protocol compatibility, and `pairing_allowed=true` before invoking Android instrumentation.
 - The connected-device smoke runner checks attached Android device reachability to the live gateway host and port before invoking Android instrumentation.
 - The connected-device smoke runner collects Android device network diagnostics with IPv4 addresses redacted before live reachability checks.
@@ -154,7 +155,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc32:
+Gateway events parsed by Android v1.17.0-rc33:
 
 - `state.snapshot`
 - `session.upsert`
@@ -222,9 +223,10 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - When `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided, `ruby scripts/android_connected_smoke_test.rb` validates that the payload is JSON, includes the fields Android needs, uses `mobile-gateway.v1`, includes an HTTP/HTTPS `base_url` with a host, and has a strict ISO8601 `expires_at` value that has not expired before instrumentation starts.
 - When `MOBILE_GATEWAY_PAIRING_PAYLOAD` is not provided, `MOBILE_GATEWAY_DESKTOP_BASE_URL` with `MOBILE_GATEWAY_DESKTOP_TOKEN` or `MOBILE_GATEWAY_DESKTOP_TOKEN_FILE` lets `ruby scripts/android_connected_smoke_test.rb` fetch a fresh payload before validation and instrumentation by preferring `POST /mobile/pairing/rotate`; reports record `desktop-rotate` for the modern path and `desktop-get` for legacy fallback.
 - When `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided, `ruby scripts/android_connected_smoke_test.rb` also calls `GET /mobile/health` from the payload `base_url` unless `MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT=1` is set.
+- Mac gateway pairing fetch and health preflight ignore local proxy environment variables and connect directly to the configured LAN host.
 - When Android devices are attached and `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided, `ruby scripts/android_connected_smoke_test.rb` checks gateway host/port reachability from each device unless `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY=1` is set.
 - When Android devices are attached, `ruby scripts/android_connected_smoke_test.rb` records IPv4-redacted route and global-address diagnostics before device-side reachability checks.
 - `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path, sends a real mobile request into WillDeep, waits for Mac acknowledgement, and then waits for Mac Agent activity when an Android device is attached and the token is still valid.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc32` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc33` is visible in Gradle metadata and sent through gateway request headers.

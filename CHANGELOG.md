@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc33] - 2026-06-14
+
+### Changed
+
+- Made connected smoke Mac gateway HTTP preflights use direct `Net::HTTP` connections so local proxy environment variables cannot divert LAN `/mobile/pairing/rotate` or `/mobile/health` requests.
+- Bumped Android client version to `1.17.0-rc33`.
+
+### Tests
+
+- Verified desktop pairing rotate fetch still succeeds against a local mock gateway while proxy environment variables point at an unreachable proxy.
+
 ## [1.17.0-rc32] - 2026-06-14
 
 ### Changed
