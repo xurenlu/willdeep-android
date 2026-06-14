@@ -1,16 +1,21 @@
 package com.willdeep.android
 
 object SharedMessageIntentParser {
+    private const val ACTION_PROCESS_TEXT = "android.intent.action.PROCESS_TEXT"
     private const val ACTION_SEND = "android.intent.action.SEND"
 
     fun extractText(
         action: String?,
         mimeType: String?,
-        extraText: String?,
+        extraText: String? = null,
         extraSubject: String? = null,
+        extraProcessText: String? = null,
     ): String {
-        if (action != ACTION_SEND) return ""
         if (!mimeType.isTextMimeType()) return ""
+        if (action == ACTION_PROCESS_TEXT) {
+            return extraProcessText?.trim().orEmpty()
+        }
+        if (action != ACTION_SEND) return ""
         val subject = extraSubject?.trim().orEmpty()
         val text = extraText?.trim().orEmpty()
         return when {

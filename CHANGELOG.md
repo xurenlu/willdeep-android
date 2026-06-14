@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc24] - 2026-06-14
+
+### Added
+
+- Added Android selected-text import through `ACTION_PROCESS_TEXT` so highlighted text can be loaded into Ask WillDeep without opening the share sheet first.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc24`.
+
+### Tests
+
+- Added parser coverage for selected text imports and non-text selected-text intents.
+
 ## [1.17.0-rc23] - 2026-06-14
 
 ### Changed

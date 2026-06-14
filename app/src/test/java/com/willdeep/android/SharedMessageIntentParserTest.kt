@@ -52,6 +52,29 @@ class SharedMessageIntentParserTest {
     }
 
     @Test
+    fun extractsSelectedTextFromProcessTextIntent() {
+        val text = SharedMessageIntentParser.extractText(
+            action = "android.intent.action.PROCESS_TEXT",
+            mimeType = "text/plain",
+            extraText = "ignored share body",
+            extraProcessText = "  Refactor the selected Kotlin class  ",
+        )
+
+        assertEquals("Refactor the selected Kotlin class", text)
+    }
+
+    @Test
+    fun rejectsProcessTextIntentWithoutTextMimeType() {
+        val text = SharedMessageIntentParser.extractText(
+            action = "android.intent.action.PROCESS_TEXT",
+            mimeType = "image/png",
+            extraProcessText = "Refactor the selected Kotlin class",
+        )
+
+        assertEquals("", text)
+    }
+
+    @Test
     fun rejectsNonTextShareIntents() {
         val text = SharedMessageIntentParser.extractText(
             action = "android.intent.action.SEND",
