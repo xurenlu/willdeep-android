@@ -162,6 +162,8 @@ sealed interface GatewayEvent {
     data class Snapshot(
         val sessions: List<GatewaySession>,
         val activeSessionId: String?,
+        val pendingTools: List<PendingToolApproval>,
+        val patchProposals: List<PatchProposal>,
         val jobs: List<GatewayJob>,
         val queuedMessages: List<GatewayQueuedMessage>,
         val messages: List<GatewayMessage>,
@@ -214,6 +216,8 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         "state.snapshot" -> GatewayEvent.Snapshot(
             sessions = payload.optJSONArray("sessions").toSessions(),
             activeSessionId = payload.optString("active_session_id").ifBlank { null },
+            pendingTools = payload.optJSONArray("pending_tools").toPendingToolApprovals(),
+            patchProposals = payload.optJSONArray("patch_proposals").toPatchProposals(),
             jobs = payload.optJSONArray("jobs").toJobs(),
             queuedMessages = payload.optJSONArray("queued_messages").toQueuedMessages(),
             messages = payload.optJSONArray("messages").toMessages(),
@@ -278,6 +282,24 @@ private fun JSONArray?.toSessions(): List<GatewaySession> {
     return buildList {
         for (index in 0 until length()) {
             add(getJSONObject(index).toSession())
+        }
+    }
+}
+
+private fun JSONArray?.toPendingToolApprovals(): List<PendingToolApproval> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            add(getJSONObject(index).toPendingToolApproval(null))
+        }
+    }
+}
+
+private fun JSONArray?.toPatchProposals(): List<PatchProposal> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            add(getJSONObject(index).toPatchProposal(null))
         }
     }
 }

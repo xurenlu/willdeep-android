@@ -763,6 +763,12 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     it.copy(
                         sessions = event.sessions,
                         selectedSessionId = event.activeSessionId ?: it.selectedSessionId ?: event.sessions.firstOrNull()?.id,
+                        pendingTools = event.pendingTools,
+                        toolAnswers = it.toolAnswers.keepAnswersFor(event.pendingTools),
+                        patchProposals = event.patchProposals,
+                        patchDiffs = it.patchDiffs.filterKeys { patchId ->
+                            event.patchProposals.any { proposal -> proposal.id == patchId }
+                        },
                         jobs = event.jobs,
                         queuedMessages = event.queuedMessages,
                         conversationMessages = event.messages.filterForSession(
@@ -1103,6 +1109,12 @@ internal fun List<GatewayMessage>.markMessageDone(
             message
         }
     }.filterForSession(sessionId)
+}
+
+internal fun Map<String, String>.keepAnswersFor(approvals: List<PendingToolApproval>): Map<String, String> {
+    return approvals
+        .filter { it.requiresAnswer }
+        .associate { approval -> approval.id to this[approval.id].orEmpty() }
 }
 
 private fun List<GatewayWorktree>.forSession(sessionId: String?): GatewayWorktree? {

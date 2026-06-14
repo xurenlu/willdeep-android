@@ -391,6 +391,25 @@ class MockGateway
           "session_id" => "s1",
         },
       ],
+      "pending_tools" => [
+        {
+          "approval_id" => "tool_mock",
+          "tool_name" => "shell",
+          "summary" => "Run Android tests on the Mac",
+          "command" => "./gradlew :app:testDebugUnitTest",
+          "session_id" => "s1",
+        },
+      ],
+      "patch_proposals" => [
+        {
+          "patch_id" => "patch_mock",
+          "title" => "Mock Android patch",
+          "summary" => "Review generated mobile gateway changes",
+          "path" => "app/src/main/java/com/willdeep/android/ui/WillDeepApp.kt",
+          "diffstat" => "+8 -1",
+          "session_id" => "s1",
+        },
+      ],
       "worktree_changes" => [
         {
           "repository_root" => "/Users/rocky/Sites/Xedit",
@@ -602,6 +621,8 @@ def main
       snapshot = socket.read_json
       expect(snapshot["type"] == "state.snapshot", "expected state.snapshot")
       expect(snapshot.dig("payload", "sessions").first["id"] == "s1", "missing session")
+      expect(snapshot.dig("payload", "pending_tools").first["approval_id"] == "tool_mock", "missing pending tool")
+      expect(snapshot.dig("payload", "patch_proposals").first["patch_id"] == "patch_mock", "missing patch proposal")
       expect(snapshot.dig("payload", "worktree_changes").first["files"].first["path"].end_with?("WillDeepApp.kt"), "missing changed file")
       socket
     end

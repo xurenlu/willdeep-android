@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.16.0-rc2
+> Last updated: 2026-06-14 | Current version: v1.17.0-rc1
 
 ## Project Summary
 
@@ -23,7 +23,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Display Mac-side changed files, repository root, and added/deleted line totals.
 - Read a changed file directly from the Changed Files panel through desktop-mediated `file.read`.
 - Send `session.list`, `session.create`, `session.select`, `message.send`, and `turn.stop` commands.
-- Review pending tool and patch approvals, then send `tool.decide` or `patch.decide` back to the Mac.
+- Restore pending tool and patch approvals from the initial Mac snapshot, then send `tool.decide` or `patch.decide` back to the Mac.
 - Answer Mac-side `ask_user` prompts from the Android approval panel.
 - Request and view pending patch diffs before approving or rejecting them.
 - Display Mac background jobs and kill running jobs through the gateway.
@@ -72,7 +72,7 @@ ruby scripts/mobile_gateway_mock_integration.rb
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The Ruby integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`, and verifies that `ack` and `error` envelope IDs correlate with the originating mobile command IDs.
+The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The Ruby integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`, verifies that `ack` and `error` envelope IDs correlate with the originating mobile command IDs, and checks that snapshots include pending tools plus patch proposals.
 
 ## Known Gaps
 

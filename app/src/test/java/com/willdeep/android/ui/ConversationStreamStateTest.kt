@@ -1,6 +1,7 @@
 package com.willdeep.android.ui
 
 import com.willdeep.android.mobile.GatewayMessage
+import com.willdeep.android.mobile.PendingToolApproval
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -36,5 +37,38 @@ class ConversationStreamStateTest {
         ).markMessageDone(sessionId = "s1", messageId = "m1")
 
         assertFalse(messages.single().isStreaming)
+    }
+
+    @Test
+    fun snapshotKeepsOnlyAnswerDraftsForCurrentAskUserApprovals() {
+        val answers = mapOf(
+            "ask_1" to "Use main",
+            "ask_removed" to "Old answer",
+            "tool_1" to "Not an answer prompt",
+        )
+        val approvals = listOf(
+            PendingToolApproval(
+                id = "ask_1",
+                title = "Question",
+                summary = "Which branch?",
+                toolName = "ask_user",
+                inputPreview = "",
+                requiresAnswer = true,
+                sessionId = "s1",
+            ),
+            PendingToolApproval(
+                id = "tool_1",
+                title = "Shell",
+                summary = "Run tests",
+                toolName = "shell",
+                inputPreview = "./gradlew test",
+                requiresAnswer = false,
+                sessionId = "s1",
+            ),
+        )
+
+        val kept = answers.keepAnswersFor(approvals)
+
+        assertEquals(mapOf("ask_1" to "Use main"), kept)
     }
 }

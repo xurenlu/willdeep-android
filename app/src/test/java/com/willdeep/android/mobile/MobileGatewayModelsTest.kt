@@ -80,6 +80,25 @@ class MobileGatewayModelsTest {
                     "session_id": "s1"
                   }
                 ],
+                "pending_tools": [
+                  {
+                    "approval_id": "tool_1",
+                    "tool_name": "shell",
+                    "summary": "Run Android tests",
+                    "command": "./gradlew test",
+                    "session_id": "s1"
+                  }
+                ],
+                "patch_proposals": [
+                  {
+                    "patch_id": "patch_1",
+                    "title": "Update mobile gateway client",
+                    "summary": "Adds snapshot approvals",
+                    "path": "app/src/main/java/com/willdeep/android/mobile/MobileGatewayModels.kt",
+                    "diffstat": "+24 -0",
+                    "session_id": "s1"
+                  }
+                ],
                 "queued_messages": [
                   {
                     "id": "queue_1",
@@ -138,6 +157,10 @@ class MobileGatewayModelsTest {
         assertEquals("s1", snapshot.activeSessionId)
         assertEquals("Build mobile gateway", snapshot.sessions.single().title)
         assertEquals(3, snapshot.sessions.single().messageCount)
+        assertEquals("tool_1", snapshot.pendingTools.single().id)
+        assertEquals("Run Android tests", snapshot.pendingTools.single().summary)
+        assertEquals("patch_1", snapshot.patchProposals.single().id)
+        assertEquals("Update mobile gateway client", snapshot.patchProposals.single().title)
         assertEquals("job_abcdef", snapshot.jobs.single().handle)
         assertTrue(snapshot.jobs.single().isAlive)
         assertEquals("queue_1", snapshot.queuedMessages.single().id)

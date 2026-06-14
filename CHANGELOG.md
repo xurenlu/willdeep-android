@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.17.0-rc1] - 2026-06-14
+
+### Added
+
+- Added `state.snapshot` parsing for Mac-side `pending_tools` and `patch_proposals` so Android restores blocked approvals immediately after connecting.
+- Added snapshot coverage for pending tool approvals and patch proposals in the Kotlin model tests and Ruby mock gateway integration script.
+
+### Changed
+
+- Preserve in-progress `ask_user` answer drafts only for still-current answer-required approvals when a fresh snapshot arrives.
+- Bumped Android client version to `1.17.0-rc1`.
+
+### Tests
+
+- Verified targeted snapshot coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayModelsTest --tests com.willdeep.android.ui.ConversationStreamStateTest`.
+- Verified the mock integration script with `ruby scripts/mobile_gateway_mock_integration.rb`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.16.0-rc2] - 2026-06-14
 
 ### Fixed
