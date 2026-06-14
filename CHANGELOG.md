@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.17.0-rc13] - 2026-06-14
+
+### Added
+
+- Added live pairing payload preflight validation to the connected smoke runner, checking JSON shape, required fields, protocol version, and expiry before any Android device test consumes time.
+
+### Changed
+
+- Connected smoke reports now include a non-sensitive payload validation step when `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided.
+- Ignored local Kotlin daemon diagnostic output under `.kotlin/`.
+- Bumped Android client version to `1.17.0-rc13`.
+
+### Tests
+
+- Verified the connected smoke runner can validate a fresh-looking payload and still produce a skipped no-device report without leaking token contents.
+
 ## [1.17.0-rc12] - 2026-06-14
 
 ### Added

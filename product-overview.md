@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.17.0-rc12
+> Last updated: 2026-06-14 | Current version: v1.17.0-rc13
 
 ## Project Summary
 
@@ -77,7 +77,7 @@ MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_
 ./gradlew :app:assembleDebugAndroidTest
 ```
 
-The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The instrumented Compose smoke test drives pairing, WebSocket connection, initial snapshot display, `message.send`, streamed assistant text, `tool.pending`, `tool.decide`, `patch.upsert`, `diff.get`, and `patch.decide` against an in-process gateway mock. The connected-device smoke runner writes `build/android_connected_smoke/report.json` and `build/android_connected_smoke/report.md`, records a skipped report when no Android device is attached, and can pass a fresh Mac pairing payload to a live-gateway instrumentation test through `MOBILE_GATEWAY_PAIRING_PAYLOAD`. When `MOBILE_GATEWAY_LIVE_MESSAGE` is also set, the live instrumentation sends a real `message.send` command and waits for Mac acknowledgement. When `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1` is also set, it waits for Mac-side Agent activity after the send, such as responding state, assistant output, tool/patch/job updates, or worktree changes; pairing payloads and live messages are redacted from reports. The Ruby gateway integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`, verifies that `ack` and `error` envelope IDs correlate with the originating mobile command IDs, and checks that snapshots include pending tools plus patch proposals.
+The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The instrumented Compose smoke test drives pairing, WebSocket connection, initial snapshot display, `message.send`, streamed assistant text, `tool.pending`, `tool.decide`, `patch.upsert`, `diff.get`, and `patch.decide` against an in-process gateway mock. The connected-device smoke runner writes `build/android_connected_smoke/report.json` and `build/android_connected_smoke/report.md`, records a skipped report when no Android device is attached, and validates live pairing payload JSON, required fields, protocol version, and expiry before passing it to instrumentation. It can pass a fresh Mac pairing payload to a live-gateway instrumentation test through `MOBILE_GATEWAY_PAIRING_PAYLOAD`. When `MOBILE_GATEWAY_LIVE_MESSAGE` is also set, the live instrumentation sends a real `message.send` command and waits for Mac acknowledgement. When `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1` is also set, it waits for Mac-side Agent activity after the send, such as responding state, assistant output, tool/patch/job updates, or worktree changes; pairing payloads and live messages are redacted from reports. The Ruby gateway integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`, verifies that `ack` and `error` envelope IDs correlate with the originating mobile command IDs, and checks that snapshots include pending tools plus patch proposals.
 
 ## Known Gaps
 

@@ -57,6 +57,25 @@ class CommandRunner
     }
   end
 
+  def check(name)
+    started = Time.now
+    detail = yield
+    @steps << {
+      name: name,
+      status: "passed",
+      duration_ms: ((Time.now - started) * 1000).round,
+      detail: detail,
+    }
+  rescue StandardError => e
+    @steps << {
+      name: name,
+      status: "failed",
+      duration_ms: ((Time.now - started) * 1000).round,
+      detail: redact(e.message),
+    }
+    raise
+  end
+
   private
 
   def redact(text)
@@ -78,6 +97,24 @@ def parse_adb_devices(output)
 
     { serial: serial, state: state.strip }
   end
+end
+
+def validate_live_pairing_payload(payload)
+  return "no live payload provided" if payload.empty?
+
+  data = JSON.parse(payload)
+  required_fields = %w[base_url pairing_token protocol_version desktop_name expires_at]
+  missing_fields = required_fields.select { |field| data[field].to_s.strip.empty? }
+  raise "missing pairing payload fields: #{missing_fields.join(", ")}" unless missing_fields.empty?
+  raise "unsupported protocol_version: #{data["protocol_version"]}" unless data["protocol_version"] == "mobile-gateway.v1"
+
+  expires_at = Time.parse(data["expires_at"])
+  seconds_remaining = (expires_at - Time.now.utc).round
+  raise "pairing payload expired at #{expires_at.utc.iso8601}" unless seconds_remaining.positive?
+
+  "valid payload; expires in #{seconds_remaining}s"
+rescue JSON::ParserError => e
+  raise "invalid pairing payload JSON: #{e.message}"
 end
 
 def write_reports(result)
@@ -103,7 +140,7 @@ def markdown_report(result)
   lines << "| Step | Status | Duration | Detail |"
   lines << "| --- | --- | ---: | --- |"
   result[:steps].each do |step|
-    detail = step[:reason] || step[:command] || ""
+    detail = step[:reason] || step[:detail] || step[:command] || ""
     lines << "| #{step[:name]} | `#{step[:status]}` | #{step[:duration_ms]} ms | #{detail.gsub("|", "\\|")} |"
   end
   lines << ""
@@ -115,6 +152,7 @@ status = "passed"
 error = nil
 
 begin
+  runner.check("validate live pairing payload") { validate_live_pairing_payload(LIVE_PAIRING_PAYLOAD) }
   adb = runner.run("detect connected Android devices", "adb", "devices", allow_failure: !REQUIRE_DEVICE)
   if adb[:status] == "failed"
     status = "failed"
