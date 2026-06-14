@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc20] - 2026-06-14
+
+### Added
+
+- Added local pairing payload `base_url` validation so malformed or unsupported gateway URLs are rejected before network requests.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc20`.
+
+### Tests
+
+- Added model coverage for unsupported URL schemes and malformed gateway `base_url` values.
+
 ## [1.17.0-rc19] - 2026-06-14
 
 ### Added

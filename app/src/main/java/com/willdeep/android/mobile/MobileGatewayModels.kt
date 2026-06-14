@@ -1,5 +1,6 @@
 package com.willdeep.android.mobile
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -36,7 +37,7 @@ data class PairingPayload(
                 val json = JSONObject(raw.trim())
                 val baseUrl = json.optString("base_url").trim().trimEnd('/')
                 val pairingToken = json.optString("pairing_token").trim()
-                if (baseUrl.isBlank() || pairingToken.isBlank()) {
+                if (baseUrl.isBlank() || baseUrl.toHttpUrlOrNull() == null || pairingToken.isBlank()) {
                     throw InvalidPairingPayloadException()
                 }
                 return PairingPayload(

@@ -4,8 +4,8 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Test
 import org.junit.Assert.fail
+import org.junit.Test
 import java.time.Instant
 
 class MobileGatewayModelsTest {
@@ -105,6 +105,26 @@ class MobileGatewayModelsTest {
         assertInvalidPairingPayload(
             """
             {
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac"
+            }
+            """.trimIndent()
+        )
+        assertInvalidPairingPayload(
+            """
+            {
+              "base_url": "ftp://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac"
+            }
+            """.trimIndent()
+        )
+        assertInvalidPairingPayload(
+            """
+            {
+              "base_url": "not a url",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac"
