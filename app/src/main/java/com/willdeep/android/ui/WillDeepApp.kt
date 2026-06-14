@@ -109,6 +109,7 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                     state = state,
                     onPayloadChange = viewModel::updatePairingPayload,
                     onDeviceNameChange = viewModel::updateDeviceName,
+                    onCheckGateway = viewModel::checkGatewayHealth,
                     onPair = viewModel::pair,
                     onScan = { scannerVisible = true },
                     onConnect = viewModel::connect,
@@ -195,6 +196,7 @@ private fun PairingCard(
     state: MobileGatewayUiState,
     onPayloadChange: (String) -> Unit,
     onDeviceNameChange: (String) -> Unit,
+    onCheckGateway: () -> Unit,
     onPair: () -> Unit,
     onScan: () -> Unit,
     onConnect: () -> Unit,
@@ -228,6 +230,23 @@ private fun PairingCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            if (state.gatewayServerVersion.isNotBlank()) {
+                Text(
+                    text = stringResource(R.string.gateway_server_version, state.gatewayServerVersion),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            state.pairingAllowed?.let { allowed ->
+                Text(
+                    text = if (allowed) {
+                        stringResource(R.string.gateway_pairing_allowed)
+                    } else {
+                        stringResource(R.string.gateway_pairing_blocked)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (allowed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
+            }
             OutlinedTextField(
                 value = state.pairingPayloadText,
                 onValueChange = onPayloadChange,
@@ -246,9 +265,23 @@ private fun PairingCard(
                 modifier = Modifier.fillMaxWidth(),
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onCheckGateway,
+                    enabled = state.pairingPayloadText.isNotBlank() && !state.isCheckingGateway,
+                ) {
+                    Text(
+                        if (state.isCheckingGateway) {
+                            stringResource(R.string.checking_gateway_button)
+                        } else {
+                            stringResource(R.string.check_gateway_button)
+                        }
+                    )
+                }
                 Button(
                     onClick = onPair,
-                    enabled = state.pairingPayloadText.isNotBlank() && state.status != ConnectionStatus.Pairing,
+                    enabled = state.pairingPayloadText.isNotBlank() &&
+                        state.status != ConnectionStatus.Pairing &&
+                        !state.isCheckingGateway,
                 ) {
                     Text(stringResource(R.string.pair_button))
                 }

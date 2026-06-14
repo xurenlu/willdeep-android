@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.15.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android `/mobile/health` probing before pairing and through a manual Check Gateway action.
+- Added pairing UI display for Mac gateway server version and whether pairing is currently allowed.
+- Added client coverage for health request headers and version/protocol/pairing status parsing.
+
+### Changed
+
+- Bumped Android client version to `1.15.0-rc1`.
+
+### Tests
+
+- Verified targeted client coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest`.
+- Verified the mock integration script with `ruby scripts/mobile_gateway_mock_integration.rb`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.14.0-rc3] - 2026-06-14
 
 ### Added

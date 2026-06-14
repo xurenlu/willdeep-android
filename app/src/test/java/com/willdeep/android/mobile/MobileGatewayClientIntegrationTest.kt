@@ -41,6 +41,22 @@ class MobileGatewayClientIntegrationTest {
     }
 
     @Test
+    fun checkHealthSendsVersionHeaderAndParsesGatewayStatus() = runBlocking {
+        TestGateway().use { gateway ->
+            val client = MobileGatewayClient()
+
+            val health = client.checkHealth(gateway.baseUrl)
+
+            assertEquals("ok", health.status)
+            assertEquals(BuildConfig.VERSION_NAME, health.appVersion)
+            assertEquals(BuildConfig.VERSION_NAME, health.serverVersion)
+            assertEquals(MOBILE_GATEWAY_PROTOCOL_VERSION, health.protocolVersion)
+            assertTrue(health.pairingAllowed)
+            assertEquals(BuildConfig.VERSION_NAME, gateway.healthHeaders.single().getValue("x-app-version"))
+        }
+    }
+
+    @Test
     fun connectAuthenticatesAndReceivesSnapshotAndSessionListAck() = runBlocking {
         TestGateway().use { gateway ->
             val client = MobileGatewayClient()
@@ -66,6 +82,7 @@ class MobileGatewayClientIntegrationTest {
 private class TestGateway : Closeable {
     val deviceToken = "device_test_token"
     val baseUrl: String
+    val healthHeaders = CopyOnWriteArrayList<Map<String, String>>()
     val pairClaimHeaders = CopyOnWriteArrayList<Map<String, String>>()
     val websocketHeaders = CopyOnWriteArrayList<Map<String, String>>()
     val sessionListLatch = CountDownLatch(1)
@@ -105,10 +122,28 @@ private class TestGateway : Closeable {
     private fun handle(socket: Socket) {
         val request = socket.getInputStream().readRequest()
         when (request.method to request.path) {
+            "GET" to "/mobile/health" -> handleHealth(socket.getOutputStream(), request)
             "POST" to "/mobile/pair/claim" -> handlePairClaim(socket.getOutputStream(), request)
             "GET" to "/mobile/ws" -> handleWebSocket(socket, request)
             else -> socket.getOutputStream().writeJsonResponse(404, JSONObject().put("ok", false).put("error", "not found"))
         }
+    }
+
+    private fun handleHealth(output: OutputStream, request: HttpRequest) {
+        healthHeaders += request.headers
+        output.writeJsonResponse(
+            200,
+            JSONObject()
+                .put("ok", true)
+                .put(
+                    "data",
+                    JSONObject()
+                        .put("status", "ok")
+                        .put("version", BuildConfig.VERSION_NAME)
+                        .put("protocol_version", MOBILE_GATEWAY_PROTOCOL_VERSION)
+                        .put("pairing_allowed", true),
+                ),
+        )
     }
 
     private fun handlePairClaim(output: OutputStream, request: HttpRequest) {

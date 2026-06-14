@@ -9,12 +9,14 @@ import com.willdeep.android.mobile.DeviceTokenStore
 import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
 import com.willdeep.android.mobile.GatewayFile
+import com.willdeep.android.mobile.GatewayHealth
 import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorktree
 import com.willdeep.android.mobile.GatewayWorktreeFile
+import com.willdeep.android.mobile.MOBILE_GATEWAY_PROTOCOL_VERSION
 import com.willdeep.android.mobile.MobileGatewayClient
 import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
@@ -52,6 +54,9 @@ data class MobileGatewayUiState(
     val baseUrl: String = "",
     val desktopName: String = "",
     val protocolVersion: String = "",
+    val gatewayServerVersion: String = "",
+    val pairingAllowed: Boolean? = null,
+    val isCheckingGateway: Boolean = false,
     val isPaired: Boolean = false,
     val status: ConnectionStatus = ConnectionStatus.Idle,
     val errorMessage: String? = null,
@@ -99,7 +104,13 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun updatePairingPayload(value: String) {
-        _state.update { it.copy(pairingPayloadText = value) }
+        _state.update {
+            it.copy(
+                pairingPayloadText = value,
+                gatewayServerVersion = "",
+                pairingAllowed = null,
+            )
+        }
     }
 
     fun loadPairingPayloadFromQr(value: String) {
@@ -140,6 +151,9 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             runCatching {
                 _state.update { it.copy(status = ConnectionStatus.Pairing, errorMessage = null) }
                 val payload = PairingPayload.parse(current.pairingPayloadText)
+                val health = client.checkHealth(payload.baseUrl)
+                updateGatewayHealth(payload, health)
+                ensureCompatibleGateway(health)
                 val claim = client.claimPairing(payload, current.deviceName)
                 val credential = StoredGatewayCredential(
                     baseUrl = payload.baseUrl,
@@ -164,6 +178,43 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             }.onFailure { error ->
                 _state.update {
                     it.copy(
+                        status = ConnectionStatus.Error,
+                        errorMessage = error.message,
+                    )
+                }
+            }
+        }
+    }
+
+    fun checkGatewayHealth() {
+        val rawPayload = state.value.pairingPayloadText
+        viewModelScope.launch {
+            runCatching {
+                _state.update { it.copy(isCheckingGateway = true, errorMessage = null) }
+                val payload = PairingPayload.parse(rawPayload)
+                val health = client.checkHealth(payload.baseUrl)
+                updateGatewayHealth(payload, health)
+                ensureCompatibleGateway(health)
+                health
+            }.onSuccess { health ->
+                _state.update {
+                    it.copy(
+                        isCheckingGateway = false,
+                        logLines = it.logLines.append(
+                            GatewayLogLine(
+                                "ack",
+                                getApplication<Application>().getString(
+                                    R.string.gateway_health_ok_log,
+                                    health.serverVersion.ifBlank { health.appVersion },
+                                ),
+                            )
+                        ),
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isCheckingGateway = false,
                         status = ConnectionStatus.Error,
                         errorMessage = error.message,
                     )
@@ -554,6 +605,34 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             )
         }
         return true
+    }
+
+    private fun ensureCompatibleGateway(health: GatewayHealth) {
+        if (health.protocolVersion != MOBILE_GATEWAY_PROTOCOL_VERSION) {
+            throw IllegalStateException(
+                getApplication<Application>().getString(
+                    R.string.error_gateway_protocol_mismatch,
+                    health.protocolVersion,
+                )
+            )
+        }
+        if (!health.pairingAllowed) {
+            throw IllegalStateException(
+                getApplication<Application>().getString(R.string.error_gateway_pairing_not_allowed)
+            )
+        }
+    }
+
+    private fun updateGatewayHealth(payload: PairingPayload, health: GatewayHealth) {
+        _state.update {
+            it.copy(
+                baseUrl = payload.baseUrl,
+                desktopName = payload.desktopName,
+                protocolVersion = health.protocolVersion.ifBlank { payload.protocolVersion },
+                gatewayServerVersion = health.serverVersion.ifBlank { health.appVersion },
+                pairingAllowed = health.pairingAllowed,
+            )
+        }
     }
 
     override fun onCleared() {

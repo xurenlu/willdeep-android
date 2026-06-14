@@ -25,6 +25,23 @@ class MobileGatewayClient(
 ) {
     private var webSocket: WebSocket? = null
 
+    suspend fun checkHealth(baseUrl: String): GatewayHealth {
+        val request = Request.Builder()
+            .url(baseUrl.endpoint("mobile/health"))
+            .get()
+            .header("X-App-Version", BuildConfig.VERSION_NAME)
+            .build()
+        return withContext(Dispatchers.IO) {
+            httpClient.newCall(request).execute().use { response ->
+                parseGatewayHealth(
+                    raw = response.requireBody(),
+                    appVersionHeader = response.header("X-App-Version").orEmpty(),
+                    serverVersionHeader = response.header("X-Server-Version").orEmpty(),
+                )
+            }
+        }
+    }
+
     suspend fun claimPairing(payload: PairingPayload, deviceName: String): PairingClaim {
         val body = JSONObject()
             .put("pairing_token", payload.pairingToken)
@@ -94,6 +111,23 @@ class MobileGatewayClient(
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
     }
+}
+
+private fun parseGatewayHealth(
+    raw: String,
+    appVersionHeader: String,
+    serverVersionHeader: String,
+): GatewayHealth {
+    val data = JSONObject(raw).asApiData()
+    val versionValue = data.optJSONObject("version")?.optString("version").orEmpty()
+        .ifBlank { data.optString("version") }
+    return GatewayHealth(
+        status = data.optString("status", "ok"),
+        appVersion = appVersionHeader.ifBlank { versionValue },
+        serverVersion = serverVersionHeader.ifBlank { versionValue },
+        protocolVersion = data.optString("protocol_version", MOBILE_GATEWAY_PROTOCOL_VERSION),
+        pairingAllowed = data.optBoolean("pairing_allowed", false),
+    )
 }
 
 private fun Response.requireBody(): String {

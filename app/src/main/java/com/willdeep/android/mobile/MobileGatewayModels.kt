@@ -39,6 +39,14 @@ data class PairingClaim(
     val protocolVersion: String,
 )
 
+data class GatewayHealth(
+    val status: String,
+    val appVersion: String,
+    val serverVersion: String,
+    val protocolVersion: String,
+    val pairingAllowed: Boolean,
+)
+
 data class GatewaySession(
     val id: String,
     val title: String,

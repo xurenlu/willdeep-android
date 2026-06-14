@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.14.0-rc3 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.15.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,10 +31,12 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.14.0-rc3:
+Implemented through v1.15.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
+- Gateway health probing through `GET /mobile/health` before pairing and through a manual Check Gateway action.
+- Pairing UI displays the Mac gateway server version and whether pairing is currently allowed.
 - Encrypted token persistence through AndroidX Security.
 - WebSocket connection with `X-App-Version` populated from `BuildConfig.VERSION_NAME`.
 - Session list refresh, session creation, session selection, message send, and turn stop commands.
@@ -84,6 +86,7 @@ Android currently calls:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/mobile/health` | Check gateway status, version headers, protocol version, and pairing availability. |
 | `POST` | `/mobile/pair/claim` | Exchange the short-lived pairing token for a device token. |
 | `GET` | `/mobile/ws` | Establish the authenticated WebSocket event and command channel. |
 
@@ -128,7 +131,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.14.0-rc3:
+Gateway events parsed by Android v1.15.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -165,6 +168,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - The app builds with `./gradlew :app:assembleDebug`.
 - The first screen is the usable Compose gateway client, not a marketing page.
 - User-visible text is stored in Android string resources.
+- Pairing payloads can be checked against `/mobile/health` before claim, and Android shows server version plus pairing availability.
 - Pairing payload claim stores a long-lived device token securely.
 - A paired device can open `/mobile/ws`, send `session.list`, and display returned session state.
 - A pending `ask_user` approval requires an Android answer before approve and sends that answer in `tool.decide`.
@@ -179,4 +183,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Failed sends do not discard user-entered task text or remove still-pending action cards.
 - `ruby scripts/mobile_gateway_mock_integration.rb` verifies the mock pairing, WebSocket, streaming, changed-file read, and unknown-command paths and writes JSON/Markdown reports.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
-- Version `1.14.0-rc3` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.15.0-rc1` is visible in Gradle metadata and sent through gateway request headers.

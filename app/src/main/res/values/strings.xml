@@ -17,6 +17,8 @@
     <string name="device_name_label">Device name</string>
     <string name="device_name_placeholder">Android phone</string>
     <string name="pair_button">Pair device</string>
+    <string name="check_gateway_button">Check gateway</string>
+    <string name="checking_gateway_button">Checking…</string>
     <string name="scan_qr_button">Scan QR</string>
     <string name="close_scanner_button">Close scanner</string>
     <string name="camera_permission_button">Allow camera</string>
@@ -66,6 +68,8 @@
     <string name="error_device_revoked">This device token was rejected. Pair with the Mac again.</string>
     <string name="error_reconnect_exhausted">Could not reconnect. Check that Mobile Gateway is still enabled on the Mac.</string>
     <string name="error_answer_required">Enter an answer before approving this request.</string>
+    <string name="error_gateway_protocol_mismatch">Gateway protocol mismatch: %1$s.</string>
+    <string name="error_gateway_pairing_not_allowed">Mac Mobile Gateway is not allowing pairing right now.</string>
     <string name="camera_permission_required">Camera permission is required to scan the Mac pairing QR code.</string>
     <string name="qr_scanner_title">Scan Mac pairing QR</string>
     <string name="qr_scanner_hint">Point the camera at the QR code shown in WillDeep Settings.</string>
@@ -106,6 +110,10 @@
     <string name="file_bytes">%1$d bytes</string>
     <string name="file_truncated">truncated</string>
     <string name="gateway_url">Gateway: %1$s</string>
+    <string name="gateway_server_version">Server: %1$s</string>
+    <string name="gateway_pairing_allowed">Pairing is allowed</string>
+    <string name="gateway_pairing_blocked">Pairing is blocked</string>
+    <string name="gateway_health_ok_log">Gateway health OK: %1$s</string>
     <string name="protocol_version">Protocol: %1$s</string>
     <string name="token_stored">Device token stored securely on this phone.</string>
     <string name="pairing_help">In WillDeep on the Mac, open Settings → Mobile Gateway, enable LAN access, then copy the pairing payload or scan the QR content.</string>
