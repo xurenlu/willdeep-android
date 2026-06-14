@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.14.0-rc3] - 2026-06-14
+
+### Added
+
+- Added JVM integration coverage for `MobileGatewayClient` against a local mock gateway, verifying pairing request headers, device token parsing, WebSocket authorization, automatic `session.list`, and snapshot parsing.
+
+### Changed
+
+- Bumped Android client version to `1.14.0-rc3`.
+
+### Tests
+
+- Verified targeted client coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest`.
+- Verified the mock integration script with `ruby scripts/mobile_gateway_mock_integration.rb`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.14.0-rc2] - 2026-06-14
 
 ### Added
