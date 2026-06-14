@@ -16,7 +16,12 @@ SMOKE_REPORT_MD = File.join(ROOT_DIR, "build", "android_connected_smoke", "repor
 OUT_DIR = File.join(ROOT_DIR, "build", "mobile_gateway_live_acceptance")
 REPORT_JSON = File.join(OUT_DIR, "report.json")
 REPORT_MD = File.join(OUT_DIR, "report.md")
-DEFAULT_LIVE_MESSAGE = "Create a short TODO note in the current workspace from Android live acceptance."
+LIVE_ACCEPTANCE_TARGET_FILE = "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"
+DEFAULT_LIVE_MESSAGE = [
+  "Use the Mac WillDeep workspace tools to create or update `#{LIVE_ACCEPTANCE_TARGET_FILE}`.",
+  "Add one short section titled `Android Live Acceptance` with today's date and one bullet explaining that the request came from Android.",
+  "Do not only describe the change; make the workspace file edit so the live smoke can observe code activity.",
+].join("\n")
 MAC_BUNDLE_ID = ENV.fetch("MOBILE_GATEWAY_MAC_BUNDLE_ID", "com.willdeep.app")
 DEFAULT_DESKTOP_PAIRING_PORT = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PORT", "8876")
 DEFAULT_DESKTOP_PAIRING_BASE_URL = "http://127.0.0.1:#{DEFAULT_DESKTOP_PAIRING_PORT}"
@@ -44,6 +49,10 @@ def run_smoke
     "MOBILE_GATEWAY_LIVE_MESSAGE" => ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", DEFAULT_LIVE_MESSAGE),
   }
   Open3.capture3(env, "ruby", SMOKE_SCRIPT, chdir: ROOT_DIR)
+end
+
+def live_request_profile
+  ENV.key?("MOBILE_GATEWAY_LIVE_MESSAGE") ? "custom" : "default_workspace_file_edit"
 end
 
 def mac_gateway_preflight
@@ -108,6 +117,8 @@ def build_report(stdout, stderr, exit_status, smoke, preflight)
     smoke_report_md_sha256: sha256(SMOKE_REPORT_MD),
     mac_gateway_preflight: preflight,
     live_payload_source: smoke["live_payload_source"],
+    live_request_profile: live_request_profile,
+    live_acceptance_target_file: LIVE_ACCEPTANCE_TARGET_FILE,
     live_message_provided: true,
     strict_live_acceptance_required: true,
     agent_activity_required: true,
@@ -135,6 +146,8 @@ def write_reports(report)
     "- Status: `#{report[:status]}`",
     "- Smoke exit code: `#{report[:smoke_exit_code]}`",
     "- Live payload source: `#{report[:live_payload_source] || "unknown"}`",
+    "- Live request profile: `#{report[:live_request_profile] || "unknown"}`",
+    "- Live acceptance target file: `#{report[:live_acceptance_target_file] || "unknown"}`",
     "- Attached devices: `#{report[:attached_device_count]}`",
     "- Message send ack: `#{report[:mobile_message_send_ack] || "missing"}`",
     "- Smoke JSON: `#{report[:smoke_report_json]}`",

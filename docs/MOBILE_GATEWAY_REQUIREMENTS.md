@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc44 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc45 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc44:
+Implemented through v1.17.0-rc45:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -82,6 +82,7 @@ Implemented through v1.17.0-rc44:
 - The connected-device smoke runner can auto-discover the default WillDeep Mac runtime desktop-token file under `~/Library/Application Support/com.willdeep.app/MobileGateway/desktop-token` and use `http://127.0.0.1:8876` for desktop-authenticated pairing rotation when no live payload or explicit desktop gateway variables are provided.
 - The connected-device smoke runner writes `next_actions` into JSON/Markdown reports when live payloads, Android devices, health preflight, live messages, agent-activity checks, or pairing windows still need attention.
 - The connected-device smoke runner writes structured `acceptance_evidence` into JSON/Markdown reports for live payload validation, Mac health preflight, Android device detection, device-to-gateway reachability, live instrumentation, `message.send` acknowledgement, post-send Mac Agent activity, and post-send Mac code activity.
+- The final live acceptance wrapper's default request asks the Mac Agent to create or update `WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md`, and the wrapper report records the non-secret request profile plus target filename.
 - Live Mac Agent activity evidence ignores mobile user-message echoes and only passes on Mac-side responding state, assistant output, tool updates, patch updates, live job changes, or worktree changes.
 - Live code activity evidence only passes on Mac-side tool updates, patch updates, live job changes, or worktree changes; assistant text alone is not enough for this stricter final gate.
 - Live instrumentation emits `WillDeepLiveSmoke` markers for accepted `message.send` acknowledgements, the specific Mac Agent activity signal, and the specific Mac code activity signal; the connected smoke runner collects those markers into generated JSON/Markdown reports when an Android device is attached.
@@ -166,7 +167,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc44:
+Gateway events parsed by Android v1.17.0-rc45:
 
 - `state.snapshot`
 - `session.upsert`
@@ -246,9 +247,9 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - When Android devices are attached and `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided, `ruby scripts/android_connected_smoke_test.rb` checks gateway host/port reachability from each device unless `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY=1` is set.
 - When Android devices are attached but no live pairing payload is available, normal connected smoke records skipped device instrumentation steps instead of running a guaranteed-failing live gateway test; strict final live acceptance still fails through `final_live_acceptance_failures`.
 - When Android devices are attached and a live pairing payload is available, `ruby scripts/android_connected_smoke_test.rb` records IPv4-redacted route and global-address diagnostics before device-side reachability checks.
-- `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path, sends a real mobile request into WillDeep, waits for Mac acknowledgement, then waits for Mac Agent activity and Mac code activity when an Android device is attached and the token is still valid.
-- `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1 MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` is the final acceptance command when WillDeep Mac Gateway is already running and the runner can auto-discover the desktop token; it must exit 0 and produce all-passed `acceptance_evidence` before this end-to-end goal is considered complete.
+- `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' MOBILE_GATEWAY_LIVE_MESSAGE='Create or update WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path, sends a real mobile request into WillDeep, waits for Mac acknowledgement, then waits for Mac Agent activity and Mac code activity when an Android device is attached and the token is still valid.
+- `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1 MOBILE_GATEWAY_LIVE_MESSAGE='Create or update WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` is the final acceptance command when WillDeep Mac Gateway is already running and the runner can auto-discover the desktop token; it must exit 0 and produce all-passed `acceptance_evidence` before this end-to-end goal is considered complete.
 - `ruby scripts/mobile_gateway_live_acceptance.rb` runs the same final acceptance gate with strict defaults and writes a concise wrapper report for the live device handoff.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc44` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc45` is visible in Gradle metadata and sent through gateway request headers.

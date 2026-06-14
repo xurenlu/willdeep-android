@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0-rc45] - 2026-06-14
+
+### Changed
+
+- Strengthened the default live acceptance request so the Android final wrapper asks the Mac Agent to create or update `WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md` instead of sending a generic note request.
+- The live acceptance wrapper report now records the non-secret request profile and target file used by the default workspace-edit task.
+- Bumped Android client version to `1.17.0-rc45`.
+
+### Tests
+
+- Verified the final live wrapper still writes JSON/Markdown reports and exposes the default workspace-edit request profile while Mac Gateway is not running.
+
 ## [1.17.0-rc44] - 2026-06-14
 
 ### Added
