@@ -16,9 +16,32 @@ REPORT_MD = File.join(OUT_DIR, "report.md")
 APP_VERSION = File.read(File.join(ROOT_DIR, "app", "build.gradle.kts"))[/versionName\s*=\s*"([^"]+)"/, 1]
 REQUIRE_DEVICE = ENV["REQUIRE_ANDROID_DEVICE"] == "1"
 LIVE_PAIRING_PAYLOAD_ENV = ENV.fetch("MOBILE_GATEWAY_PAIRING_PAYLOAD", "")
-DESKTOP_PAIRING_BASE_URL = ENV.fetch("MOBILE_GATEWAY_DESKTOP_BASE_URL", "")
+DESKTOP_PAIRING_BASE_URL_ENV = ENV.fetch("MOBILE_GATEWAY_DESKTOP_BASE_URL", "")
 DESKTOP_PAIRING_TOKEN = ENV.fetch("MOBILE_GATEWAY_DESKTOP_TOKEN", "")
-DESKTOP_PAIRING_TOKEN_FILE = ENV.fetch("MOBILE_GATEWAY_DESKTOP_TOKEN_FILE", "")
+DESKTOP_PAIRING_TOKEN_FILE_ENV = ENV.fetch("MOBILE_GATEWAY_DESKTOP_TOKEN_FILE", "")
+MAC_BUNDLE_ID = ENV.fetch("MOBILE_GATEWAY_MAC_BUNDLE_ID", "com.willdeep.app")
+DEFAULT_DESKTOP_PAIRING_PORT = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PORT", "8876")
+DEFAULT_DESKTOP_PAIRING_BASE_URL = "http://127.0.0.1:#{DEFAULT_DESKTOP_PAIRING_PORT}"
+DEFAULT_DESKTOP_PAIRING_TOKEN_FILE = File.join(
+  Dir.home,
+  "Library",
+  "Application Support",
+  MAC_BUNDLE_ID,
+  "MobileGateway",
+  "desktop-token",
+)
+AUTO_DESKTOP_PAIRING_TOKEN_FILE = if LIVE_PAIRING_PAYLOAD_ENV.empty? &&
+                                     DESKTOP_PAIRING_BASE_URL_ENV.empty? &&
+                                     DESKTOP_PAIRING_TOKEN.empty? &&
+                                     DESKTOP_PAIRING_TOKEN_FILE_ENV.empty? &&
+                                     File.file?(DEFAULT_DESKTOP_PAIRING_TOKEN_FILE)
+                                    DEFAULT_DESKTOP_PAIRING_TOKEN_FILE
+                                  else
+                                    ""
+                                  end
+DESKTOP_PAIRING_BASE_URL = DESKTOP_PAIRING_BASE_URL_ENV.empty? && !AUTO_DESKTOP_PAIRING_TOKEN_FILE.empty? ? DEFAULT_DESKTOP_PAIRING_BASE_URL : DESKTOP_PAIRING_BASE_URL_ENV
+DESKTOP_PAIRING_TOKEN_FILE = DESKTOP_PAIRING_TOKEN_FILE_ENV.empty? ? AUTO_DESKTOP_PAIRING_TOKEN_FILE : DESKTOP_PAIRING_TOKEN_FILE_ENV
+DESKTOP_PAIRING_AUTO_DISCOVERED = !AUTO_DESKTOP_PAIRING_TOKEN_FILE.empty?
 DESKTOP_PAIRING_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PAIRING_TIMEOUT_SECONDS", "5").to_f
 LIVE_DEVICE_NAME = ENV.fetch("MOBILE_GATEWAY_DEVICE_NAME", "Android Live Smoke")
 LIVE_MESSAGE = ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", "")
@@ -350,6 +373,7 @@ def markdown_report(result)
   lines << "- Devices: #{result[:devices].empty? ? "_none_" : result[:devices].map { |device| "`#{device[:serial]}` (#{device[:state]})" }.join(", ")}"
   lines << "- Live Mac payload: `#{result[:live_payload_provided] ? "provided" : "not provided"}`"
   lines << "- Live payload source: `#{result[:live_payload_source]}`"
+  lines << "- Desktop gateway auto-discovery: `#{result[:desktop_pairing_auto_discovered] ? "enabled" : "disabled"}`"
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
@@ -447,6 +471,7 @@ result = {
   live_payload_provided: !live_pairing_payload.empty?,
   live_payload_source: live_payload_source,
   desktop_pairing_fetch_requested: desktop_pairing_fetch_requested?,
+  desktop_pairing_auto_discovered: DESKTOP_PAIRING_AUTO_DISCOVERED,
   live_message_provided: !LIVE_MESSAGE.empty?,
   expect_agent_activity: EXPECT_AGENT_ACTIVITY,
   agent_activity_check_enabled: run_agent_activity_check,

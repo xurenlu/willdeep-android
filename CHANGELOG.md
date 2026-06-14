@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc34] - 2026-06-14
+
+### Added
+
+- Added connected smoke auto-discovery for the default WillDeep Mac runtime desktop-token file, allowing live payload rotation without manually exporting desktop gateway variables when the Mac gateway is already running.
+
+### Changed
+
+- Connected smoke reports now record whether desktop gateway auto-discovery was used.
+- Bumped Android client version to `1.17.0-rc34`.
+
+### Tests
+
+- Verified auto-discovery against a mock gateway using a temporary WillDeep Application Support token file.
+
 ## [1.17.0-rc33] - 2026-06-14
 
 ### Changed
