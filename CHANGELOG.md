@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.16.0-rc2] - 2026-06-14
+
+### Fixed
+
+- Aligned the Ruby mock gateway integration script with the Mac Go gateway by returning correlated `error` envelopes for unknown commands.
+- Added integration assertions that command `ack` and `error` envelope IDs match the mobile command IDs.
+
+### Changed
+
+- Bumped Android client version to `1.16.0-rc2`.
+
+### Tests
+
+- Verified the mock integration script with `ruby scripts/mobile_gateway_mock_integration.rb`.
+- Verified targeted command protocol coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.ui.MobileCommandStatusTest --tests com.willdeep.android.mobile.MobileGatewayModelsTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.16.0-rc1] - 2026-06-14
 
 ### Added

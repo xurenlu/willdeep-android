@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.16.0-rc1
+> Last updated: 2026-06-14 | Current version: v1.16.0-rc2
 
 ## Project Summary
 
@@ -72,7 +72,7 @@ ruby scripts/mobile_gateway_mock_integration.rb
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The Ruby integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`.
+The JVM client integration test covers the real `MobileGatewayClient` against a local mock gateway. The Ruby integration script writes `build/mobile_gateway_mock_integration/report.json` and `build/mobile_gateway_mock_integration/report.md`, and verifies that `ack` and `error` envelope IDs correlate with the originating mobile command IDs.
 
 ## Known Gaps
 

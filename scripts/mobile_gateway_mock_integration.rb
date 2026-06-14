@@ -362,8 +362,9 @@ class MockGateway
         "byte_count" => "content for #{path}".bytesize,
       }))
     else
-      peer.write_json(envelope("command.error", session_id: command["session_id"], payload: {
+      peer.write_json(envelope("error", id: command["id"], session_id: command["session_id"], payload: {
         "message" => "unknown command: #{command["type"]}",
+        "type" => command["type"],
       }))
     end
   end
@@ -606,18 +607,22 @@ def main
     end
 
     recorder.record("session list command receives ack") do
-      ws.write_json(envelope("session.list"))
+      command = envelope("session.list")
+      ws.write_json(command)
       ack = ws.read_json
       expect(ack["type"] == "ack", "expected ack")
+      expect(ack["id"] == command.fetch("id"), "session.list ack id mismatch")
       expect(ack.dig("payload", "type") == "session.list", "expected session.list ack")
     end
 
     recorder.record("message send receives ack and streaming events") do
-      ws.write_json(envelope("message.send", payload: { "text" => "请在 Mac 上改 Android UI" }))
+      command = envelope("message.send", payload: { "text" => "请在 Mac 上改 Android UI" })
+      ws.write_json(command)
       ack = ws.read_json
       append = ws.read_json
       delta = ws.read_json
       done = ws.read_json
+      expect(ack["id"] == command.fetch("id"), "message.send ack id mismatch")
       expect(ack.dig("payload", "type") == "message.send", "missing message.send ack")
       expect(append["type"] == "message.append", "missing message.append")
       expect(delta["type"] == "message.delta", "missing message.delta")
@@ -626,18 +631,22 @@ def main
 
     recorder.record("changed file path can request file.read") do
       path = "app/src/main/java/com/willdeep/android/ui/WillDeepApp.kt"
-      ws.write_json(envelope("file.read", payload: { "path" => path, "max_bytes" => 65_536 }))
+      command = envelope("file.read", payload: { "path" => path, "max_bytes" => 65_536 })
+      ws.write_json(command)
       ack = ws.read_json
       expect(ack["type"] == "ack", "expected file.read ack")
+      expect(ack["id"] == command.fetch("id"), "file.read ack id mismatch")
       expect(ack.dig("payload", "type") == "file.read", "expected file.read payload")
       expect(ack.dig("payload", "path") == path, "file path mismatch")
       expect(ack.dig("payload", "content").include?(path), "file content missing path marker")
     end
 
-    recorder.record("unknown command returns command.error") do
-      ws.write_json(envelope("unknown.command"))
+    recorder.record("unknown command returns correlated error") do
+      command = envelope("unknown.command")
+      ws.write_json(command)
       error = ws.read_json
-      expect(error["type"] == "command.error", "expected command.error")
+      expect(error["type"] == "error", "expected error")
+      expect(error["id"] == command.fetch("id"), "error id mismatch")
       expect(error.dig("payload", "message").include?("unknown.command"), "missing command name")
     end
 

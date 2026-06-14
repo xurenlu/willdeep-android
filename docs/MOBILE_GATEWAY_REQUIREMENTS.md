@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.16.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.16.0-rc2 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.16.0-rc1:
+Implemented through v1.16.0-rc2:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -133,7 +133,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.16.0-rc1:
+Gateway events parsed by Android v1.16.0-rc2:
 
 - `state.snapshot`
 - `session.upsert`
@@ -151,7 +151,7 @@ Gateway events parsed by Android v1.16.0-rc1:
 - `error`
 - `command.error`
 
-`ack` and `command.error` envelope IDs are used to update Recent Commands when present. If the Mac gateway omits the ID, Android falls back to the pending command type or latest pending command.
+`ack`, `error`, and `command.error` envelope IDs are used to update Recent Commands when present. The integration mock now matches the Mac Go gateway behavior by returning `error` for unknown commands with the originating command ID. If the Mac gateway omits the ID, Android falls back to the pending command type or latest pending command.
 
 `state.snapshot` may include `queued_messages` with `id`, `text_preview`, `image_count`, `text_attachment_count`, and `session_id`.
 `state.snapshot` may include `messages` with `id`, `role`, `content`, `created_at`, and `session_id`.
@@ -189,4 +189,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Recent mobile command statuses are visible as pending, accepted, or failed after sending requests to the Mac gateway.
 - `ruby scripts/mobile_gateway_mock_integration.rb` verifies the mock pairing, WebSocket, streaming, changed-file read, and unknown-command paths and writes JSON/Markdown reports.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
-- Version `1.16.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.16.0-rc2` is visible in Gradle metadata and sent through gateway request headers.
