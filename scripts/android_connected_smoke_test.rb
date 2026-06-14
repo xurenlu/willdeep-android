@@ -171,6 +171,32 @@ def gateway_uri_from_payload(payload)
   URI.parse(pairing.fetch("base_url").to_s.sub(%r{/+\z}, ""))
 end
 
+def collect_device_network_diagnostics(runner, devices)
+  return false if devices.empty?
+
+  shell_command = [
+    "ip route 2>/dev/null",
+    "ip -o addr show scope global 2>/dev/null",
+  ].join("; ")
+  redacted_shell_command = "( #{shell_command} ) | sed -E 's/[0-9]+(\\.[0-9]+){3}/<ipv4>/g'"
+  devices.each do |device|
+    serial = device.fetch(:serial)
+    runner.run(
+      "collect device network diagnostics",
+      "adb",
+      "-s",
+      serial,
+      "shell",
+      "sh",
+      "-c",
+      redacted_shell_command,
+      allow_failure: true,
+      redacted_command: "adb -s #{serial} shell network diagnostics",
+    )
+  end
+  true
+end
+
 def check_device_gateway_reachability(runner, devices, payload)
   return false if payload.empty? || SKIP_DEVICE_REACHABILITY || devices.empty?
 
@@ -252,6 +278,7 @@ begin
       runner.skip("run connectedDebugAndroidTest", "no connected Android device")
       error = "no connected Android device" if REQUIRE_DEVICE
     else
+      collect_device_network_diagnostics(runner, devices)
       device_reachability_check_enabled = check_device_gateway_reachability(runner, devices, LIVE_PAIRING_PAYLOAD)
       runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
       connected_command = ["./gradlew", ":app:connectedDebugAndroidTest"]

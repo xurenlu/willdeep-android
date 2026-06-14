@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc16] - 2026-06-14
+
+### Added
+
+- Added Android device network diagnostics collection before live gateway reachability checks, capturing route/address summaries through `adb shell` with IPv4 addresses redacted in reports.
+
+### Changed
+
+- Connected smoke reports now include a device network diagnostics step when Android devices are attached.
+- Bumped Android client version to `1.17.0-rc16`.
+
+### Tests
+
+- Verified the connected smoke runner still reports skipped cleanly when no Android device is attached while live gateway preflights are configured.
+
 ## [1.17.0-rc15] - 2026-06-14
 
 ### Added
