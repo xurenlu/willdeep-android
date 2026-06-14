@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc15] - 2026-06-14
+
+### Added
+
+- Added Android device-side gateway reachability preflight to the connected smoke runner, checking the live gateway host and port through `adb shell` before instrumentation runs.
+
+### Changed
+
+- Connected smoke reports now show whether device reachability preflight was enabled and redact the gateway host from the reported adb command.
+- Bumped Android client version to `1.17.0-rc15`.
+
+### Tests
+
+- Verified the connected smoke runner still reports skipped cleanly when no Android device is attached while live gateway preflights are configured.
+
 ## [1.17.0-rc14] - 2026-06-14
 
 ### Added

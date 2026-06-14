@@ -5,6 +5,7 @@ require "fileutils"
 require "json"
 require "net/http"
 require "open3"
+require "shellwords"
 require "time"
 require "uri"
 
@@ -22,6 +23,8 @@ AGENT_ACTIVITY_TIMEOUT_MS = ENV.fetch("MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS"
 RUN_AGENT_ACTIVITY_CHECK = EXPECT_AGENT_ACTIVITY && !LIVE_PAIRING_PAYLOAD.empty? && !LIVE_MESSAGE.empty?
 SKIP_HEALTH_PREFLIGHT = ENV["MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT"] == "1"
 HEALTH_PREFLIGHT_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS", "5").to_f
+SKIP_DEVICE_REACHABILITY = ENV["MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY"] == "1"
+DEVICE_REACHABILITY_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS", "5").to_i
 SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD, LIVE_MESSAGE].reject(&:empty?)
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
@@ -163,6 +166,40 @@ rescue KeyError => e
   raise "health response missing #{e.key}"
 end
 
+def gateway_uri_from_payload(payload)
+  pairing = parse_live_pairing_payload(payload)
+  URI.parse(pairing.fetch("base_url").to_s.sub(%r{/+\z}, ""))
+end
+
+def check_device_gateway_reachability(runner, devices, payload)
+  return false if payload.empty? || SKIP_DEVICE_REACHABILITY || devices.empty?
+
+  uri = gateway_uri_from_payload(payload)
+  host = uri.host
+  port = uri.port
+  timeout = DEVICE_REACHABILITY_TIMEOUT_SECONDS.clamp(1, 30)
+  shell_command = [
+    "toybox nc -z -w #{timeout} #{Shellwords.escape(host)} #{port} >/dev/null 2>&1",
+    "nc -z -w #{timeout} #{Shellwords.escape(host)} #{port} >/dev/null 2>&1",
+    "ping -c 1 -W #{timeout} #{Shellwords.escape(host)} >/dev/null 2>&1",
+  ].join(" || ")
+  devices.each do |device|
+    serial = device.fetch(:serial)
+    runner.run(
+      "check device gateway reachability",
+      "adb",
+      "-s",
+      serial,
+      "shell",
+      "sh",
+      "-c",
+      shell_command,
+      redacted_command: "adb -s #{serial} shell gateway reachability check",
+    )
+  end
+  true
+end
+
 def write_reports(result)
   FileUtils.mkdir_p(OUT_DIR)
   File.write(REPORT_JSON, JSON.pretty_generate(result) + "\n")
@@ -181,6 +218,7 @@ def markdown_report(result)
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
+  lines << "- Device reachability check: `#{result[:device_reachability_check_enabled] ? "enabled" : "disabled"}`"
   lines << ""
   lines << "## Steps"
   lines << ""
@@ -197,6 +235,7 @@ end
 runner = CommandRunner.new(ROOT_DIR)
 status = "passed"
 error = nil
+device_reachability_check_enabled = false
 
 begin
   runner.check("validate live pairing payload") { validate_live_pairing_payload(LIVE_PAIRING_PAYLOAD) }
@@ -213,6 +252,7 @@ begin
       runner.skip("run connectedDebugAndroidTest", "no connected Android device")
       error = "no connected Android device" if REQUIRE_DEVICE
     else
+      device_reachability_check_enabled = check_device_gateway_reachability(runner, devices, LIVE_PAIRING_PAYLOAD)
       runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
       connected_command = ["./gradlew", ":app:connectedDebugAndroidTest"]
       redacted_connected_command = connected_command.dup
@@ -258,6 +298,8 @@ result = {
   agent_activity_timeout_ms: AGENT_ACTIVITY_TIMEOUT_MS,
   health_preflight_enabled: !LIVE_PAIRING_PAYLOAD.empty? && !SKIP_HEALTH_PREFLIGHT,
   health_preflight_timeout_seconds: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
+  device_reachability_check_enabled: device_reachability_check_enabled,
+  device_reachability_timeout_seconds: DEVICE_REACHABILITY_TIMEOUT_SECONDS,
   steps: runner.steps,
 }
 
