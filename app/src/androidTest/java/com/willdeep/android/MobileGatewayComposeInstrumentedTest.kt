@@ -22,6 +22,8 @@ import com.willdeep.android.ui.agentActivitySignalAfter
 import com.willdeep.android.ui.codeActivitySignalAfter
 import com.willdeep.android.ui.hasAgentActivityAfter
 import com.willdeep.android.ui.hasCodeActivityAfter
+import com.willdeep.android.ui.hasTargetFileActivityAfter
+import com.willdeep.android.ui.targetFileActivitySignalAfter
 import com.willdeep.android.ui.theme.WillDeepTheme
 import org.json.JSONObject
 import org.junit.After
@@ -216,6 +218,7 @@ class MobileGatewayComposeInstrumentedTest {
             .toBooleanFlag()
         val expectCodeActivity = arguments.getString("mobileGatewayExpectCodeActivity")
             .toBooleanFlag()
+        val expectedTargetFile = arguments.getString("mobileGatewayExpectedTargetFile").orEmpty()
         val agentActivityTimeoutMillis = arguments.getString("mobileGatewayAgentActivityTimeoutMillis")
             ?.toLongOrNull()
             ?.coerceAtLeast(1_000)
@@ -299,6 +302,20 @@ class MobileGatewayComposeInstrumentedTest {
                 assertNotNull(signal)
                 reportLiveSmokeSignal(
                     "mac_code_activity_signal",
+                    signal?.reportValue ?: "unknown",
+                )
+            }
+            if (expectedTargetFile.isNotBlank()) {
+                composeRule.waitUntil(timeoutMillis = agentActivityTimeoutMillis) {
+                    viewModel.state.value.hasTargetFileActivityAfter(baseline, expectedTargetFile)
+                }
+                val signal = viewModel.state.value.targetFileActivitySignalAfter(
+                    baseline,
+                    expectedTargetFile,
+                )
+                assertNotNull(signal)
+                reportLiveSmokeSignal(
+                    "mac_target_file_signal",
                     signal?.reportValue ?: "unknown",
                 )
             }

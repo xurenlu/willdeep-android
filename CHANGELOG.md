@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc46] - 2026-06-14
+
+### Added
+
+- Added a target-file live acceptance gate: final Android live smoke can now require the requested Mac workspace file to appear in patch or worktree activity after `message.send`.
+- The final wrapper now passes `MOBILE_GATEWAY_EXPECTED_TARGET_FILE=WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md` and reports `mac_target_file_signal`.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc46`.
+
+### Tests
+
+- Added JVM coverage for target-file activity matching and verified final wrapper reports the pending target-file gate while Mac Gateway is not running.
+
 ## [1.17.0-rc45] - 2026-06-14
 
 ### Changed

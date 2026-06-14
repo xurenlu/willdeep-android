@@ -17,6 +17,7 @@ data class AgentActivityBaseline(
     val patchProposalCount: Int,
     val liveJobCount: Int,
     val worktreeFileCount: Int,
+    val worktreeFilePaths: Set<String>,
 ) {
     companion object {
         fun capture(state: MobileGatewayUiState): AgentActivityBaseline {
@@ -30,6 +31,10 @@ data class AgentActivityBaseline(
                 patchProposalCount = state.patchProposals.size,
                 liveJobCount = state.jobs.count { job -> job.isAlive },
                 worktreeFileCount = state.worktree?.fileCount ?: 0,
+                worktreeFilePaths = state.worktree?.files
+                    ?.map { file -> normalizeActivityPath(file.path) }
+                    ?.toSet()
+                    ?: emptySet(),
             )
         }
     }
@@ -55,6 +60,33 @@ fun MobileGatewayUiState.codeActivitySignalAfter(
     }
 }
 
+fun MobileGatewayUiState.hasTargetFileActivityAfter(
+    baseline: AgentActivityBaseline,
+    targetFile: String,
+): Boolean {
+    return targetFileActivitySignalAfter(baseline, targetFile) != null
+}
+
+fun MobileGatewayUiState.targetFileActivitySignalAfter(
+    baseline: AgentActivityBaseline,
+    targetFile: String,
+): AgentActivitySignal? {
+    val normalizedTarget = normalizeActivityPath(targetFile)
+    if (normalizedTarget.isEmpty()) return null
+
+    return when {
+        patchProposals
+            .drop(baseline.patchProposalCount)
+            .any { proposal -> proposal.path.matchesActivityPath(normalizedTarget) } ->
+            AgentActivitySignal.PatchProposal
+        worktree?.files
+            ?.filter { file -> normalizeActivityPath(file.path) !in baseline.worktreeFilePaths }
+            ?.any { file -> file.path.matchesActivityPath(normalizedTarget) } == true ->
+            AgentActivitySignal.WorktreeFile
+        else -> null
+    }
+}
+
 fun MobileGatewayUiState.agentActivitySignalAfter(
     baseline: AgentActivityBaseline,
 ): AgentActivitySignal? {
@@ -72,4 +104,16 @@ fun MobileGatewayUiState.agentActivitySignalAfter(
         (worktree?.fileCount ?: 0) > baseline.worktreeFileCount -> AgentActivitySignal.WorktreeFile
         else -> null
     }
+}
+
+private fun String.matchesActivityPath(normalizedTarget: String): Boolean {
+    val normalizedPath = normalizeActivityPath(this)
+    return normalizedPath == normalizedTarget || normalizedPath.endsWith("/$normalizedTarget")
+}
+
+private fun normalizeActivityPath(path: String): String {
+    return path.trim()
+        .replace('\\', '/')
+        .removePrefix("./")
+        .trim('/')
 }

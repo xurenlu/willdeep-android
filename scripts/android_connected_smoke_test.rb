@@ -48,6 +48,7 @@ LIVE_DEVICE_NAME = ENV.fetch("MOBILE_GATEWAY_DEVICE_NAME", "Android Live Smoke")
 LIVE_MESSAGE = ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", "")
 EXPECT_AGENT_ACTIVITY = ENV["MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY"] == "1"
 EXPECT_CODE_ACTIVITY = ENV["MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY"] == "1"
+EXPECTED_TARGET_FILE = ENV.fetch("MOBILE_GATEWAY_EXPECTED_TARGET_FILE", "")
 AGENT_ACTIVITY_TIMEOUT_MS = ENV.fetch("MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS", "60000")
 SKIP_HEALTH_PREFLIGHT = ENV["MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT"] == "1"
 HEALTH_PREFLIGHT_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS", "5").to_f
@@ -64,6 +65,7 @@ FINAL_ACCEPTANCE_KEYS = %w[
   mobile_message_send_ack
   mac_agent_activity_after_send
   mac_code_activity_after_send
+  mac_target_file_after_send
 ].freeze
 FINAL_ACTIVITY_SIGNALS = %w[
   responding_session
@@ -428,6 +430,7 @@ def live_smoke_markers(steps)
     mobile_message_send_ack: log_output[/mobile_message_send_ack=([a-z_]+)/, 1],
     mac_agent_activity_signal: log_output[/mac_agent_activity_signal=([a-z_]+)/, 1],
     mac_code_activity_signal: log_output[/mac_code_activity_signal=([a-z_]+)/, 1],
+    mac_target_file_signal: log_output[/mac_target_file_signal=([a-z_]+)/, 1],
   }
 end
 
@@ -467,6 +470,9 @@ def build_next_actions(result)
   if result[:live_message_provided] && !result[:expect_code_activity]
     actions << "Set MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 for final acceptance so the live test waits for a Mac-side tool, patch, job, or worktree signal after message.send."
   end
+  if result[:live_message_provided] && result[:expected_target_file].to_s.empty?
+    actions << "Set MOBILE_GATEWAY_EXPECTED_TARGET_FILE for final acceptance so the live test verifies the requested Mac workspace file appears in patch or worktree activity."
+  end
   actions.uniq
 end
 
@@ -483,6 +489,7 @@ def final_live_acceptance_failures(result)
   failures << "MOBILE_GATEWAY_LIVE_MESSAGE is required" unless result[:live_message_provided]
   failures << "MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 is required" unless result[:expect_agent_activity]
   failures << "MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY=1 is required" unless result[:expect_code_activity]
+  failures << "MOBILE_GATEWAY_EXPECTED_TARGET_FILE is required" if result[:expected_target_file].to_s.empty?
   failures << "Mac gateway health preflight must run" unless result[:health_preflight_enabled]
   failures << "Android device reachability check must run" unless result[:device_reachability_check_enabled]
   unless result[:mobile_message_send_ack] == "accepted"
@@ -493,6 +500,9 @@ def final_live_acceptance_failures(result)
   end
   unless FINAL_CODE_ACTIVITY_SIGNALS.include?(result[:mac_code_activity_signal].to_s)
     failures << "Mac code activity signal marker is required"
+  end
+  unless FINAL_CODE_ACTIVITY_SIGNALS.include?(result[:mac_target_file_signal].to_s)
+    failures << "Mac target file signal marker is required"
   end
   failures
 end
@@ -597,6 +607,21 @@ def build_acceptance_evidence(result)
                                                  [instrumentation_status, instrumentation_detail]
                                                end
 
+  target_file_status, target_file_detail = if result[:expected_target_file].to_s.empty?
+                                             ["pending", "Set MOBILE_GATEWAY_EXPECTED_TARGET_FILE for final acceptance."]
+                                           elsif !result[:target_file_check_enabled]
+                                             ["pending", "Target file check needs both a live payload and MOBILE_GATEWAY_LIVE_MESSAGE."]
+                                           elsif instrumentation_status == "passed"
+                                             detail = if result[:mac_target_file_signal]
+                                                        "Instrumentation observed #{result[:expected_target_file]} through #{result[:mac_target_file_signal]} after message.send."
+                                                      else
+                                                        "Instrumentation observed the requested target file after message.send."
+                                                      end
+                                             ["passed", detail]
+                                           else
+                                             [instrumentation_status, instrumentation_detail]
+                                           end
+
   [
     {
       key: "live_pairing_payload",
@@ -638,6 +663,11 @@ def build_acceptance_evidence(result)
       status: code_activity_status,
       evidence: code_activity_detail || "Android observed a Mac-side tool, patch, job, or worktree signal after the mobile-originated message.",
     },
+    {
+      key: "mac_target_file_after_send",
+      status: target_file_status,
+      evidence: target_file_detail || "Android observed the requested Mac workspace target file in patch or worktree activity after the mobile-originated message.",
+    },
   ]
 end
 
@@ -654,6 +684,7 @@ def markdown_report(result)
   lines << "- Desktop gateway auto-discovery: `#{result[:desktop_pairing_auto_discovered] ? "enabled" : "disabled"}`"
   lines << "- Strict live acceptance: `#{result[:require_live_acceptance] ? "enabled" : "disabled"}`"
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
+  lines << "- Expected target file: `#{result[:expected_target_file].to_s.empty? ? "not provided" : result[:expected_target_file]}`"
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   if result[:mac_agent_activity_signal]
     lines << "- Agent activity signal: `#{result[:mac_agent_activity_signal]}`"
@@ -661,6 +692,10 @@ def markdown_report(result)
   lines << "- Code activity check: `#{result[:code_activity_check_enabled] ? "enabled" : "disabled"}`"
   if result[:mac_code_activity_signal]
     lines << "- Code activity signal: `#{result[:mac_code_activity_signal]}`"
+  end
+  lines << "- Target file check: `#{result[:target_file_check_enabled] ? "enabled" : "disabled"}`"
+  if result[:mac_target_file_signal]
+    lines << "- Target file signal: `#{result[:mac_target_file_signal]}`"
   end
   lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
   lines << "- Device reachability check: `#{result[:device_reachability_check_enabled] ? "enabled" : "disabled"}`"
@@ -707,6 +742,7 @@ live_pairing_payload = LIVE_PAIRING_PAYLOAD_ENV
 live_payload_source = live_pairing_payload.empty? ? "none" : "env"
 run_agent_activity_check = false
 run_code_activity_check = false
+run_target_file_check = false
 
 begin
   runner.check("resolve live pairing payload") do
@@ -724,6 +760,7 @@ begin
   end
   run_agent_activity_check = EXPECT_AGENT_ACTIVITY && !live_pairing_payload.empty? && !LIVE_MESSAGE.empty?
   run_code_activity_check = EXPECT_CODE_ACTIVITY && !live_pairing_payload.empty? && !LIVE_MESSAGE.empty?
+  run_target_file_check = !EXPECTED_TARGET_FILE.empty? && !live_pairing_payload.empty? && !LIVE_MESSAGE.empty?
   runner.check("validate live pairing payload") { validate_live_pairing_payload(live_pairing_payload) }
   runner.check("check live gateway health") { check_live_gateway_health(live_pairing_payload) }
   adb = runner.run("detect connected Android devices", "adb", "devices", allow_failure: !REQUIRE_DEVICE)
@@ -768,6 +805,10 @@ begin
             connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectCodeActivity=1"
             redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectCodeActivity=1"
           end
+          if run_target_file_check
+            connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectedTargetFile=#{EXPECTED_TARGET_FILE}"
+            redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectedTargetFile=#{EXPECTED_TARGET_FILE}"
+          end
         end
         runner.run(
           "run connected instrumented smoke",
@@ -797,10 +838,12 @@ result = {
   desktop_pairing_fetch_requested: desktop_pairing_fetch_requested?,
   desktop_pairing_auto_discovered: DESKTOP_PAIRING_AUTO_DISCOVERED,
   live_message_provided: !LIVE_MESSAGE.empty?,
+  expected_target_file: EXPECTED_TARGET_FILE,
   expect_agent_activity: EXPECT_AGENT_ACTIVITY,
   expect_code_activity: EXPECT_CODE_ACTIVITY,
   agent_activity_check_enabled: run_agent_activity_check,
   code_activity_check_enabled: run_code_activity_check,
+  target_file_check_enabled: run_target_file_check,
   agent_activity_timeout_ms: AGENT_ACTIVITY_TIMEOUT_MS,
   health_preflight_enabled: !live_pairing_payload.empty? && !SKIP_HEALTH_PREFLIGHT,
   health_preflight_timeout_seconds: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
@@ -809,6 +852,7 @@ result = {
   mobile_message_send_ack: markers[:mobile_message_send_ack],
   mac_agent_activity_signal: markers[:mac_agent_activity_signal],
   mac_code_activity_signal: markers[:mac_code_activity_signal],
+  mac_target_file_signal: markers[:mac_target_file_signal],
   steps: runner.steps,
 }
 result[:acceptance_evidence] = build_acceptance_evidence(result)

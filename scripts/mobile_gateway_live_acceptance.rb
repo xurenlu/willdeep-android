@@ -46,6 +46,7 @@ def run_smoke
     "REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE" => "1",
     "MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY" => "1",
     "MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY" => "1",
+    "MOBILE_GATEWAY_EXPECTED_TARGET_FILE" => LIVE_ACCEPTANCE_TARGET_FILE,
     "MOBILE_GATEWAY_LIVE_MESSAGE" => ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", DEFAULT_LIVE_MESSAGE),
   }
   Open3.capture3(env, "ruby", SMOKE_SCRIPT, chdir: ROOT_DIR)
@@ -119,6 +120,7 @@ def build_report(stdout, stderr, exit_status, smoke, preflight)
     live_payload_source: smoke["live_payload_source"],
     live_request_profile: live_request_profile,
     live_acceptance_target_file: LIVE_ACCEPTANCE_TARGET_FILE,
+    target_file_required: true,
     live_message_provided: true,
     strict_live_acceptance_required: true,
     agent_activity_required: true,
@@ -127,6 +129,7 @@ def build_report(stdout, stderr, exit_status, smoke, preflight)
     mobile_message_send_ack: smoke["mobile_message_send_ack"],
     mac_agent_activity_signal: smoke["mac_agent_activity_signal"],
     mac_code_activity_signal: smoke["mac_code_activity_signal"],
+    mac_target_file_signal: smoke["mac_target_file_signal"],
     acceptance_evidence: smoke.fetch("acceptance_evidence", []),
     final_live_acceptance_failures: smoke.fetch("final_live_acceptance_failures", []),
     next_actions: smoke.fetch("next_actions", []),
@@ -156,6 +159,7 @@ def write_reports(report)
     "- Smoke Markdown SHA256: `#{report[:smoke_report_md_sha256] || "missing"}`",
     "- Agent activity signal: `#{report[:mac_agent_activity_signal] || "missing"}`",
     "- Code activity signal: `#{report[:mac_code_activity_signal] || "missing"}`",
+    "- Target file signal: `#{report[:mac_target_file_signal] || "missing"}`",
     "",
   ]
   lines << "## Mac Gateway Preflight"

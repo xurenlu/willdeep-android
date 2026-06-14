@@ -4,6 +4,7 @@ import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorktree
+import com.willdeep.android.mobile.GatewayWorktreeFile
 import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PendingToolApproval
 import org.junit.Assert.assertEquals
@@ -99,7 +100,9 @@ class AgentActivityEvidenceTest {
         )
         assertEquals(
             AgentActivitySignal.WorktreeFile,
-            MobileGatewayUiState(worktree = worktree()).agentActivitySignalAfter(baseline),
+            MobileGatewayUiState(
+                worktree = worktree(files = listOf(worktreeFile("README.md"))),
+            ).agentActivitySignalAfter(baseline),
         )
     }
 
@@ -121,7 +124,9 @@ class AgentActivityEvidenceTest {
         )
         assertEquals(
             AgentActivitySignal.WorktreeFile,
-            MobileGatewayUiState(worktree = worktree()).codeActivitySignalAfter(baseline),
+            MobileGatewayUiState(
+                worktree = worktree(files = listOf(worktreeFile("README.md"))),
+            ).codeActivitySignalAfter(baseline),
         )
         assertEquals(
             null,
@@ -168,6 +173,57 @@ class AgentActivityEvidenceTest {
         assertEquals(AgentActivitySignal.PendingTool, state.codeActivitySignalAfter(baseline))
     }
 
+    @Test
+    fun targetFileActivityMatchesNewPatchOrWorktreeFile() {
+        val baseline = AgentActivityBaseline.capture(MobileGatewayUiState())
+
+        assertEquals(
+            AgentActivitySignal.PatchProposal,
+            MobileGatewayUiState(
+                patchProposals = listOf(
+                    patchProposal(path = "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"),
+                ),
+            ).targetFileActivitySignalAfter(baseline, "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"),
+        )
+        assertEquals(
+            AgentActivitySignal.WorktreeFile,
+            MobileGatewayUiState(
+                worktree = worktree(
+                    files = listOf(worktreeFile("notes/WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md")),
+                ),
+            ).targetFileActivitySignalAfter(baseline, "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"),
+        )
+        assertTrue(
+            MobileGatewayUiState(
+                worktree = worktree(
+                    files = listOf(worktreeFile("./WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md")),
+                ),
+            ).hasTargetFileActivityAfter(baseline, "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"),
+        )
+    }
+
+    @Test
+    fun targetFileActivityIgnoresExistingWorktreeFileAndOtherPaths() {
+        val baselineState = MobileGatewayUiState(
+            worktree = worktree(
+                files = listOf(worktreeFile("WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md")),
+            ),
+        )
+        val baseline = AgentActivityBaseline.capture(baselineState)
+
+        assertEquals(
+            null,
+            baselineState.targetFileActivitySignalAfter(baseline, "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"),
+        )
+        assertEquals(
+            null,
+            MobileGatewayUiState(
+                patchProposals = listOf(patchProposal(path = "README.md")),
+                worktree = worktree(files = listOf(worktreeFile("README.md"))),
+            ).targetFileActivitySignalAfter(baseline, "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"),
+        )
+    }
+
     private fun userMessage(id: String, content: String): GatewayMessage {
         return GatewayMessage(
             id = id,
@@ -201,12 +257,12 @@ class AgentActivityEvidenceTest {
         )
     }
 
-    private fun patchProposal(): PatchProposal {
+    private fun patchProposal(path: String = "README.md"): PatchProposal {
         return PatchProposal(
             id = "patch_1",
             title = "Patch",
-            summary = "README.md",
-            path = "README.md",
+            summary = path,
+            path = path,
             stats = "+1 -0",
             sessionId = "s1",
         )
@@ -226,14 +282,23 @@ class AgentActivityEvidenceTest {
         )
     }
 
-    private fun worktree(): GatewayWorktree {
+    private fun worktree(files: List<GatewayWorktreeFile> = emptyList()): GatewayWorktree {
         return GatewayWorktree(
             repositoryRoot = "/workspace",
-            fileCount = 1,
-            totalAddedLines = 1,
+            fileCount = files.size,
+            totalAddedLines = files.sumOf { file -> file.addedLines },
             totalDeletedLines = 0,
-            files = emptyList(),
+            files = files,
             sessionId = "s1",
+        )
+    }
+
+    private fun worktreeFile(path: String): GatewayWorktreeFile {
+        return GatewayWorktreeFile(
+            path = path,
+            kind = "modified",
+            addedLines = 1,
+            deletedLines = 0,
         )
     }
 }
