@@ -15,17 +15,20 @@ REPORT_JSON = File.join(OUT_DIR, "report.json")
 REPORT_MD = File.join(OUT_DIR, "report.md")
 APP_VERSION = File.read(File.join(ROOT_DIR, "app", "build.gradle.kts"))[/versionName\s*=\s*"([^"]+)"/, 1]
 REQUIRE_DEVICE = ENV["REQUIRE_ANDROID_DEVICE"] == "1"
-LIVE_PAIRING_PAYLOAD = ENV.fetch("MOBILE_GATEWAY_PAIRING_PAYLOAD", "")
+LIVE_PAIRING_PAYLOAD_ENV = ENV.fetch("MOBILE_GATEWAY_PAIRING_PAYLOAD", "")
+DESKTOP_PAIRING_BASE_URL = ENV.fetch("MOBILE_GATEWAY_DESKTOP_BASE_URL", "")
+DESKTOP_PAIRING_TOKEN = ENV.fetch("MOBILE_GATEWAY_DESKTOP_TOKEN", "")
+DESKTOP_PAIRING_TOKEN_FILE = ENV.fetch("MOBILE_GATEWAY_DESKTOP_TOKEN_FILE", "")
+DESKTOP_PAIRING_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PAIRING_TIMEOUT_SECONDS", "5").to_f
 LIVE_DEVICE_NAME = ENV.fetch("MOBILE_GATEWAY_DEVICE_NAME", "Android Live Smoke")
 LIVE_MESSAGE = ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", "")
 EXPECT_AGENT_ACTIVITY = ENV["MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY"] == "1"
 AGENT_ACTIVITY_TIMEOUT_MS = ENV.fetch("MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS", "60000")
-RUN_AGENT_ACTIVITY_CHECK = EXPECT_AGENT_ACTIVITY && !LIVE_PAIRING_PAYLOAD.empty? && !LIVE_MESSAGE.empty?
 SKIP_HEALTH_PREFLIGHT = ENV["MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT"] == "1"
 HEALTH_PREFLIGHT_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS", "5").to_f
 SKIP_DEVICE_REACHABILITY = ENV["MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY"] == "1"
 DEVICE_REACHABILITY_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS", "5").to_i
-SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD, LIVE_MESSAGE].reject(&:empty?)
+SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD_ENV, LIVE_MESSAGE, DESKTOP_PAIRING_TOKEN].reject(&:empty?)
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
 
@@ -145,6 +148,74 @@ def validate_live_pairing_payload(payload)
   "valid payload; expires in #{seconds_remaining}s"
 end
 
+def desktop_pairing_fetch_requested?
+  [
+    DESKTOP_PAIRING_BASE_URL,
+    DESKTOP_PAIRING_TOKEN,
+    DESKTOP_PAIRING_TOKEN_FILE,
+  ].any? { |value| !value.to_s.strip.empty? }
+end
+
+def desktop_pairing_token
+  token = DESKTOP_PAIRING_TOKEN.to_s.strip
+  return token unless token.empty?
+  raise "MOBILE_GATEWAY_DESKTOP_TOKEN_FILE is empty" if DESKTOP_PAIRING_TOKEN_FILE.to_s.strip.empty?
+
+  File.read(DESKTOP_PAIRING_TOKEN_FILE).strip.tap do |file_token|
+    raise "desktop token file is empty" if file_token.empty?
+
+    SENSITIVE_REPORT_VALUES << file_token
+  end
+rescue Errno::ENOENT
+  raise "desktop token file not found: #{DESKTOP_PAIRING_TOKEN_FILE}"
+rescue Errno::EACCES
+  raise "desktop token file is not readable: #{DESKTOP_PAIRING_TOKEN_FILE}"
+end
+
+def fetch_desktop_pairing_payload
+  raise "MOBILE_GATEWAY_DESKTOP_BASE_URL is required to fetch pairing payload" if DESKTOP_PAIRING_BASE_URL.to_s.strip.empty?
+  if DESKTOP_PAIRING_TOKEN.to_s.strip.empty? && DESKTOP_PAIRING_TOKEN_FILE.to_s.strip.empty?
+    raise "MOBILE_GATEWAY_DESKTOP_TOKEN or MOBILE_GATEWAY_DESKTOP_TOKEN_FILE is required to fetch pairing payload"
+  end
+
+  token = desktop_pairing_token
+
+  base_url = DESKTOP_PAIRING_BASE_URL.to_s.sub(%r{/+\z}, "")
+  parse_gateway_base_url(base_url)
+  uri = URI.parse("#{base_url}/mobile/pairing")
+  request = Net::HTTP::Get.new(uri)
+  request["Authorization"] = "Bearer #{token}"
+  request["X-App-Version"] = APP_VERSION
+  response = Net::HTTP.start(
+    uri.host,
+    uri.port,
+    use_ssl: uri.scheme == "https",
+    open_timeout: DESKTOP_PAIRING_TIMEOUT_SECONDS,
+    read_timeout: DESKTOP_PAIRING_TIMEOUT_SECONDS,
+  ) do |http|
+    http.request(request)
+  end
+  raise "desktop pairing status #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+
+  body = JSON.parse(response.body)
+  payload = body.dig("data", "pairing_payload")
+  raise "desktop pairing response missing pairing_payload" unless payload.is_a?(Hash)
+
+  payload_json = JSON.generate(payload)
+  SENSITIVE_REPORT_VALUES << payload_json
+  SENSITIVE_REPORT_VALUES << payload["pairing_token"].to_s if payload["pairing_token"]
+  payload_json
+rescue JSON::ParserError => e
+  raise "invalid desktop pairing JSON: #{e.message}"
+end
+
+def resolve_live_pairing_payload(current_payload)
+  return [current_payload, "env"] unless current_payload.empty?
+  return ["", "none"] unless desktop_pairing_fetch_requested?
+
+  [fetch_desktop_pairing_payload, "desktop"]
+end
+
 def check_live_gateway_health(payload)
   return "no live payload provided" if payload.empty?
   return "skipped by MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT=1" if SKIP_HEALTH_PREFLIGHT
@@ -256,6 +327,7 @@ def markdown_report(result)
   lines << "- Status: `#{result[:status]}`"
   lines << "- Devices: #{result[:devices].empty? ? "_none_" : result[:devices].map { |device| "`#{device[:serial]}` (#{device[:state]})" }.join(", ")}"
   lines << "- Live Mac payload: `#{result[:live_payload_provided] ? "provided" : "not provided"}`"
+  lines << "- Live payload source: `#{result[:live_payload_source]}`"
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
@@ -277,10 +349,25 @@ runner = CommandRunner.new(ROOT_DIR)
 status = "passed"
 error = nil
 device_reachability_check_enabled = false
+live_pairing_payload = LIVE_PAIRING_PAYLOAD_ENV
+live_payload_source = live_pairing_payload.empty? ? "none" : "env"
+run_agent_activity_check = false
 
 begin
-  runner.check("validate live pairing payload") { validate_live_pairing_payload(LIVE_PAIRING_PAYLOAD) }
-  runner.check("check live gateway health") { check_live_gateway_health(LIVE_PAIRING_PAYLOAD) }
+  runner.check("resolve live pairing payload") do
+    live_pairing_payload, live_payload_source = resolve_live_pairing_payload(live_pairing_payload)
+    case live_payload_source
+    when "env"
+      "using MOBILE_GATEWAY_PAIRING_PAYLOAD"
+    when "desktop"
+      "fetched from desktop pairing endpoint"
+    else
+      "no live payload configured"
+    end
+  end
+  run_agent_activity_check = EXPECT_AGENT_ACTIVITY && !live_pairing_payload.empty? && !LIVE_MESSAGE.empty?
+  runner.check("validate live pairing payload") { validate_live_pairing_payload(live_pairing_payload) }
+  runner.check("check live gateway health") { check_live_gateway_health(live_pairing_payload) }
   adb = runner.run("detect connected Android devices", "adb", "devices", allow_failure: !REQUIRE_DEVICE)
   if adb[:status] == "failed"
     status = "failed"
@@ -294,19 +381,19 @@ begin
       error = "no connected Android device" if REQUIRE_DEVICE
     else
       collect_device_network_diagnostics(runner, devices)
-      device_reachability_check_enabled = check_device_gateway_reachability(runner, devices, LIVE_PAIRING_PAYLOAD)
+      device_reachability_check_enabled = check_device_gateway_reachability(runner, devices, live_pairing_payload)
       runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
       connected_command = ["./gradlew", ":app:connectedDebugAndroidTest"]
       redacted_connected_command = connected_command.dup
-      unless LIVE_PAIRING_PAYLOAD.empty?
-        connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=#{LIVE_PAIRING_PAYLOAD}"
+      unless live_pairing_payload.empty?
+        connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=#{live_pairing_payload}"
         connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayDeviceName=#{LIVE_DEVICE_NAME}"
         redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayPairingPayload=<redacted>"
         redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayDeviceName=#{LIVE_DEVICE_NAME}"
         unless LIVE_MESSAGE.empty?
           connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayLiveMessage=#{LIVE_MESSAGE}"
           redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayLiveMessage=<redacted>"
-          if RUN_AGENT_ACTIVITY_CHECK
+          if run_agent_activity_check
             connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectAgentActivity=1"
             connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayAgentActivityTimeoutMillis=#{AGENT_ACTIVITY_TIMEOUT_MS}"
             redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectAgentActivity=1"
@@ -333,12 +420,14 @@ result = {
   error: error,
   devices: devices || [],
   require_device: REQUIRE_DEVICE,
-  live_payload_provided: !LIVE_PAIRING_PAYLOAD.empty?,
+  live_payload_provided: !live_pairing_payload.empty?,
+  live_payload_source: live_payload_source,
+  desktop_pairing_fetch_requested: desktop_pairing_fetch_requested?,
   live_message_provided: !LIVE_MESSAGE.empty?,
   expect_agent_activity: EXPECT_AGENT_ACTIVITY,
-  agent_activity_check_enabled: RUN_AGENT_ACTIVITY_CHECK,
+  agent_activity_check_enabled: run_agent_activity_check,
   agent_activity_timeout_ms: AGENT_ACTIVITY_TIMEOUT_MS,
-  health_preflight_enabled: !LIVE_PAIRING_PAYLOAD.empty? && !SKIP_HEALTH_PREFLIGHT,
+  health_preflight_enabled: !live_pairing_payload.empty? && !SKIP_HEALTH_PREFLIGHT,
   health_preflight_timeout_seconds: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
   device_reachability_check_enabled: device_reachability_check_enabled,
   device_reachability_timeout_seconds: DEVICE_REACHABILITY_TIMEOUT_SECONDS,

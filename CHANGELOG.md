@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc31] - 2026-06-14
+
+### Added
+
+- Added desktop-authenticated live pairing payload fetch support to `scripts/android_connected_smoke_test.rb` through `MOBILE_GATEWAY_DESKTOP_BASE_URL` plus `MOBILE_GATEWAY_DESKTOP_TOKEN` or `MOBILE_GATEWAY_DESKTOP_TOKEN_FILE`.
+
+### Changed
+
+- Connected smoke reports now record whether the live payload came from the environment, the desktop pairing endpoint, or no live source.
+- Bumped Android client version to `1.17.0-rc31`.
+
+### Tests
+
+- Verified the connected smoke runner can fetch a fresh pairing payload from a mock desktop endpoint without leaking the desktop bearer token or pairing token in reports.
+
 ## [1.17.0-rc30] - 2026-06-14
 
 ### Changed
