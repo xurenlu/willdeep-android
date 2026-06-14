@@ -52,6 +52,7 @@ HEALTH_PREFLIGHT_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_HEALTH_TIMEOUT_SECO
 SKIP_DEVICE_REACHABILITY = ENV["MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY"] == "1"
 DEVICE_REACHABILITY_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS", "5").to_i
 SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD_ENV, LIVE_MESSAGE, DESKTOP_PAIRING_TOKEN].reject(&:empty?)
+LIVE_SMOKE_LOG_TAG = "WillDeepLiveSmoke"
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
 
@@ -357,6 +358,51 @@ def check_device_gateway_reachability(runner, devices, payload)
   true
 end
 
+def clear_live_smoke_logcat(runner, devices)
+  devices.each do |device|
+    serial = device.fetch(:serial)
+    runner.run(
+      "clear live smoke logcat",
+      "adb",
+      "-s",
+      serial,
+      "logcat",
+      "-c",
+      allow_failure: true,
+      redacted_command: "adb -s #{serial} logcat -c",
+    )
+  end
+end
+
+def collect_live_smoke_logcat(runner, devices)
+  devices.each do |device|
+    serial = device.fetch(:serial)
+    runner.run(
+      "collect live smoke logcat",
+      "adb",
+      "-s",
+      serial,
+      "logcat",
+      "-d",
+      "-s",
+      "#{LIVE_SMOKE_LOG_TAG}:I",
+      "*:S",
+      allow_failure: true,
+      redacted_command: "adb -s #{serial} logcat -d -s #{LIVE_SMOKE_LOG_TAG}:I '*:S'",
+    )
+  end
+end
+
+def live_smoke_markers(steps)
+  log_output = steps.select { |step| step[:name] == "collect live smoke logcat" }
+                    .map { |step| step[:stdout].to_s }
+                    .join("\n")
+  {
+    mobile_message_send_ack: log_output[/mobile_message_send_ack=([a-z_]+)/, 1],
+    mac_agent_activity_signal: log_output[/mac_agent_activity_signal=([a-z_]+)/, 1],
+  }
+end
+
 def write_reports(result)
   FileUtils.mkdir_p(OUT_DIR)
   File.write(REPORT_JSON, JSON.pretty_generate(result) + "\n")
@@ -450,7 +496,12 @@ def build_acceptance_evidence(result)
   message_status, message_detail = if !result[:live_message_provided]
                                      ["pending", "Set MOBILE_GATEWAY_LIVE_MESSAGE to verify Android-originated message.send."]
                                    elsif instrumentation_status == "passed"
-                                     ["passed", "Instrumentation asserted message.send was acknowledged by the Mac gateway."]
+                                     detail = if result[:mobile_message_send_ack]
+                                                "Instrumentation marker reported message.send ack=#{result[:mobile_message_send_ack]}."
+                                              else
+                                                "Instrumentation asserted message.send was acknowledged by the Mac gateway."
+                                              end
+                                     ["passed", detail]
                                    else
                                      [instrumentation_status, instrumentation_detail]
                                    end
@@ -460,7 +511,12 @@ def build_acceptance_evidence(result)
                                     elsif !result[:agent_activity_check_enabled]
                                       ["pending", "Agent activity check needs both a live payload and MOBILE_GATEWAY_LIVE_MESSAGE."]
                                     elsif instrumentation_status == "passed"
-                                      ["passed", "Instrumentation observed post-send Mac Agent activity."]
+                                      detail = if result[:mac_agent_activity_signal]
+                                                 "Instrumentation observed #{result[:mac_agent_activity_signal]} after message.send."
+                                               else
+                                                 "Instrumentation observed post-send Mac Agent activity."
+                                               end
+                                      ["passed", detail]
                                     else
                                       [instrumentation_status, instrumentation_detail]
                                     end
@@ -517,6 +573,9 @@ def markdown_report(result)
   lines << "- Desktop gateway auto-discovery: `#{result[:desktop_pairing_auto_discovered] ? "enabled" : "disabled"}`"
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
+  if result[:mac_agent_activity_signal]
+    lines << "- Agent activity signal: `#{result[:mac_agent_activity_signal]}`"
+  end
   lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
   lines << "- Device reachability check: `#{result[:device_reachability_check_enabled] ? "enabled" : "disabled"}`"
   unless result[:next_actions].empty?
@@ -587,6 +646,7 @@ begin
     else
       collect_device_network_diagnostics(runner, devices)
       device_reachability_check_enabled = check_device_gateway_reachability(runner, devices, live_pairing_payload)
+      clear_live_smoke_logcat(runner, devices)
       runner.run("build instrumented test APK", "./gradlew", ":app:assembleDebugAndroidTest")
       connected_command = ["./gradlew", ":app:connectedDebugAndroidTest"]
       redacted_connected_command = connected_command.dup
@@ -611,6 +671,7 @@ begin
         *connected_command,
         redacted_command: redacted_connected_command.join(" "),
       )
+      collect_live_smoke_logcat(runner, devices)
     end
   end
 rescue StandardError => e
@@ -618,6 +679,7 @@ rescue StandardError => e
   error = "#{e.class}: #{e.message}"
 end
 
+markers = live_smoke_markers(runner.steps)
 result = {
   generated_at: Time.now.utc.iso8601,
   app_version: APP_VERSION,
@@ -637,6 +699,8 @@ result = {
   health_preflight_timeout_seconds: HEALTH_PREFLIGHT_TIMEOUT_SECONDS,
   device_reachability_check_enabled: device_reachability_check_enabled,
   device_reachability_timeout_seconds: DEVICE_REACHABILITY_TIMEOUT_SECONDS,
+  mobile_message_send_ack: markers[:mobile_message_send_ack],
+  mac_agent_activity_signal: markers[:mac_agent_activity_signal],
   steps: runner.steps,
 }
 result[:acceptance_evidence] = build_acceptance_evidence(result)

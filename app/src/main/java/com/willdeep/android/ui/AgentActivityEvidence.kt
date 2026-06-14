@@ -1,5 +1,15 @@
 package com.willdeep.android.ui
 
+enum class AgentActivitySignal(val reportValue: String) {
+    RespondingSession("responding_session"),
+    AssistantMessage("assistant_message"),
+    AssistantText("assistant_text"),
+    PendingTool("pending_tool"),
+    PatchProposal("patch_proposal"),
+    LiveJob("live_job"),
+    WorktreeFile("worktree_file"),
+}
+
 data class AgentActivityBaseline(
     val assistantMessageCount: Int,
     val assistantTextLength: Int,
@@ -26,14 +36,24 @@ data class AgentActivityBaseline(
 }
 
 fun MobileGatewayUiState.hasAgentActivityAfter(baseline: AgentActivityBaseline): Boolean {
+    return agentActivitySignalAfter(baseline) != null
+}
+
+fun MobileGatewayUiState.agentActivitySignalAfter(
+    baseline: AgentActivityBaseline,
+): AgentActivitySignal? {
     val assistantMessages = conversationMessages.filter { message ->
         message.role == "assistant"
     }
-    return sessions.any { session -> session.isResponding } ||
-        assistantMessages.size > baseline.assistantMessageCount ||
-        assistantMessages.sumOf { message -> message.content.length } > baseline.assistantTextLength ||
-        pendingTools.size > baseline.pendingToolCount ||
-        patchProposals.size > baseline.patchProposalCount ||
-        jobs.count { job -> job.isAlive } > baseline.liveJobCount ||
-        (worktree?.fileCount ?: 0) > baseline.worktreeFileCount
+    return when {
+        sessions.any { session -> session.isResponding } -> AgentActivitySignal.RespondingSession
+        assistantMessages.size > baseline.assistantMessageCount -> AgentActivitySignal.AssistantMessage
+        assistantMessages.sumOf { message -> message.content.length } > baseline.assistantTextLength ->
+            AgentActivitySignal.AssistantText
+        pendingTools.size > baseline.pendingToolCount -> AgentActivitySignal.PendingTool
+        patchProposals.size > baseline.patchProposalCount -> AgentActivitySignal.PatchProposal
+        jobs.count { job -> job.isAlive } > baseline.liveJobCount -> AgentActivitySignal.LiveJob
+        (worktree?.fileCount ?: 0) > baseline.worktreeFileCount -> AgentActivitySignal.WorktreeFile
+        else -> null
+    }
 }

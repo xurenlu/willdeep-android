@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc38] - 2026-06-14
+
+### Added
+
+- Added live instrumentation markers for `message.send` acknowledgement and the specific Mac Agent activity signal observed after a mobile-originated request.
+- Added connected smoke logcat collection so JSON/Markdown reports can show whether the final activity evidence came from responding state, assistant output, tools, patches, jobs, or worktree changes.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc38`.
+
+### Tests
+
+- Extended Agent activity JVM coverage to assert the exact activity signal selected for each accepted evidence type.
+
 ## [1.17.0-rc37] - 2026-06-14
 
 ### Fixed

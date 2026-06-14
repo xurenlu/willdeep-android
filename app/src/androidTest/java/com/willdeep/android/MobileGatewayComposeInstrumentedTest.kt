@@ -1,6 +1,8 @@
 package com.willdeep.android
 
 import android.app.Application
+import android.os.Bundle
+import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -16,11 +18,13 @@ import com.willdeep.android.ui.ConnectionStatus
 import com.willdeep.android.ui.MobileCommandState
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.WillDeepApp
+import com.willdeep.android.ui.agentActivitySignalAfter
 import com.willdeep.android.ui.hasAgentActivityAfter
 import com.willdeep.android.ui.theme.WillDeepTheme
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -37,6 +41,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
+
+private const val LIVE_SMOKE_LOG_TAG = "WillDeepLiveSmoke"
 
 @RunWith(AndroidJUnit4::class)
 class MobileGatewayComposeInstrumentedTest {
@@ -266,12 +272,27 @@ class MobileGatewayComposeInstrumentedTest {
                 MobileCommandState.Accepted,
                 viewModel.state.value.commandStatuses.last { it.type == "message.send" }.state,
             )
+            reportLiveSmokeSignal("mobile_message_send_ack", "accepted")
             if (expectAgentActivity) {
                 composeRule.waitUntil(timeoutMillis = agentActivityTimeoutMillis) {
                     viewModel.state.value.hasAgentActivityAfter(baseline)
                 }
+                val signal = viewModel.state.value.agentActivitySignalAfter(baseline)
+                assertNotNull(signal)
+                reportLiveSmokeSignal(
+                    "mac_agent_activity_signal",
+                    signal?.reportValue ?: "unknown",
+                )
             }
         }
+    }
+
+    private fun reportLiveSmokeSignal(key: String, value: String) {
+        InstrumentationRegistry.getInstrumentation().sendStatus(
+            0,
+            Bundle().apply { putString(key, value) },
+        )
+        Log.i(LIVE_SMOKE_LOG_TAG, "$key=$value")
     }
 
     private fun String?.toBooleanFlag(): Boolean {

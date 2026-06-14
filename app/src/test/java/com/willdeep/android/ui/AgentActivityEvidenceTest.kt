@@ -6,6 +6,7 @@ import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorktree
 import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PendingToolApproval
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,6 +26,7 @@ class AgentActivityEvidenceTest {
         )
 
         assertFalse(echoedState.hasAgentActivityAfter(baseline))
+        assertEquals(null, echoedState.agentActivitySignalAfter(baseline))
     }
 
     @Test
@@ -38,6 +40,10 @@ class AgentActivityEvidenceTest {
         )
 
         assertTrue(streamingState.hasAgentActivityAfter(baseline))
+        assertEquals(
+            AgentActivitySignal.AssistantText,
+            streamingState.agentActivitySignalAfter(baseline),
+        )
     }
 
     @Test
@@ -48,6 +54,7 @@ class AgentActivityEvidenceTest {
         )
 
         assertTrue(state.hasAgentActivityAfter(baseline))
+        assertEquals(AgentActivitySignal.AssistantMessage, state.agentActivitySignalAfter(baseline))
     }
 
     @Test
@@ -67,16 +74,29 @@ class AgentActivityEvidenceTest {
         )
 
         assertTrue(state.hasAgentActivityAfter(baseline))
+        assertEquals(AgentActivitySignal.RespondingSession, state.agentActivitySignalAfter(baseline))
     }
 
     @Test
     fun toolPatchJobAndWorktreeSignalsCountAsAgentActivity() {
         val baseline = AgentActivityBaseline.capture(MobileGatewayUiState())
 
-        assertTrue(MobileGatewayUiState(pendingTools = listOf(pendingTool())).hasAgentActivityAfter(baseline))
-        assertTrue(MobileGatewayUiState(patchProposals = listOf(patchProposal())).hasAgentActivityAfter(baseline))
-        assertTrue(MobileGatewayUiState(jobs = listOf(liveJob())).hasAgentActivityAfter(baseline))
-        assertTrue(MobileGatewayUiState(worktree = worktree()).hasAgentActivityAfter(baseline))
+        assertEquals(
+            AgentActivitySignal.PendingTool,
+            MobileGatewayUiState(pendingTools = listOf(pendingTool())).agentActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            AgentActivitySignal.PatchProposal,
+            MobileGatewayUiState(patchProposals = listOf(patchProposal())).agentActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            AgentActivitySignal.LiveJob,
+            MobileGatewayUiState(jobs = listOf(liveJob())).agentActivitySignalAfter(baseline),
+        )
+        assertEquals(
+            AgentActivitySignal.WorktreeFile,
+            MobileGatewayUiState(worktree = worktree()).agentActivitySignalAfter(baseline),
+        )
     }
 
     private fun userMessage(id: String, content: String): GatewayMessage {
