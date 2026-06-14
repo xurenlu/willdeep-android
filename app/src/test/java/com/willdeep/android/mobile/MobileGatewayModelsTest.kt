@@ -48,22 +48,6 @@ class MobileGatewayModelsTest {
     }
 
     @Test
-    fun pairingPayloadWithoutExpiryIsNotLocallyExpired() {
-        val payload = PairingPayload.parse(
-            """
-            {
-              "base_url": "http://192.168.1.20:8876/",
-              "pairing_token": "pair_123",
-              "protocol_version": "mobile-gateway.v1",
-              "desktop_name": "Rocky's Mac"
-            }
-            """.trimIndent()
-        )
-
-        assertFalse(payload.isExpired(Instant.parse("2026-06-13T12:02:01Z")))
-    }
-
-    @Test
     fun pairingPayloadDetectsProtocolCompatibility() {
         val compatible = PairingPayload.parse(
             """
@@ -71,7 +55,8 @@ class MobileGatewayModelsTest {
               "base_url": "http://192.168.1.20:8876/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
-              "desktop_name": "Rocky's Mac"
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
             }
             """.trimIndent()
         )
@@ -81,7 +66,8 @@ class MobileGatewayModelsTest {
               "base_url": "http://192.168.1.20:8876/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v2",
-              "desktop_name": "Rocky's Mac"
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
             }
             """.trimIndent()
         )
@@ -98,7 +84,8 @@ class MobileGatewayModelsTest {
             {
               "base_url": "http://192.168.1.20:8876/",
               "protocol_version": "mobile-gateway.v1",
-              "desktop_name": "Rocky's Mac"
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
             }
             """.trimIndent()
         )
@@ -107,7 +94,8 @@ class MobileGatewayModelsTest {
             {
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
-              "desktop_name": "Rocky's Mac"
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
             }
             """.trimIndent()
         )
@@ -117,7 +105,8 @@ class MobileGatewayModelsTest {
               "base_url": "ftp://192.168.1.20:8876/",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
-              "desktop_name": "Rocky's Mac"
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
             }
             """.trimIndent()
         )
@@ -127,7 +116,8 @@ class MobileGatewayModelsTest {
               "base_url": "not a url",
               "pairing_token": "pair_123",
               "protocol_version": "mobile-gateway.v1",
-              "desktop_name": "Rocky's Mac"
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
             }
             """.trimIndent()
         )
@@ -136,6 +126,27 @@ class MobileGatewayModelsTest {
             {
               "base_url": "http://192.168.1.20:8876/",
               "pairing_token": "pair_123",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
+            }
+            """.trimIndent()
+        )
+        assertInvalidPairingPayload(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "expires_at": "2026-06-13T12:02:00Z"
+            }
+            """.trimIndent()
+        )
+        assertInvalidPairingPayload(
+            """
+            {
+              "base_url": "http://192.168.1.20:8876/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac"
             }
             """.trimIndent()

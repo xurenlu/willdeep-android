@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc29] - 2026-06-14
+
+### Changed
+
+- Required `desktop_name` and `expires_at` in Android pairing payload parsing to match the connected smoke preflight contract.
+- Bumped Android client version to `1.17.0-rc29`.
+
+### Tests
+
+- Updated model coverage so missing desktop names and expiry timestamps are rejected locally.
+
 ## [1.17.0-rc28] - 2026-06-14
 
 ### Changed
