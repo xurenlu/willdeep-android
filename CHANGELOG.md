@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc39] - 2026-06-14
+
+### Added
+
+- Added `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1` as a strict connected-smoke gate that fails unless live payload, Mac health, Android device, device reachability, live instrumentation, `message.send` acknowledgement, and Mac Agent activity evidence all pass.
+- Added final live acceptance failure details to connected smoke JSON/Markdown reports.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc39`.
+
+### Tests
+
+- Verified the no-device connected smoke path still reports pending evidence by default and fails intentionally when strict final live acceptance is required.
+
 ## [1.17.0-rc38] - 2026-06-14
 
 ### Added

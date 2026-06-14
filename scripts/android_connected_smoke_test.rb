@@ -15,6 +15,7 @@ REPORT_JSON = File.join(OUT_DIR, "report.json")
 REPORT_MD = File.join(OUT_DIR, "report.md")
 APP_VERSION = File.read(File.join(ROOT_DIR, "app", "build.gradle.kts"))[/versionName\s*=\s*"([^"]+)"/, 1]
 REQUIRE_DEVICE = ENV["REQUIRE_ANDROID_DEVICE"] == "1"
+REQUIRE_LIVE_ACCEPTANCE = ENV["REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE"] == "1"
 LIVE_PAIRING_PAYLOAD_ENV = ENV.fetch("MOBILE_GATEWAY_PAIRING_PAYLOAD", "")
 DESKTOP_PAIRING_BASE_URL_ENV = ENV.fetch("MOBILE_GATEWAY_DESKTOP_BASE_URL", "")
 DESKTOP_PAIRING_TOKEN = ENV.fetch("MOBILE_GATEWAY_DESKTOP_TOKEN", "")
@@ -53,6 +54,24 @@ SKIP_DEVICE_REACHABILITY = ENV["MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY"] == "1"
 DEVICE_REACHABILITY_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS", "5").to_i
 SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD_ENV, LIVE_MESSAGE, DESKTOP_PAIRING_TOKEN].reject(&:empty?)
 LIVE_SMOKE_LOG_TAG = "WillDeepLiveSmoke"
+FINAL_ACCEPTANCE_KEYS = %w[
+  live_pairing_payload
+  mac_gateway_health
+  android_device
+  device_gateway_reachability
+  instrumented_pair_and_ws
+  mobile_message_send_ack
+  mac_agent_activity_after_send
+].freeze
+FINAL_ACTIVITY_SIGNALS = %w[
+  responding_session
+  assistant_message
+  assistant_text
+  pending_tool
+  patch_proposal
+  live_job
+  worktree_file
+].freeze
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
 
@@ -411,6 +430,9 @@ end
 
 def build_next_actions(result)
   actions = []
+  if result[:require_live_acceptance] && !result[:final_live_acceptance_failures].to_a.empty?
+    actions << "Resolve every final_live_acceptance_failures entry, then rerun with REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1."
+  end
   unless result[:live_payload_provided]
     actions << "Start WillDeep on the Mac, enable Settings > Mobile Gateway, and allow new device pairing; the smoke runner will auto-discover the default desktop-token file when the gateway is running."
     actions << "Alternatively set MOBILE_GATEWAY_PAIRING_PAYLOAD, or set MOBILE_GATEWAY_DESKTOP_BASE_URL with MOBILE_GATEWAY_DESKTOP_TOKEN or MOBILE_GATEWAY_DESKTOP_TOKEN_FILE."
@@ -434,6 +456,29 @@ def build_next_actions(result)
     actions << "Set MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 for final acceptance so the live test waits for Mac-side Agent activity after message.send."
   end
   actions.uniq
+end
+
+def acceptance_status(result, key)
+  result[:acceptance_evidence].find { |item| item[:key] == key }&.fetch(:status, nil)
+end
+
+def final_live_acceptance_failures(result)
+  failures = []
+  FINAL_ACCEPTANCE_KEYS.each do |key|
+    status = acceptance_status(result, key)
+    failures << "#{key} status is #{status || "missing"}" unless status == "passed"
+  end
+  failures << "MOBILE_GATEWAY_LIVE_MESSAGE is required" unless result[:live_message_provided]
+  failures << "MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 is required" unless result[:expect_agent_activity]
+  failures << "Mac gateway health preflight must run" unless result[:health_preflight_enabled]
+  failures << "Android device reachability check must run" unless result[:device_reachability_check_enabled]
+  unless result[:mobile_message_send_ack] == "accepted"
+    failures << "message.send ack marker must be accepted"
+  end
+  unless FINAL_ACTIVITY_SIGNALS.include?(result[:mac_agent_activity_signal].to_s)
+    failures << "Mac Agent activity signal marker is required"
+  end
+  failures
 end
 
 def step_status(result, name)
@@ -571,6 +616,7 @@ def markdown_report(result)
   lines << "- Live Mac payload: `#{result[:live_payload_provided] ? "provided" : "not provided"}`"
   lines << "- Live payload source: `#{result[:live_payload_source]}`"
   lines << "- Desktop gateway auto-discovery: `#{result[:desktop_pairing_auto_discovered] ? "enabled" : "disabled"}`"
+  lines << "- Strict live acceptance: `#{result[:require_live_acceptance] ? "enabled" : "disabled"}`"
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   if result[:mac_agent_activity_signal]
@@ -583,6 +629,12 @@ def markdown_report(result)
     lines << "## Next Actions"
     lines << ""
     result[:next_actions].each { |action| lines << "- #{action}" }
+  end
+  unless result[:final_live_acceptance_failures].to_a.empty?
+    lines << ""
+    lines << "## Final Live Acceptance Failures"
+    lines << ""
+    result[:final_live_acceptance_failures].each { |failure| lines << "- #{failure}" }
   end
   unless result[:acceptance_evidence].empty?
     lines << ""
@@ -687,6 +739,7 @@ result = {
   error: error,
   devices: devices || [],
   require_device: REQUIRE_DEVICE,
+  require_live_acceptance: REQUIRE_LIVE_ACCEPTANCE,
   live_payload_provided: !live_pairing_payload.empty?,
   live_payload_source: live_payload_source,
   desktop_pairing_fetch_requested: desktop_pairing_fetch_requested?,
@@ -704,10 +757,15 @@ result = {
   steps: runner.steps,
 }
 result[:acceptance_evidence] = build_acceptance_evidence(result)
+result[:final_live_acceptance_failures] = final_live_acceptance_failures(result)
+if REQUIRE_LIVE_ACCEPTANCE && !result[:final_live_acceptance_failures].empty?
+  result[:status] = "failed"
+  result[:error] = "final live acceptance failed"
+end
 result[:next_actions] = build_next_actions(result)
 
 write_reports(result)
 
 puts "Wrote #{REPORT_JSON}"
 puts "Wrote #{REPORT_MD}"
-exit(status == "failed" ? 1 : 0)
+exit(result[:status] == "failed" ? 1 : 0)
