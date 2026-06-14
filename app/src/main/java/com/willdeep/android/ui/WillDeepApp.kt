@@ -471,6 +471,12 @@ private fun ConversationMessageRow(message: GatewayMessage) {
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
             )
+            if (message.isStreaming) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text(stringResource(R.string.message_streaming)) },
+                )
+            }
             Text(
                 text = message.content.ifBlank { stringResource(R.string.message_empty_content) },
                 style = MaterialTheme.typography.bodySmall,

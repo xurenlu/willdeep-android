@@ -45,6 +45,7 @@
     <string name="message_role_assistant">WillDeep</string>
     <string name="message_role_system">System</string>
     <string name="message_role_other">Message</string>
+    <string name="message_streaming">Streaming from Mac</string>
     <string name="message_empty_content">No visible text.</string>
     <string name="worktree_file_count">%1$d files</string>
     <string name="worktree_added_lines">+%1$d</string>

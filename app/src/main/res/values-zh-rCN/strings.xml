@@ -45,6 +45,7 @@
     <string name="message_role_assistant">WillDeep</string>
     <string name="message_role_system">系统</string>
     <string name="message_role_other">消息</string>
+    <string name="message_streaming">Mac 正在输出</string>
     <string name="message_empty_content">没有可见文本。</string>
     <string name="worktree_file_count">%1$d 个文件</string>
     <string name="worktree_added_lines">+%1$d</string>

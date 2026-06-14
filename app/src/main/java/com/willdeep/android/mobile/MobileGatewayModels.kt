@@ -108,6 +108,7 @@ data class GatewayMessage(
     val content: String,
     val createdAt: String,
     val sessionId: String?,
+    val isStreaming: Boolean = false,
 )
 
 data class GatewayWorktreeFile(
@@ -363,6 +364,7 @@ private fun JSONObject.toMessage(sessionId: String?): GatewayMessage {
         content = firstString("content", "text", "delta"),
         createdAt = firstString("created_at", "ts"),
         sessionId = firstString("session_id").ifBlank { sessionId },
+        isStreaming = optBoolean("is_streaming", false),
     )
 }
 

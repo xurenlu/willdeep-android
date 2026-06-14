@@ -676,7 +676,16 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     )
                 }
             }
-            is GatewayEvent.MessageDone -> Unit
+            is GatewayEvent.MessageDone -> {
+                _state.update {
+                    it.copy(
+                        conversationMessages = it.conversationMessages.markMessageDone(
+                            sessionId = event.sessionId ?: it.selectedSessionId,
+                            messageId = event.messageId,
+                        ),
+                    )
+                }
+            }
             is GatewayEvent.WorktreeUpdated -> {
                 _state.update {
                     it.copy(
@@ -782,14 +791,14 @@ private fun List<GatewayLogLine>.append(line: GatewayLogLine): List<GatewayLogLi
     return (this + line).takeLast(80)
 }
 
-private fun List<GatewayMessage>.filterForSession(sessionId: String?): List<GatewayMessage> {
+internal fun List<GatewayMessage>.filterForSession(sessionId: String?): List<GatewayMessage> {
     if (sessionId.isNullOrBlank()) {
         return takeLast(80)
     }
     return filter { it.sessionId == null || it.sessionId == sessionId }.takeLast(80)
 }
 
-private fun List<GatewayMessage>.appendDelta(
+internal fun List<GatewayMessage>.appendDelta(
     sessionId: String?,
     messageId: String?,
     text: String,
@@ -804,7 +813,7 @@ private fun List<GatewayMessage>.appendDelta(
     if (targetIndex >= 0) {
         return mapIndexed { index, message ->
             if (index == targetIndex) {
-                message.copy(content = message.content + text)
+                message.copy(content = message.content + text, isStreaming = true)
             } else {
                 message
             }
@@ -816,7 +825,28 @@ private fun List<GatewayMessage>.appendDelta(
         content = text,
         createdAt = "",
         sessionId = sessionId,
+        isStreaming = true,
     )).filterForSession(sessionId)
+}
+
+internal fun List<GatewayMessage>.markMessageDone(
+    sessionId: String?,
+    messageId: String?,
+): List<GatewayMessage> {
+    val targetIndex = when {
+        !messageId.isNullOrBlank() -> indexOfLast { it.id == messageId }
+        else -> indexOfLast { it.role == "assistant" && (sessionId == null || it.sessionId == sessionId) }
+    }
+    if (targetIndex < 0) {
+        return filterForSession(sessionId)
+    }
+    return mapIndexed { index, message ->
+        if (index == targetIndex) {
+            message.copy(isStreaming = false)
+        } else {
+            message
+        }
+    }.filterForSession(sessionId)
 }
 
 private fun List<GatewayWorktree>.forSession(sessionId: String?): GatewayWorktree? {

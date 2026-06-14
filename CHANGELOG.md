@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.13.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Android conversation streaming state so `message.delta` shows an in-progress Mac output indicator and `message.done` clears it.
+- Added unit coverage for creating and completing streaming assistant messages from gateway events.
+
+### Changed
+
+- Bumped Android client version to `1.13.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.12.0-rc1] - 2026-06-14
 
 ### Added
