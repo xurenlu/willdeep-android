@@ -363,6 +363,27 @@ def write_reports(result)
   File.write(REPORT_MD, markdown_report(result))
 end
 
+def build_next_actions(result)
+  actions = []
+  unless result[:live_payload_provided]
+    actions << "Start WillDeep on the Mac, enable Settings > Mobile Gateway, and allow new device pairing; the smoke runner will auto-discover the default desktop-token file when the gateway is running."
+    actions << "Alternatively set MOBILE_GATEWAY_PAIRING_PAYLOAD, or set MOBILE_GATEWAY_DESKTOP_BASE_URL with MOBILE_GATEWAY_DESKTOP_TOKEN or MOBILE_GATEWAY_DESKTOP_TOKEN_FILE."
+  end
+  if result[:devices].empty?
+    actions << "Connect an Android device with USB debugging enabled, then verify it appears in `adb devices` with state `device`."
+  end
+  if result[:live_payload_provided] && result[:devices].empty?
+    actions << "After a device is attached, rerun the smoke command before the pairing payload expires."
+  end
+  if result[:live_payload_provided] && !result[:health_preflight_enabled]
+    actions << "Run without MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT=1 before final acceptance so Mac gateway reachability and pairing availability are verified."
+  end
+  if result[:devices].any? && !result[:live_payload_provided]
+    actions << "Provide or auto-discover a live Mac pairing payload before connected instrumentation can pair with the gateway."
+  end
+  actions.uniq
+end
+
 def markdown_report(result)
   lines = []
   lines << "# Android Connected Smoke Test"
@@ -378,6 +399,12 @@ def markdown_report(result)
   lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   lines << "- Health preflight: `#{result[:health_preflight_enabled] ? "enabled" : "disabled"}`"
   lines << "- Device reachability check: `#{result[:device_reachability_check_enabled] ? "enabled" : "disabled"}`"
+  unless result[:next_actions].empty?
+    lines << ""
+    lines << "## Next Actions"
+    lines << ""
+    result[:next_actions].each { |action| lines << "- #{action}" }
+  end
   lines << ""
   lines << "## Steps"
   lines << ""
@@ -482,6 +509,7 @@ result = {
   device_reachability_timeout_seconds: DEVICE_REACHABILITY_TIMEOUT_SECONDS,
   steps: runner.steps,
 }
+result[:next_actions] = build_next_actions(result)
 
 write_reports(result)
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc35] - 2026-06-14
+
+### Added
+
+- Added `next_actions` to connected smoke JSON/Markdown reports so missing live payloads, missing Android devices, skipped health preflight, and stale pairing windows produce actionable follow-up steps.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc35`.
+
+### Tests
+
+- Verified the no-device connected smoke report includes next actions for enabling the Mac gateway and attaching an Android device.
+
 ## [1.17.0-rc34] - 2026-06-14
 
 ### Added
