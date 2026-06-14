@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0-rc3] - 2026-06-14
+
+### Changed
+
+- Extended the Android instrumented Compose smoke test to complete the WebSocket handshake, receive an initial `state.snapshot`, and verify the session appears in the UI.
+- Bumped Android client version to `1.17.0-rc3`.
+
+### Tests
+
+- Verified the instrumented test APK builds with `./gradlew :app:assembleDebugAndroidTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.17.0-rc2] - 2026-06-14
 
 ### Added

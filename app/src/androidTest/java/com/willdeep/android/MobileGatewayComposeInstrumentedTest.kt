@@ -24,6 +24,8 @@ import java.io.InputStreamReader
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.Base64
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -52,7 +54,7 @@ class MobileGatewayComposeInstrumentedTest {
     }
 
     @Test
-    fun pairingFlowUsesGatewayHealthAndClaimEndpoints() {
+    fun pairingFlowConnectsWebSocketAndDisplaysSnapshot() {
         val viewModel = MobileGatewayViewModel(appContext)
         composeRule.setContent {
             WillDeepTheme {
@@ -91,7 +93,15 @@ class MobileGatewayComposeInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.seenPaths.contains("/mobile/pair/claim")
         }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            gateway.seenPaths.contains("/mobile/ws")
+        }
         composeRule.onNodeWithText(targetContext.getString(R.string.paired_to, gateway.desktopName))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetContext.getString(R.string.status_connected))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(gateway.sessionTitle)
+            .performScrollTo()
             .assertIsDisplayed()
     }
 }
@@ -100,10 +110,12 @@ private class InstrumentedGatewayMock : AutoCloseable {
     val pairingToken = "pair_instrumented"
     val desktopName = "Instrumented Mac"
     val serverVersion = "1.67.0-rc1"
+    val sessionTitle = "Instrumented coding session"
     val seenPaths = CopyOnWriteArrayList<String>()
 
     private val ready = CountDownLatch(1)
     private val server = ServerSocket(0)
+    private val sockets = CopyOnWriteArrayList<Socket>()
     private var running = true
     private val worker = thread(name = "instrumented-mobile-gateway-mock") {
         ready.countDown()
@@ -122,37 +134,44 @@ private class InstrumentedGatewayMock : AutoCloseable {
 
     override fun close() {
         running = false
+        sockets.forEach { socket -> runCatching { socket.close() } }
         runCatching { server.close() }
         worker.join(1_000)
     }
 
     private fun handle(socket: Socket) {
-        val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
-        val requestLine = reader.readLine().orEmpty()
-        if (requestLine.isBlank()) return
-        val parts = requestLine.split(" ")
-        val method = parts.getOrNull(0).orEmpty()
-        val path = parts.getOrNull(1).orEmpty()
-        val headers = mutableMapOf<String, String>()
-        while (true) {
-            val line = reader.readLine() ?: break
-            if (line.isEmpty()) break
-            val separator = line.indexOf(':')
-            if (separator > 0) {
-                headers[line.substring(0, separator).trim().lowercase()] = line.substring(separator + 1).trim()
+        sockets += socket
+        try {
+            val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+            val requestLine = reader.readLine().orEmpty()
+            if (requestLine.isBlank()) return
+            val parts = requestLine.split(" ")
+            val method = parts.getOrNull(0).orEmpty()
+            val path = parts.getOrNull(1).orEmpty()
+            val headers = mutableMapOf<String, String>()
+            while (true) {
+                val line = reader.readLine() ?: break
+                if (line.isEmpty()) break
+                val separator = line.indexOf(':')
+                if (separator > 0) {
+                    headers[line.substring(0, separator).trim().lowercase()] = line.substring(separator + 1).trim()
+                }
             }
-        }
-        val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
-        val body = CharArray(contentLength)
-        if (contentLength > 0) {
-            reader.read(body, 0, contentLength)
-        }
+            val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
+            val body = CharArray(contentLength)
+            if (contentLength > 0) {
+                reader.read(body, 0, contentLength)
+            }
 
-        seenPaths += path
-        when {
-            method == "GET" && path == "/mobile/health" -> writeJson(socket, 200, healthBody())
-            method == "POST" && path == "/mobile/pair/claim" -> writeJson(socket, 200, pairBody(String(body)))
-            else -> writeJson(socket, 404, JSONObject().put("ok", false).put("error", "not found"))
+            seenPaths += path
+            when {
+                method == "GET" && path == "/mobile/health" -> writeJson(socket, 200, healthBody())
+                method == "POST" && path == "/mobile/pair/claim" -> writeJson(socket, 200, pairBody(String(body)))
+                method == "GET" && path == "/mobile/ws" -> handleWebSocket(socket, headers)
+                else -> writeJson(socket, 404, JSONObject().put("ok", false).put("error", "not found"))
+            }
+        } finally {
+            sockets -= socket
         }
     }
 
@@ -206,5 +225,72 @@ private class InstrumentedGatewayMock : AutoCloseable {
         socket.getOutputStream().write(response)
         socket.getOutputStream().write(body)
         socket.getOutputStream().flush()
+    }
+
+    private fun handleWebSocket(socket: Socket, headers: Map<String, String>) {
+        if (headers["authorization"] != "Bearer device_token_instrumented") {
+            writeJson(socket, 401, JSONObject().put("ok", false).put("error", "unauthorized"))
+            return
+        }
+        val key = headers["sec-websocket-key"].orEmpty()
+        val accept = Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-1").digest((key + WEB_SOCKET_GUID).toByteArray(StandardCharsets.UTF_8)),
+        )
+        val response = buildString {
+            append("HTTP/1.1 101 Switching Protocols\r\n")
+            append("Upgrade: websocket\r\n")
+            append("Connection: Upgrade\r\n")
+            append("Sec-WebSocket-Accept: $accept\r\n")
+            append("\r\n")
+        }.toByteArray(StandardCharsets.UTF_8)
+        socket.getOutputStream().write(response)
+        writeWebSocketText(socket, snapshotEnvelope().toString())
+        socket.getOutputStream().flush()
+        socket.getInputStream().read()
+    }
+
+    private fun snapshotEnvelope(): JSONObject {
+        return JSONObject()
+            .put("id", "snapshot_instrumented")
+            .put("type", "state.snapshot")
+            .put("ts", "2026-06-14T12:00:00Z")
+            .put(
+                "payload",
+                JSONObject()
+                    .put("active_session_id", "s1")
+                    .put(
+                        "sessions",
+                        org.json.JSONArray()
+                            .put(
+                                JSONObject()
+                                    .put("id", "s1")
+                                    .put("title", sessionTitle)
+                                    .put("workspace_name", "willdeep-android")
+                                    .put("message_count", 1)
+                                    .put("is_active", true)
+                                    .put("is_responding", false),
+                            ),
+                    ),
+            )
+    }
+
+    private fun writeWebSocketText(socket: Socket, text: String) {
+        val body = text.toByteArray(StandardCharsets.UTF_8)
+        val output = socket.getOutputStream()
+        output.write(0x81)
+        when {
+            body.size <= 125 -> output.write(body.size)
+            body.size <= 65_535 -> {
+                output.write(126)
+                output.write((body.size shr 8) and 0xff)
+                output.write(body.size and 0xff)
+            }
+            else -> error("snapshot frame too large")
+        }
+        output.write(body)
+    }
+
+    private companion object {
+        const val WEB_SOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     }
 }
