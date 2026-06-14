@@ -4,8 +4,10 @@
 require "fileutils"
 require "digest"
 require "json"
+require "net/http"
 require "open3"
 require "time"
+require "uri"
 
 ROOT_DIR = File.expand_path("..", __dir__)
 SMOKE_SCRIPT = File.join(ROOT_DIR, "scripts", "android_connected_smoke_test.rb")
@@ -15,6 +17,18 @@ OUT_DIR = File.join(ROOT_DIR, "build", "mobile_gateway_live_acceptance")
 REPORT_JSON = File.join(OUT_DIR, "report.json")
 REPORT_MD = File.join(OUT_DIR, "report.md")
 DEFAULT_LIVE_MESSAGE = "Create a short TODO note in the current workspace from Android live acceptance."
+MAC_BUNDLE_ID = ENV.fetch("MOBILE_GATEWAY_MAC_BUNDLE_ID", "com.willdeep.app")
+DEFAULT_DESKTOP_PAIRING_PORT = ENV.fetch("MOBILE_GATEWAY_DESKTOP_PORT", "8876")
+DEFAULT_DESKTOP_PAIRING_BASE_URL = "http://127.0.0.1:#{DEFAULT_DESKTOP_PAIRING_PORT}"
+DEFAULT_DESKTOP_PAIRING_TOKEN_FILE = File.join(
+  Dir.home,
+  "Library",
+  "Application Support",
+  MAC_BUNDLE_ID,
+  "MobileGateway",
+  "desktop-token",
+)
+MAC_GATEWAY_HEALTH_TIMEOUT_SECONDS = ENV.fetch("MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS", "2").to_f
 
 def sha256(path)
   return nil unless File.file?(path)
@@ -31,6 +45,45 @@ def run_smoke
   Open3.capture3(env, "ruby", SMOKE_SCRIPT, chdir: ROOT_DIR)
 end
 
+def mac_gateway_preflight
+  health = {
+    "base_url" => DEFAULT_DESKTOP_PAIRING_BASE_URL,
+    "reachable" => false,
+    "status_code" => nil,
+    "error" => nil,
+  }
+  begin
+    uri = URI("#{DEFAULT_DESKTOP_PAIRING_BASE_URL}/mobile/health")
+    http = Net::HTTP.new(uri.host, uri.port, nil)
+    http.use_ssl = uri.scheme == "https"
+    http.open_timeout = MAC_GATEWAY_HEALTH_TIMEOUT_SECONDS
+    http.read_timeout = MAC_GATEWAY_HEALTH_TIMEOUT_SECONDS
+    response = http.start do |http|
+      http.request(Net::HTTP::Get.new(uri))
+    end
+    body = JSON.parse(response.body)
+    data = body.fetch("data", {})
+    health.merge!(
+      "reachable" => response.is_a?(Net::HTTPSuccess),
+      "status_code" => response.code.to_i,
+      "app_version" => data["app_version"],
+      "server_version" => data["server_version"],
+      "protocol_version" => data["protocol_version"],
+      "pairing_allowed" => data["pairing_allowed"],
+      "desktop_name" => data["desktop_name"],
+    )
+  rescue StandardError => e
+    health["error"] = "#{e.class}: #{e.message}"
+  end
+
+  {
+    "default_base_url" => DEFAULT_DESKTOP_PAIRING_BASE_URL,
+    "default_token_file_present" => File.file?(DEFAULT_DESKTOP_PAIRING_TOKEN_FILE),
+    "default_token_file_path" => DEFAULT_DESKTOP_PAIRING_TOKEN_FILE,
+    "health" => health,
+  }
+end
+
 def read_smoke_result
   JSON.parse(File.read(SMOKE_REPORT_JSON))
 rescue Errno::ENOENT
@@ -42,7 +95,7 @@ rescue Errno::ENOENT
   }
 end
 
-def build_report(stdout, stderr, exit_status, smoke)
+def build_report(stdout, stderr, exit_status, smoke, preflight)
   {
     generated_at: Time.now.utc.iso8601,
     status: smoke.fetch("status", exit_status.success? ? "passed" : "failed"),
@@ -52,6 +105,7 @@ def build_report(stdout, stderr, exit_status, smoke)
     smoke_report_md: SMOKE_REPORT_MD,
     smoke_report_json_sha256: sha256(SMOKE_REPORT_JSON),
     smoke_report_md_sha256: sha256(SMOKE_REPORT_MD),
+    mac_gateway_preflight: preflight,
     live_payload_source: smoke["live_payload_source"],
     live_message_provided: true,
     strict_live_acceptance_required: true,
@@ -87,6 +141,20 @@ def write_reports(report)
     "- Agent activity signal: `#{report[:mac_agent_activity_signal] || "missing"}`",
     "",
   ]
+  lines << "## Mac Gateway Preflight"
+  lines << ""
+  preflight = report[:mac_gateway_preflight] || {}
+  health = preflight.fetch("health", {})
+  lines << "- Default base URL: `#{preflight["default_base_url"] || "unknown"}`"
+  lines << "- Default desktop token file: `#{preflight["default_token_file_present"] ? "present" : "missing"}`"
+  lines << "- Health reachable: `#{health["reachable"] ? "yes" : "no"}`"
+  lines << "- Health status code: `#{health["status_code"] || "missing"}`"
+  lines << "- Server version: `#{health["server_version"] || health["app_version"] || "unknown"}`"
+  lines << "- Protocol version: `#{health["protocol_version"] || "unknown"}`"
+  lines << "- Pairing allowed: `#{health.key?("pairing_allowed") ? health["pairing_allowed"] : "unknown"}`"
+  lines << "- Desktop name: `#{health["desktop_name"] || "unknown"}`"
+  lines << "- Health error: `#{health["error"] || "none"}`"
+  lines << ""
   unless report[:final_live_acceptance_failures].empty?
     lines << "## Final Live Acceptance Failures"
     lines << ""
@@ -110,9 +178,10 @@ def write_reports(report)
   File.write(REPORT_MD, lines.join("\n"))
 end
 
+preflight = mac_gateway_preflight
 stdout, stderr, exit_status = run_smoke
 smoke = read_smoke_result
-report = build_report(stdout, stderr, exit_status, smoke)
+report = build_report(stdout, stderr, exit_status, smoke, preflight)
 write_reports(report)
 
 puts "Wrote #{REPORT_JSON}"

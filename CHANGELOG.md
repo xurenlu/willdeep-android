@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc43] - 2026-06-14
+
+### Added
+
+- Added Mac Gateway preflight diagnostics to `scripts/mobile_gateway_live_acceptance.rb`, including default token-file presence and public `/mobile/health` reachability/version/pairing metadata.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc43`.
+
+### Tests
+
+- Verified the live acceptance wrapper still fails intentionally without a running Mac Gateway while writing the new preflight diagnostics.
+
 ## [1.17.0-rc42] - 2026-06-14
 
 ### Added

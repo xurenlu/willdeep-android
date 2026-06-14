@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc42 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc43 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc42:
+Implemented through v1.17.0-rc43:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -74,6 +74,7 @@ Implemented through v1.17.0-rc42:
 - Ruby mock integration script at `scripts/mobile_gateway_mock_integration.rb` that writes JSON and Markdown reports under `build/mobile_gateway_mock_integration/`.
 - Ruby connected-device smoke runner at `scripts/android_connected_smoke_test.rb` that detects attached Android devices, runs connected instrumentation when available, and writes JSON/Markdown reports under `build/android_connected_smoke/`.
 - Ruby final live acceptance wrapper at `scripts/mobile_gateway_live_acceptance.rb` that enables strict live acceptance, requires Mac Agent activity, runs the connected smoke runner, and writes JSON/Markdown handoff reports under `build/mobile_gateway_live_acceptance/`.
+- The final live acceptance wrapper records Mac Gateway preflight diagnostics for the default desktop token file and public `GET /mobile/health` reachability, version, protocol, desktop name, and pairing availability without exposing token contents.
 - The connected-device smoke runner accepts `MOBILE_GATEWAY_PAIRING_PAYLOAD`, `MOBILE_GATEWAY_DEVICE_NAME`, `MOBILE_GATEWAY_LIVE_MESSAGE`, `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY`, `MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS`, `MOBILE_GATEWAY_SKIP_HEALTH_PREFLIGHT`, `MOBILE_GATEWAY_HEALTH_TIMEOUT_SECONDS`, `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY`, `MOBILE_GATEWAY_DEVICE_REACHABILITY_TIMEOUT_SECONDS`, and `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE` to run an optional live Mac gateway instrumentation path; pairing payloads and live messages are redacted from generated reports.
 - The connected-device smoke runner can fetch a fresh desktop-authenticated pairing payload when `MOBILE_GATEWAY_PAIRING_PAYLOAD` is not set and `MOBILE_GATEWAY_DESKTOP_BASE_URL` plus `MOBILE_GATEWAY_DESKTOP_TOKEN` or `MOBILE_GATEWAY_DESKTOP_TOKEN_FILE` are provided. It prefers `POST /mobile/pairing/rotate` so the payload is fresh even after an old token was claimed, falls back to legacy `GET /mobile/pairing` only for older Mac gateways, and redacts fetched pairing payloads, pairing tokens, desktop bearer tokens, and live messages from generated reports.
 - The connected-device smoke runner validates live pairing payload JSON, required fields, protocol version, HTTP/HTTPS base URL with host, and strict ISO8601 expiry before invoking Android instrumentation.
@@ -164,7 +165,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc42:
+Gateway events parsed by Android v1.17.0-rc43:
 
 - `state.snapshot`
 - `session.upsert`
@@ -240,6 +241,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - When live smoke logcat markers are available, final reports name the exact activity signal, such as `responding_session`, `assistant_message`, `assistant_text`, `pending_tool`, `patch_proposal`, `live_job`, or `worktree_file`.
 - With `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1`, any pending, skipped, failed, or missing final acceptance evidence makes the smoke runner exit non-zero and records `final_live_acceptance_failures` in both JSON and Markdown reports.
 - `scripts/mobile_gateway_live_acceptance.rb` is the preferred final command for handoff because it sets strict acceptance defaults, supplies a non-secret default live request, preserves the lower-level smoke report paths, records SHA256 hashes for those reports, and mirrors final acceptance failures into a small summary report with Android version, payload source, attached device count, ack marker, and Mac Agent activity signal.
+- The live acceptance wrapper also records a Mac Gateway preflight section so missing Settings enablement, missing desktop-token file, and unreachable `127.0.0.1:8876/mobile/health` are visible before the Android instrumentation step.
 - When Android devices are attached and `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided, `ruby scripts/android_connected_smoke_test.rb` checks gateway host/port reachability from each device unless `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY=1` is set.
 - When Android devices are attached but no live pairing payload is available, normal connected smoke records skipped device instrumentation steps instead of running a guaranteed-failing live gateway test; strict final live acceptance still fails through `final_live_acceptance_failures`.
 - When Android devices are attached and a live pairing payload is available, `ruby scripts/android_connected_smoke_test.rb` records IPv4-redacted route and global-address diagnostics before device-side reachability checks.
@@ -248,4 +250,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - `ruby scripts/mobile_gateway_live_acceptance.rb` runs the same final acceptance gate with strict defaults and writes a concise wrapper report for the live device handoff.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc42` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc43` is visible in Gradle metadata and sent through gateway request headers.
