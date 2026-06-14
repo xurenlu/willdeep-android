@@ -112,6 +112,22 @@ rescue JSON::ParserError => e
   raise "invalid pairing payload JSON: #{e.message}"
 end
 
+def parse_gateway_base_url(value)
+  uri = URI.parse(value.to_s)
+  raise "unsupported base_url scheme: #{uri.scheme}" unless %w[http https].include?(uri.scheme)
+  raise "missing base_url host" if uri.host.to_s.strip.empty?
+
+  uri
+rescue URI::InvalidURIError => e
+  raise "invalid base_url: #{e.message}"
+end
+
+def parse_pairing_expiry(value)
+  Time.iso8601(value.to_s)
+rescue ArgumentError => e
+  raise "invalid expires_at: #{e.message}"
+end
+
 def validate_live_pairing_payload(payload)
   return "no live payload provided" if payload.empty?
 
@@ -120,10 +136,9 @@ def validate_live_pairing_payload(payload)
   missing_fields = required_fields.select { |field| data[field].to_s.strip.empty? }
   raise "missing pairing payload fields: #{missing_fields.join(", ")}" unless missing_fields.empty?
   raise "unsupported protocol_version: #{data["protocol_version"]}" unless data["protocol_version"] == "mobile-gateway.v1"
-  base_url = URI.parse(data["base_url"])
-  raise "unsupported base_url scheme: #{base_url.scheme}" unless %w[http https].include?(base_url.scheme)
+  parse_gateway_base_url(data["base_url"])
 
-  expires_at = Time.parse(data["expires_at"])
+  expires_at = parse_pairing_expiry(data["expires_at"])
   seconds_remaining = (expires_at - Time.now.utc).round
   raise "pairing payload expired at #{expires_at.utc.iso8601}" unless seconds_remaining.positive?
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc30] - 2026-06-14
+
+### Changed
+
+- Tightened connected smoke live pairing payload preflight to require a gateway host and strict ISO8601 `expires_at` values.
+- Bumped Android client version to `1.17.0-rc30`.
+
+### Tests
+
+- Verified connected smoke rejects malformed gateway hosts and non-ISO expiry timestamps before instrumentation.
+
 ## [1.17.0-rc29] - 2026-06-14
 
 ### Changed
