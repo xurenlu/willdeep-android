@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc37] - 2026-06-14
+
+### Fixed
+
+- Tightened live Mac Agent activity evidence so Android no longer treats a mobile user-message echo as proof that the Mac Agent started work.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc37`.
+
+### Tests
+
+- Added JVM coverage for Agent activity evidence, including user echo rejection and assistant/session/tool/patch/job/worktree activity signals.
+
 ## [1.17.0-rc36] - 2026-06-14
 
 ### Added

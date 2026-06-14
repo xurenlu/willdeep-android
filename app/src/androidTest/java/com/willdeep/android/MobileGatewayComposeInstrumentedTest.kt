@@ -11,11 +11,12 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.willdeep.android.mobile.DeviceTokenStore
+import com.willdeep.android.ui.AgentActivityBaseline
 import com.willdeep.android.ui.ConnectionStatus
 import com.willdeep.android.ui.MobileCommandState
-import com.willdeep.android.ui.MobileGatewayUiState
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.WillDeepApp
+import com.willdeep.android.ui.hasAgentActivityAfter
 import com.willdeep.android.ui.theme.WillDeepTheme
 import org.json.JSONObject
 import org.junit.After
@@ -279,42 +280,6 @@ class MobileGatewayComposeInstrumentedTest {
             this?.equals("yes", ignoreCase = true) == true
     }
 
-    private data class AgentActivityBaseline(
-        val conversationCount: Int,
-        val assistantTextLength: Int,
-        val pendingToolCount: Int,
-        val patchProposalCount: Int,
-        val liveJobCount: Int,
-        val worktreeFileCount: Int,
-    ) {
-        companion object {
-            fun capture(state: MobileGatewayUiState): AgentActivityBaseline {
-                return AgentActivityBaseline(
-                    conversationCount = state.conversationMessages.size,
-                    assistantTextLength = state.conversationMessages
-                        .filter { message -> message.role == "assistant" }
-                        .sumOf { message -> message.content.length },
-                    pendingToolCount = state.pendingTools.size,
-                    patchProposalCount = state.patchProposals.size,
-                    liveJobCount = state.jobs.count { job -> job.isAlive },
-                    worktreeFileCount = state.worktree?.fileCount ?: 0,
-                )
-            }
-        }
-    }
-
-    private fun MobileGatewayUiState.hasAgentActivityAfter(baseline: AgentActivityBaseline): Boolean {
-        val assistantTextLength = conversationMessages
-            .filter { message -> message.role == "assistant" }
-            .sumOf { message -> message.content.length }
-        return sessions.any { session -> session.isResponding } ||
-            conversationMessages.size > baseline.conversationCount ||
-            assistantTextLength > baseline.assistantTextLength ||
-            pendingTools.size > baseline.pendingToolCount ||
-            patchProposals.size > baseline.patchProposalCount ||
-            jobs.count { job -> job.isAlive } > baseline.liveJobCount ||
-            (worktree?.fileCount ?: 0) > baseline.worktreeFileCount
-    }
 }
 
 private class InstrumentedGatewayMock : AutoCloseable {
