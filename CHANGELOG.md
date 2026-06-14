@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.15.0-rc3] - 2026-06-14
+
+### Fixed
+
+- Treated `pairing_allowed=false` as a pairing-only block so already paired devices can still use Check Gateway for diagnostics.
+
+### Changed
+
+- Bumped Android client version to `1.15.0-rc3`.
+
+### Tests
+
+- Extended target resolution coverage to distinguish pairing payload checks from saved paired gateway diagnostics.
+- Verified targeted UI coverage with `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.ui.GatewayHealthTargetTest`.
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.15.0-rc2] - 2026-06-14
 
 ### Fixed

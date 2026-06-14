@@ -82,6 +82,7 @@ internal data class GatewayHealthTarget(
     val baseUrl: String,
     val desktopName: String,
     val protocolVersion: String,
+    val requiresPairingAllowed: Boolean,
 )
 
 class MobileGatewayViewModel(application: Application) : AndroidViewModel(application) {
@@ -199,10 +200,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 val target = resolveGatewayHealthTarget(state.value)
                     ?: throw IllegalStateException(
                         getApplication<Application>().getString(R.string.error_gateway_health_target_missing)
-                    )
+                )
                 val health = client.checkHealth(target.baseUrl)
                 updateGatewayHealth(target, health)
-                ensureCompatibleGateway(health)
+                ensureCompatibleGateway(health, requiresPairingAllowed = target.requiresPairingAllowed)
                 health
             }.onSuccess { health ->
                 _state.update {
@@ -615,7 +616,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         return true
     }
 
-    private fun ensureCompatibleGateway(health: GatewayHealth) {
+    private fun ensureCompatibleGateway(
+        health: GatewayHealth,
+        requiresPairingAllowed: Boolean = true,
+    ) {
         if (health.protocolVersion != MOBILE_GATEWAY_PROTOCOL_VERSION) {
             throw IllegalStateException(
                 getApplication<Application>().getString(
@@ -624,7 +628,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 )
             )
         }
-        if (!health.pairingAllowed) {
+        if (requiresPairingAllowed && !health.pairingAllowed) {
             throw IllegalStateException(
                 getApplication<Application>().getString(R.string.error_gateway_pairing_not_allowed)
             )
@@ -637,6 +641,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 baseUrl = payload.baseUrl,
                 desktopName = payload.desktopName,
                 protocolVersion = payload.protocolVersion,
+                requiresPairingAllowed = true,
             ),
             health,
         )
@@ -908,6 +913,7 @@ internal fun resolveGatewayHealthTarget(state: MobileGatewayUiState): GatewayHea
             baseUrl = payload.baseUrl,
             desktopName = payload.desktopName,
             protocolVersion = payload.protocolVersion,
+            requiresPairingAllowed = true,
         )
     }
     if (state.baseUrl.isBlank()) {
@@ -917,6 +923,7 @@ internal fun resolveGatewayHealthTarget(state: MobileGatewayUiState): GatewayHea
         baseUrl = state.baseUrl,
         desktopName = state.desktopName,
         protocolVersion = state.protocolVersion,
+        requiresPairingAllowed = false,
     )
 }
 

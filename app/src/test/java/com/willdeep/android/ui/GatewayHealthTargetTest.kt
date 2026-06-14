@@ -28,6 +28,7 @@ class GatewayHealthTargetTest {
         assertEquals("http://192.168.1.20:8876", target.baseUrl)
         assertEquals("Pairing Mac", target.desktopName)
         assertEquals("mobile-gateway.v1", target.protocolVersion)
+        assertEquals(true, target.requiresPairingAllowed)
     }
 
     @Test
@@ -45,6 +46,7 @@ class GatewayHealthTargetTest {
         assertEquals("http://192.168.1.30:8876", target.baseUrl)
         assertEquals("Saved Mac", target.desktopName)
         assertEquals("mobile-gateway.v1", target.protocolVersion)
+        assertEquals(false, target.requiresPairingAllowed)
     }
 
     @Test
