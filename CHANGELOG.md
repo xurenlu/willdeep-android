@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.12.0-rc1] - 2026-06-14
+
+### Added
+
+- Added Simplified Chinese Android string resources for the Mobile Gateway pairing, connection, session, conversation, changed-files, file-read, approval, job, composer, queue, and event-log UI.
+
+### Changed
+
+- Bumped Android client version to `1.12.0-rc1`.
+
+### Tests
+
+- Verified unit tests and debug build with `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
+
 ## [1.11.0-rc2] - 2026-06-14
 
 ### Fixed

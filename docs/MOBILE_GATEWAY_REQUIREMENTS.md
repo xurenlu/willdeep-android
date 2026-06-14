@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.11.0-rc2 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.12.0-rc1 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.11.0-rc2:
+Implemented through v1.12.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -51,11 +51,10 @@ Implemented through v1.11.0-rc2:
 - A paired device automatically reconnects when the app starts or returns to the foreground, while a manual Disconnect intentionally pauses auto-resume.
 - Failed WebSocket sends preserve composer text, pending approvals, patch proposals, queued messages, and job controls so the user can retry after reconnect.
 - Event log for mobile messages, Mac deltas, gateway ack, and gateway errors.
-- Localized user-visible UI strings in `res/values/strings.xml`.
+- Localized user-visible UI strings in `res/values/strings.xml` and Simplified Chinese resources in `res/values-zh-rCN/strings.xml`.
 
 Planned next:
 
-- Multi-language resource sets.
 - Instrumented integration test against the Mac gateway mock.
 - Foreground/background lifecycle polish after full device testing.
 
@@ -125,7 +124,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.11.0-rc2:
+Gateway events parsed by Android v1.12.0-rc1:
 
 - `state.snapshot`
 - `session.upsert`
@@ -173,4 +172,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Temporary disconnects retry automatically, and revoked tokens do not loop reconnect attempts forever.
 - Paired devices reconnect automatically on app start and foreground resume unless the user manually disconnected.
 - Failed sends do not discard user-entered task text or remove still-pending action cards.
-- Version `1.11.0-rc2` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.12.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
