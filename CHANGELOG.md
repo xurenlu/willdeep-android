@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.17.0-rc21] - 2026-06-14
+
+### Changed
+
+- Moved the Ask WillDeep composer and queued requests panel directly below pairing so connected users can send Mac Agent tasks without scrolling past diagnostic panels.
+- Bumped Android client version to `1.17.0-rc21`.
+
+### Tests
+
+- Verified the Compose instrumentation APK and debug build still compile after the task-entry layout change.
+
 ## [1.17.0-rc20] - 2026-06-14
 
 ### Added

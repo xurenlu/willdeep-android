@@ -12,8 +12,8 @@ android {
         applicationId = "com.willdeep.android"
         minSdk = 33
         targetSdk = 36
-        versionCode = 43
-        versionName = "1.17.0-rc20"
+        versionCode = 44
+        versionName = "1.17.0-rc21"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

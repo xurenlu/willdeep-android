@@ -129,6 +129,23 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                 }
             }
             item {
+                ComposerCard(
+                    state = state,
+                    onMessageChange = viewModel::updateMessage,
+                    onSend = viewModel::sendMessage,
+                    onQueue = viewModel::queueCurrentMessage,
+                    onStop = viewModel::stopTurn,
+                )
+            }
+            item {
+                QueueCard(
+                    state = state,
+                    onSendNow = viewModel::sendQueuedNow,
+                    onRemove = viewModel::removeQueuedMessage,
+                    onClear = viewModel::clearQueue,
+                )
+            }
+            item {
                 SessionCard(
                     state = state,
                     onRefresh = viewModel::refreshSessions,
@@ -165,23 +182,6 @@ fun WillDeepApp(viewModel: MobileGatewayViewModel = viewModel()) {
                 JobsCard(
                     state = state,
                     onKillJob = viewModel::killJob,
-                )
-            }
-            item {
-                ComposerCard(
-                    state = state,
-                    onMessageChange = viewModel::updateMessage,
-                    onSend = viewModel::sendMessage,
-                    onQueue = viewModel::queueCurrentMessage,
-                    onStop = viewModel::stopTurn,
-                )
-            }
-            item {
-                QueueCard(
-                    state = state,
-                    onSendNow = viewModel::sendQueuedNow,
-                    onRemove = viewModel::removeQueuedMessage,
-                    onClear = viewModel::clearQueue,
                 )
             }
             item {

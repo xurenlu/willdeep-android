@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc20 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc21 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc20:
+Implemented through v1.17.0-rc21:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -44,6 +44,7 @@ Implemented through v1.17.0-rc20:
 - Pairing availability blocks new pairing checks but does not fail saved paired gateway diagnostics.
 - Encrypted token persistence through AndroidX Security.
 - WebSocket connection with `X-App-Version` populated from `BuildConfig.VERSION_NAME`.
+- Ask WillDeep composer and queued requests are positioned immediately after pairing so sending Mac Agent tasks is the primary mobile flow.
 - Session list refresh, session creation, session selection, message send, and turn stop commands.
 - Tool and patch approval panels for `tool.pending`, `patch.upsert`, and initial `state.snapshot` pending approval restoration.
 - Completed `tool.updated` events remove matching Android approval cards and answer drafts.
@@ -147,7 +148,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc20:
+Gateway events parsed by Android v1.17.0-rc21:
 
 - `state.snapshot`
 - `session.upsert`
@@ -219,4 +220,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path, sends a real mobile request into WillDeep, waits for Mac acknowledgement, and then waits for Mac Agent activity when an Android device is attached and the token is still valid.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc20` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc21` is visible in Gradle metadata and sent through gateway request headers.

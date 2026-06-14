@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-14 | Current version: v1.17.0-rc20
+> Last updated: 2026-06-14 | Current version: v1.17.0-rc21
 
 ## Project Summary
 
@@ -16,6 +16,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Check Mac gateway health from either a pairing payload or the saved paired Mac, then display server version plus pairing availability without blocking paired-device diagnostics when new pairing is disabled.
 - Store the long-lived device token securely on Android.
 - Connect to the Mac gateway over WebSocket.
+- Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
 - Automatically resume the Mac gateway connection on app start and foreground return for paired devices.
 - Reconnect temporary WebSocket disconnects with bounded backoff and require pairing again when the Mac rejects a revoked token.
 - Preserve unsent task text and pending action cards when the WebSocket is unavailable.
