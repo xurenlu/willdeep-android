@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.17.0-rc25] - 2026-06-14
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc25`.
+
+### Tests
+
+- Added Compose instrumentation coverage that verifies imported shared or selected text appears in Ask WillDeep and later imports append without overwriting draft text.
+
 ## [1.17.0-rc24] - 2026-06-14
 
 ### Added

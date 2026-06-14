@@ -1,6 +1,7 @@
 package com.willdeep.android
 
 import android.app.Application
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -149,6 +150,42 @@ class MobileGatewayComposeInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.approvedPatchIds.contains(gateway.patchId)
         }
+    }
+
+    @Test
+    fun sharedMessageTextLoadsIntoComposerAndAppendsLaterImports() {
+        val viewModel = MobileGatewayViewModel(appContext)
+        val sharedMessageText = mutableStateOf("Refactor the selected Kotlin class")
+        val sharedMessageVersion = mutableStateOf(1)
+
+        composeRule.setContent {
+            WillDeepTheme {
+                WillDeepApp(
+                    viewModel = viewModel,
+                    sharedMessageText = sharedMessageText.value,
+                    sharedMessageVersion = sharedMessageVersion.value,
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.messageText == "Refactor the selected Kotlin class"
+        }
+        composeRule.onNodeWithText("Refactor the selected Kotlin class")
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            sharedMessageText.value = "Add parser tests for selected text"
+            sharedMessageVersion.value = 2
+        }
+        val combined = "Refactor the selected Kotlin class\n\nAdd parser tests for selected text"
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.messageText == combined
+        }
+        composeRule.onNodeWithText(combined)
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
