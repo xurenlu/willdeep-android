@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-14 | Android version: v1.17.0-rc40 | Protocol: mobile-gateway.v1
+> Last updated: 2026-06-14 | Android version: v1.17.0-rc41 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc40:
+Implemented through v1.17.0-rc41:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -162,7 +162,7 @@ Android sends:
 }
 ```
 
-Gateway events parsed by Android v1.17.0-rc40:
+Gateway events parsed by Android v1.17.0-rc41:
 
 - `state.snapshot`
 - `session.upsert`
@@ -237,7 +237,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Post-send Mac Agent activity evidence does not count a mobile-originated user message echoed through `message.append`; final acceptance must show Mac-side responding state, assistant output, tool/patch/job updates, or worktree changes.
 - When live smoke logcat markers are available, final reports name the exact activity signal, such as `responding_session`, `assistant_message`, `assistant_text`, `pending_tool`, `patch_proposal`, `live_job`, or `worktree_file`.
 - With `REQUIRE_MOBILE_GATEWAY_LIVE_ACCEPTANCE=1`, any pending, skipped, failed, or missing final acceptance evidence makes the smoke runner exit non-zero and records `final_live_acceptance_failures` in both JSON and Markdown reports.
-- `scripts/mobile_gateway_live_acceptance.rb` is the preferred final command for handoff because it sets strict acceptance defaults, supplies a non-secret default live request, preserves the lower-level smoke report paths, and mirrors final acceptance failures into a small summary report.
+- `scripts/mobile_gateway_live_acceptance.rb` is the preferred final command for handoff because it sets strict acceptance defaults, supplies a non-secret default live request, preserves the lower-level smoke report paths, records SHA256 hashes for those reports, and mirrors final acceptance failures into a small summary report with Android version, payload source, attached device count, ack marker, and Mac Agent activity signal.
 - When Android devices are attached and `MOBILE_GATEWAY_PAIRING_PAYLOAD` is provided, `ruby scripts/android_connected_smoke_test.rb` checks gateway host/port reachability from each device unless `MOBILE_GATEWAY_SKIP_DEVICE_REACHABILITY=1` is set.
 - When Android devices are attached, `ruby scripts/android_connected_smoke_test.rb` records IPv4-redacted route and global-address diagnostics before device-side reachability checks.
 - `MOBILE_GATEWAY_PAIRING_PAYLOAD='{"base_url":"http://192.168.1.20:8876","pairing_token":"...","protocol_version":"mobile-gateway.v1","desktop_name":"WillDeep Mac","expires_at":"2026-06-14T12:02:00Z"}' MOBILE_GATEWAY_LIVE_MESSAGE='Create a short TODO note in the current workspace.' MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1 ruby scripts/android_connected_smoke_test.rb` runs the live Mac gateway instrumentation path, sends a real mobile request into WillDeep, waits for Mac acknowledgement, and then waits for Mac Agent activity when an Android device is attached and the token is still valid.
@@ -245,4 +245,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - `ruby scripts/mobile_gateway_live_acceptance.rb` runs the same final acceptance gate with strict defaults and writes a concise wrapper report for the live device handoff.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc40` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.17.0-rc41` is visible in Gradle metadata and sent through gateway request headers.

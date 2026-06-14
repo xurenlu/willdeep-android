@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "digest"
 require "json"
 require "open3"
 require "time"
@@ -14,6 +15,12 @@ OUT_DIR = File.join(ROOT_DIR, "build", "mobile_gateway_live_acceptance")
 REPORT_JSON = File.join(OUT_DIR, "report.json")
 REPORT_MD = File.join(OUT_DIR, "report.md")
 DEFAULT_LIVE_MESSAGE = "Create a short TODO note in the current workspace from Android live acceptance."
+
+def sha256(path)
+  return nil unless File.file?(path)
+
+  Digest::SHA256.file(path).hexdigest
+end
 
 def run_smoke
   env = {
@@ -39,12 +46,18 @@ def build_report(stdout, stderr, exit_status, smoke)
   {
     generated_at: Time.now.utc.iso8601,
     status: smoke.fetch("status", exit_status.success? ? "passed" : "failed"),
+    app_version: smoke["app_version"],
     smoke_exit_code: exit_status.exitstatus,
     smoke_report_json: SMOKE_REPORT_JSON,
     smoke_report_md: SMOKE_REPORT_MD,
+    smoke_report_json_sha256: sha256(SMOKE_REPORT_JSON),
+    smoke_report_md_sha256: sha256(SMOKE_REPORT_MD),
+    live_payload_source: smoke["live_payload_source"],
     live_message_provided: true,
     strict_live_acceptance_required: true,
     agent_activity_required: true,
+    attached_device_count: smoke.fetch("devices", []).size,
+    mobile_message_send_ack: smoke["mobile_message_send_ack"],
     mac_agent_activity_signal: smoke["mac_agent_activity_signal"],
     acceptance_evidence: smoke.fetch("acceptance_evidence", []),
     final_live_acceptance_failures: smoke.fetch("final_live_acceptance_failures", []),
@@ -61,10 +74,16 @@ def write_reports(report)
     "# Mobile Gateway Live Acceptance",
     "",
     "- Generated at: `#{report[:generated_at]}`",
+    "- Android version: `#{report[:app_version] || "unknown"}`",
     "- Status: `#{report[:status]}`",
     "- Smoke exit code: `#{report[:smoke_exit_code]}`",
+    "- Live payload source: `#{report[:live_payload_source] || "unknown"}`",
+    "- Attached devices: `#{report[:attached_device_count]}`",
+    "- Message send ack: `#{report[:mobile_message_send_ack] || "missing"}`",
     "- Smoke JSON: `#{report[:smoke_report_json]}`",
+    "- Smoke JSON SHA256: `#{report[:smoke_report_json_sha256] || "missing"}`",
     "- Smoke Markdown: `#{report[:smoke_report_md]}`",
+    "- Smoke Markdown SHA256: `#{report[:smoke_report_md_sha256] || "missing"}`",
     "- Agent activity signal: `#{report[:mac_agent_activity_signal] || "missing"}`",
     "",
   ]

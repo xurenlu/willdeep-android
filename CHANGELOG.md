@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.17.0-rc41] - 2026-06-14
+
+### Added
+
+- Added audit metadata to `scripts/mobile_gateway_live_acceptance.rb` reports, including Android version, payload source, attached device count, `message.send` ack marker, Mac Agent activity signal, and SHA256 hashes for the underlying connected-smoke JSON/Markdown reports.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc41`.
+
+### Tests
+
+- Verified the live acceptance wrapper still fails intentionally without a connected Android device/live Mac payload while writing the expanded audit summary.
+
 ## [1.17.0-rc40] - 2026-06-14
 
 ### Added
