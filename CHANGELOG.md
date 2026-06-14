@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0-rc12] - 2026-06-14
+
+### Added
+
+- Added optional live Mac gateway Agent activity verification through `MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY=1`, allowing connected smoke tests to wait for Mac-side responding state, assistant output, tools, patches, jobs, or worktree changes after Android sends a live message.
+
+### Changed
+
+- Extended connected smoke reports with the Agent activity check state and timeout metadata.
+- Bumped Android client version to `1.17.0-rc12`.
+
+### Tests
+
+- Extended the live gateway instrumentation path to compare post-send Agent activity against a pre-send baseline when the stronger live verification flag is enabled.
+
 ## [1.17.0-rc11] - 2026-06-14
 
 ### Added

@@ -10,8 +10,9 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.willdeep.android.mobile.DeviceTokenStore
-import com.willdeep.android.ui.MobileCommandState
 import com.willdeep.android.ui.ConnectionStatus
+import com.willdeep.android.ui.MobileCommandState
+import com.willdeep.android.ui.MobileGatewayUiState
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.WillDeepApp
 import com.willdeep.android.ui.theme.WillDeepTheme
@@ -162,6 +163,12 @@ class MobileGatewayComposeInstrumentedTest {
             ?.takeIf { it.isNotBlank() }
             ?: "Android Live Smoke"
         val liveMessage = arguments.getString("mobileGatewayLiveMessage").orEmpty()
+        val expectAgentActivity = arguments.getString("mobileGatewayExpectAgentActivity")
+            .toBooleanFlag()
+        val agentActivityTimeoutMillis = arguments.getString("mobileGatewayAgentActivityTimeoutMillis")
+            ?.toLongOrNull()
+            ?.coerceAtLeast(1_000)
+            ?: 60_000
         val desktopName = runCatching { JSONObject(payload).optString("desktop_name") }
             .getOrDefault("")
             .ifBlank { "Mac" }
@@ -208,6 +215,7 @@ class MobileGatewayComposeInstrumentedTest {
             composeRule.onNodeWithText(targetContext.getString(R.string.message_label))
                 .performScrollTo()
                 .performTextReplacement(liveMessage)
+            val baseline = AgentActivityBaseline.capture(viewModel.state.value)
             composeRule.onNodeWithText(targetContext.getString(R.string.send_button))
                 .performScrollTo()
                 .performClick()
@@ -220,7 +228,55 @@ class MobileGatewayComposeInstrumentedTest {
                 MobileCommandState.Accepted,
                 viewModel.state.value.commandStatuses.last { it.type == "message.send" }.state,
             )
+            if (expectAgentActivity) {
+                composeRule.waitUntil(timeoutMillis = agentActivityTimeoutMillis) {
+                    viewModel.state.value.hasAgentActivityAfter(baseline)
+                }
+            }
         }
+    }
+
+    private fun String?.toBooleanFlag(): Boolean {
+        return this == "1" ||
+            this?.equals("true", ignoreCase = true) == true ||
+            this?.equals("yes", ignoreCase = true) == true
+    }
+
+    private data class AgentActivityBaseline(
+        val conversationCount: Int,
+        val assistantTextLength: Int,
+        val pendingToolCount: Int,
+        val patchProposalCount: Int,
+        val liveJobCount: Int,
+        val worktreeFileCount: Int,
+    ) {
+        companion object {
+            fun capture(state: MobileGatewayUiState): AgentActivityBaseline {
+                return AgentActivityBaseline(
+                    conversationCount = state.conversationMessages.size,
+                    assistantTextLength = state.conversationMessages
+                        .filter { message -> message.role == "assistant" }
+                        .sumOf { message -> message.content.length },
+                    pendingToolCount = state.pendingTools.size,
+                    patchProposalCount = state.patchProposals.size,
+                    liveJobCount = state.jobs.count { job -> job.isAlive },
+                    worktreeFileCount = state.worktree?.fileCount ?: 0,
+                )
+            }
+        }
+    }
+
+    private fun MobileGatewayUiState.hasAgentActivityAfter(baseline: AgentActivityBaseline): Boolean {
+        val assistantTextLength = conversationMessages
+            .filter { message -> message.role == "assistant" }
+            .sumOf { message -> message.content.length }
+        return sessions.any { session -> session.isResponding } ||
+            conversationMessages.size > baseline.conversationCount ||
+            assistantTextLength > baseline.assistantTextLength ||
+            pendingTools.size > baseline.pendingToolCount ||
+            patchProposals.size > baseline.patchProposalCount ||
+            jobs.count { job -> job.isAlive } > baseline.liveJobCount ||
+            (worktree?.fileCount ?: 0) > baseline.worktreeFileCount
     }
 }
 

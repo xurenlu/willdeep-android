@@ -15,6 +15,9 @@ REQUIRE_DEVICE = ENV["REQUIRE_ANDROID_DEVICE"] == "1"
 LIVE_PAIRING_PAYLOAD = ENV.fetch("MOBILE_GATEWAY_PAIRING_PAYLOAD", "")
 LIVE_DEVICE_NAME = ENV.fetch("MOBILE_GATEWAY_DEVICE_NAME", "Android Live Smoke")
 LIVE_MESSAGE = ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", "")
+EXPECT_AGENT_ACTIVITY = ENV["MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY"] == "1"
+AGENT_ACTIVITY_TIMEOUT_MS = ENV.fetch("MOBILE_GATEWAY_AGENT_ACTIVITY_TIMEOUT_MS", "60000")
+RUN_AGENT_ACTIVITY_CHECK = EXPECT_AGENT_ACTIVITY && !LIVE_PAIRING_PAYLOAD.empty? && !LIVE_MESSAGE.empty?
 SENSITIVE_REPORT_VALUES = [LIVE_PAIRING_PAYLOAD, LIVE_MESSAGE].reject(&:empty?)
 
 raise "versionName not found" if APP_VERSION.nil? || APP_VERSION.empty?
@@ -93,6 +96,7 @@ def markdown_report(result)
   lines << "- Devices: #{result[:devices].empty? ? "_none_" : result[:devices].map { |device| "`#{device[:serial]}` (#{device[:state]})" }.join(", ")}"
   lines << "- Live Mac payload: `#{result[:live_payload_provided] ? "provided" : "not provided"}`"
   lines << "- Live message: `#{result[:live_message_provided] ? "provided" : "not provided"}`"
+  lines << "- Agent activity check: `#{result[:agent_activity_check_enabled] ? "enabled" : "disabled"}`"
   lines << ""
   lines << "## Steps"
   lines << ""
@@ -134,6 +138,12 @@ begin
         unless LIVE_MESSAGE.empty?
           connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayLiveMessage=#{LIVE_MESSAGE}"
           redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayLiveMessage=<redacted>"
+          if RUN_AGENT_ACTIVITY_CHECK
+            connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectAgentActivity=1"
+            connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayAgentActivityTimeoutMillis=#{AGENT_ACTIVITY_TIMEOUT_MS}"
+            redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayExpectAgentActivity=1"
+            redacted_connected_command << "-Pandroid.testInstrumentationRunnerArguments.mobileGatewayAgentActivityTimeoutMillis=#{AGENT_ACTIVITY_TIMEOUT_MS}"
+          end
         end
       end
       runner.run(
@@ -157,6 +167,9 @@ result = {
   require_device: REQUIRE_DEVICE,
   live_payload_provided: !LIVE_PAIRING_PAYLOAD.empty?,
   live_message_provided: !LIVE_MESSAGE.empty?,
+  expect_agent_activity: EXPECT_AGENT_ACTIVITY,
+  agent_activity_check_enabled: RUN_AGENT_ACTIVITY_CHECK,
+  agent_activity_timeout_ms: AGENT_ACTIVITY_TIMEOUT_MS,
   steps: runner.steps,
 }
 
