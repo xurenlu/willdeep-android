@@ -81,6 +81,7 @@ data class MobileGatewayUiState(
     val sessions: List<GatewaySession> = emptyList(),
     val selectedSessionId: String? = null,
     val messageText: String = "",
+    val preferredWorkspacePath: String = "",
     val pendingTools: List<PendingToolApproval> = emptyList(),
     val toolAnswers: Map<String, String> = emptyMap(),
     val toolConfirmations: Map<String, String> = emptyMap(),
@@ -181,6 +182,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
     fun updateFilePath(value: String) {
         _state.update { it.copy(filePathText = value) }
+    }
+
+    fun updatePreferredWorkspacePath(value: String) {
+        _state.update { it.copy(preferredWorkspacePath = value) }
     }
 
     fun updateToolAnswer(approvalId: String, value: String) {
@@ -430,10 +435,12 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         val text = current.messageText.trim()
         if (text.isEmpty()) return
         val payload = JSONObject().put("text", text)
+        val workspacePath = current.preferredWorkspacePath.trim().takeIf { it.isNotEmpty() }
+        workspacePath?.let { payload.put("workspace_path", it) }
         val sent = send(
             GatewayEnvelope(
                 type = "message.send",
-                sessionId = current.selectedSessionId,
+                sessionId = current.selectedSessionId.takeIf { workspacePath == null },
                 payload = payload,
             )
         )

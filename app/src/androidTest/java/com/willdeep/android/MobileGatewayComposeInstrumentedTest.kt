@@ -219,6 +219,7 @@ class MobileGatewayComposeInstrumentedTest {
         val expectCodeActivity = arguments.getString("mobileGatewayExpectCodeActivity")
             .toBooleanFlag()
         val expectedTargetFile = arguments.getString("mobileGatewayExpectedTargetFile").orEmpty()
+        val liveWorkspacePath = arguments.getString("mobileGatewayWorkspacePath").orEmpty()
         val agentActivityTimeoutMillis = arguments.getString("mobileGatewayAgentActivityTimeoutMillis")
             ?.toLongOrNull()
             ?.coerceAtLeast(1_000)
@@ -227,6 +228,7 @@ class MobileGatewayComposeInstrumentedTest {
             .getOrDefault("")
             .ifBlank { "Mac" }
         val viewModel = MobileGatewayViewModel(appContext)
+        viewModel.updatePreferredWorkspacePath(liveWorkspacePath)
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
 
         composeRule.setContent {
@@ -306,6 +308,12 @@ class MobileGatewayComposeInstrumentedTest {
                 )
             }
             if (expectedTargetFile.isNotBlank()) {
+                approveNonInteractivePendingToolsUntil(
+                    timeoutMillis = agentActivityTimeoutMillis,
+                    viewModel = viewModel,
+                ) {
+                    viewModel.state.value.hasTargetFileActivityAfter(baseline, expectedTargetFile)
+                }
                 composeRule.waitUntil(timeoutMillis = agentActivityTimeoutMillis) {
                     viewModel.state.value.hasTargetFileActivityAfter(baseline, expectedTargetFile)
                 }
@@ -319,6 +327,29 @@ class MobileGatewayComposeInstrumentedTest {
                     signal?.reportValue ?: "unknown",
                 )
             }
+        }
+    }
+
+    private fun approveNonInteractivePendingToolsUntil(
+        timeoutMillis: Long,
+        viewModel: MobileGatewayViewModel,
+        isDone: () -> Boolean,
+    ) {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        val approvedToolIds = mutableSetOf<String>()
+        while (System.currentTimeMillis() < deadline && !isDone()) {
+            val approval = viewModel.state.value.pendingTools.firstOrNull { pending ->
+                pending.id !in approvedToolIds &&
+                    !pending.requiresAnswer &&
+                    !pending.requiresConfirmation
+            }
+            if (approval != null) {
+                approvedToolIds += approval.id
+                composeRule.runOnIdle {
+                    viewModel.decideTool(approval, approved = true)
+                }
+            }
+            Thread.sleep(250)
         }
     }
 

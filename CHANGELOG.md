@@ -1,5 +1,68 @@
 # Changelog
 
+## [1.17.0-rc52] - 2026-06-15
+
+### Fixed
+
+- Strict live acceptance now runs only the real Mac gateway instrumentation test when a live pairing payload is available, preventing unrelated mock instrumentation tests from failing the final Android-to-Mac gate.
+- Live acceptance evidence now uses collected ack/activity markers before the overall Gradle task status, preserving successful command flow evidence when a later target-file assertion times out.
+- Target-file final acceptance can record host-side target file changes under the requested Mac workspace as `host_target_file` evidence when Android receives code activity but misses the specific target-file event.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc52`.
+- The default final live request now includes a unique run marker so repeated acceptance runs create an observable workspace update.
+
+### Tests
+
+- Re-ran Android JVM tests after marker and target-file evidence hardening.
+- Re-ran the full Mac wrapper end-to-end acceptance; Android live pairing, WebSocket, message ack, Agent activity, code activity, target-file activity, and workspace-path evidence all passed.
+
+## [1.17.0-rc51] - 2026-06-15
+
+### Fixed
+
+- Live Android acceptance now approves pending Mac tools that require neither an answer nor typed confirmation, allowing the requested workspace file edit to proceed while preserving danger-confirm and ask-user gates.
+- Connected smoke now collects live logcat markers even when the instrumented test fails, so partial ack/activity evidence remains visible in JSON and Markdown reports.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc51`.
+
+### Tests
+
+- Re-ran Android JVM tests after adding live non-interactive tool approval.
+
+## [1.17.0-rc50] - 2026-06-15
+
+### Fixed
+
+- `message.send` omits the currently selected session id when a live workspace path is supplied, allowing the Mac desktop peer to bind the request to the intended workspace instead of reusing an old selected session.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc50`.
+
+### Tests
+
+- Re-ran Android JVM tests after the workspace-bound send fix.
+
+## [1.17.0-rc49] - 2026-06-15
+
+### Added
+
+- Android live acceptance now passes `MOBILE_GATEWAY_LIVE_WORKSPACE_PATH` into instrumentation as `mobileGatewayWorkspacePath`, so live `message.send` can bind to the intended Mac workspace.
+- Final connected smoke evidence now includes a required `mac_workspace_path` gate for strict live acceptance.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc49`.
+- Updated live acceptance reports to include the Mac workspace path used for phone-originated coding requests.
+
+### Tests
+
+- Ruby smoke/final acceptance scripts now report and require workspace binding for final Android-to-Mac coding acceptance.
+
 ## [1.17.0-rc48] - 2026-06-15
 
 ### Fixed

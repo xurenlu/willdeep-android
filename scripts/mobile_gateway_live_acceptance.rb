@@ -17,9 +17,15 @@ OUT_DIR = File.join(ROOT_DIR, "build", "mobile_gateway_live_acceptance")
 REPORT_JSON = File.join(OUT_DIR, "report.json")
 REPORT_MD = File.join(OUT_DIR, "report.md")
 LIVE_ACCEPTANCE_TARGET_FILE = "WILLDEEP_ANDROID_LIVE_ACCEPTANCE.md"
+LIVE_ACCEPTANCE_WORKSPACE_PATH = ENV.fetch(
+  "MOBILE_GATEWAY_LIVE_WORKSPACE_PATH",
+  File.expand_path("../Xedit", ROOT_DIR),
+)
+LIVE_ACCEPTANCE_RUN_ID = Time.now.utc.strftime("%Y%m%dT%H%M%SZ")
 DEFAULT_LIVE_MESSAGE = [
   "Use the Mac WillDeep workspace tools to create or update `#{LIVE_ACCEPTANCE_TARGET_FILE}`.",
-  "Add one short section titled `Android Live Acceptance` with today's date and one bullet explaining that the request came from Android.",
+  "Add one short section titled `Android Live Acceptance` with today's date and this exact marker: `#{LIVE_ACCEPTANCE_RUN_ID}`.",
+  "Include one bullet explaining that the request came from Android.",
   "Do not only describe the change; make the workspace file edit so the live smoke can observe code activity.",
 ].join("\n")
 MAC_BUNDLE_ID = ENV.fetch("MOBILE_GATEWAY_MAC_BUNDLE_ID", "com.willdeep.app")
@@ -47,6 +53,7 @@ def run_smoke
     "MOBILE_GATEWAY_EXPECT_AGENT_ACTIVITY" => "1",
     "MOBILE_GATEWAY_EXPECT_CODE_ACTIVITY" => "1",
     "MOBILE_GATEWAY_EXPECTED_TARGET_FILE" => LIVE_ACCEPTANCE_TARGET_FILE,
+    "MOBILE_GATEWAY_LIVE_WORKSPACE_PATH" => LIVE_ACCEPTANCE_WORKSPACE_PATH,
     "MOBILE_GATEWAY_LIVE_MESSAGE" => ENV.fetch("MOBILE_GATEWAY_LIVE_MESSAGE", DEFAULT_LIVE_MESSAGE),
   }
   Open3.capture3(env, "ruby", SMOKE_SCRIPT, chdir: ROOT_DIR)
@@ -120,6 +127,7 @@ def build_report(stdout, stderr, exit_status, smoke, preflight)
     live_payload_source: smoke["live_payload_source"],
     live_request_profile: live_request_profile,
     live_acceptance_target_file: LIVE_ACCEPTANCE_TARGET_FILE,
+    live_acceptance_workspace_path: LIVE_ACCEPTANCE_WORKSPACE_PATH,
     target_file_required: true,
     live_message_provided: true,
     strict_live_acceptance_required: true,
@@ -130,6 +138,7 @@ def build_report(stdout, stderr, exit_status, smoke, preflight)
     mac_agent_activity_signal: smoke["mac_agent_activity_signal"],
     mac_code_activity_signal: smoke["mac_code_activity_signal"],
     mac_target_file_signal: smoke["mac_target_file_signal"],
+    host_target_file_signal: smoke["host_target_file_signal"],
     acceptance_evidence: smoke.fetch("acceptance_evidence", []),
     final_live_acceptance_failures: smoke.fetch("final_live_acceptance_failures", []),
     next_actions: smoke.fetch("next_actions", []),
@@ -151,6 +160,7 @@ def write_reports(report)
     "- Live payload source: `#{report[:live_payload_source] || "unknown"}`",
     "- Live request profile: `#{report[:live_request_profile] || "unknown"}`",
     "- Live acceptance target file: `#{report[:live_acceptance_target_file] || "unknown"}`",
+    "- Live acceptance workspace path: `#{report[:live_acceptance_workspace_path] || "unknown"}`",
     "- Attached devices: `#{report[:attached_device_count]}`",
     "- Message send ack: `#{report[:mobile_message_send_ack] || "missing"}`",
     "- Smoke JSON: `#{report[:smoke_report_json]}`",
@@ -160,6 +170,7 @@ def write_reports(report)
     "- Agent activity signal: `#{report[:mac_agent_activity_signal] || "missing"}`",
     "- Code activity signal: `#{report[:mac_code_activity_signal] || "missing"}`",
     "- Target file signal: `#{report[:mac_target_file_signal] || "missing"}`",
+    "- Host target file signal: `#{report[:host_target_file_signal] || "missing"}`",
     "",
   ]
   lines << "## Mac Gateway Preflight"
