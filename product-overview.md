@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-15 | Current version: v1.17.0-rc52
+> Last updated: 2026-06-18 | Current version: v1.18.0-rc1
 
 ## Project Summary
 
@@ -9,6 +9,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 ## Core Features
 
 - Pair with the Mac Mobile Gateway by scanning the QR payload or pasting the short-lived JSON payload.
+- Preserve LAN-first pairing while accepting Tailscale fallback endpoints from `fallback_base_urls` or `base_url#tailscale=100.x.x.x` QR hints.
 - Show localized invalid-payload errors for malformed QR content or missing required pairing fields.
 - Require pairing payload desktop name and expiry fields before sending health or claim requests.
 - Reject malformed or unsupported gateway base URLs locally before sending health or claim requests.
@@ -19,6 +20,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Check Mac gateway health from either a pairing payload or the saved paired Mac, then display server version plus pairing availability without blocking paired-device diagnostics when new pairing is disabled.
 - Store the long-lived device token securely on Android.
 - Connect to the Mac gateway over WebSocket.
+- Retry Mac gateway health checks, pairing claims, and WebSocket connections against saved fallback endpoints when the LAN endpoint is unreachable.
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
 - Accept shared plain text from other Android apps, combining shared subject/title and body/URL content before loading it into Ask WillDeep for forwarding to the Mac.
 - Import highlighted Android text actions directly into Ask WillDeep for forwarding selected requirements or code snippets to the Mac.

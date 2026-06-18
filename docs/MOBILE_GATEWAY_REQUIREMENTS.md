@@ -31,13 +31,14 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.17.0-rc52:
+Implemented through v1.18.0-rc1:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
 - Malformed pairing payload JSON and missing required pairing fields are rejected locally with localized errors.
 - Missing pairing payload `desktop_name` and `expires_at` values are rejected locally before Android calls `/mobile/health` or `/mobile/pair/claim`.
 - Malformed or unsupported gateway `base_url` values are rejected locally before Android calls `/mobile/health` or `/mobile/pair/claim`.
+- Optional `fallback_base_urls` and `base_url#tailscale=100.x.x.x` QR hints are accepted for Tailscale fallback; Android keeps LAN first and only tries fallback endpoints after the primary endpoint fails.
 - Missing pairing payload `protocol_version` values are rejected locally before Android calls `/mobile/health` or `/mobile/pair/claim`.
 - Gateway health probing through `GET /mobile/health` before pairing, from a saved paired Mac gateway, and through a manual Check Gateway action.
 - Live acceptance can pass `workspace_path` with `message.send`, allowing the Mac desktop peer to bind Android-originated coding requests to the intended Mac workspace. When this field is supplied, Android omits `session_id` so the Mac does not reuse a stale selected session.
@@ -112,6 +113,7 @@ The Mac-side gateway exposes a desktop-only pairing payload. Android expects the
 ```json
 {
   "base_url": "http://192.168.1.20:8877",
+  "fallback_base_urls": ["http://100.90.80.70:8877"],
   "pairing_token": "short-lived-token",
   "protocol_version": "mobile-gateway.v1",
   "desktop_name": "Rocky's Mac",
@@ -119,7 +121,7 @@ The Mac-side gateway exposes a desktop-only pairing payload. Android expects the
 }
 ```
 
-The token is short-lived and single-use. Android must not log the full payload or device token.
+The token is short-lived and single-use. `fallback_base_urls` is optional, ignored by older clients, and persisted by newer clients so WebSocket reconnect can try Tailscale when LAN reachability fails. Android must not log the full payload or device token.
 
 ## HTTP API
 
@@ -221,6 +223,7 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - Malformed pairing payloads show a localized error before Android sends health or claim requests.
 - Unsupported pairing payload protocol versions show a localized error before Android sends health or claim requests.
 - Expired pairing payloads show a localized error before Android sends health or claim requests.
+- Pairing and saved gateway connections try the LAN endpoint first, then Tailscale fallback endpoints when present.
 - Saved paired gateway diagnostics still pass when the Mac reports `pairing_allowed=false`.
 - Pairing payload claim stores a long-lived device token securely.
 - A paired device can open `/mobile/ws`, send `session.list`, and display returned session state.

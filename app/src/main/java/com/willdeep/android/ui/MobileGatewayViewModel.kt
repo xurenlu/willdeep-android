@@ -1,7 +1,9 @@
 package com.willdeep.android.ui
 
 import android.app.Application
+import android.net.Uri
 import android.os.Build
+import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.willdeep.android.R
@@ -14,6 +16,7 @@ import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewayMessage
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
+import com.willdeep.android.mobile.GatewayWorkspace
 import com.willdeep.android.mobile.GatewayWorktree
 import com.willdeep.android.mobile.GatewayWorktreeFile
 import com.willdeep.android.mobile.InvalidPairingPayloadException
@@ -32,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 
 enum class ConnectionStatus {
@@ -55,6 +59,12 @@ enum class MobileCommandState {
     Failed,
 }
 
+data class ImageAttachment(
+    val uri: Uri,
+    val mimeType: String?,
+    val approxBytes: Long?,
+)
+
 data class MobileCommandStatus(
     val id: String,
     val type: String,
@@ -66,6 +76,7 @@ data class MobileGatewayUiState(
     val pairingPayloadText: String = "",
     val deviceName: String = Build.MODEL ?: "Android Device",
     val baseUrl: String = "",
+    val fallbackBaseUrls: List<String> = emptyList(),
     val desktopName: String = "",
     val protocolVersion: String = "",
     val gatewayServerVersion: String = "",
@@ -82,6 +93,11 @@ data class MobileGatewayUiState(
     val selectedSessionId: String? = null,
     val messageText: String = "",
     val preferredWorkspacePath: String = "",
+    val workspaces: List<GatewayWorkspace> = emptyList(),
+    val isLoadingWorkspaces: Boolean = false,
+    val workspacePickerVisible: Boolean = false,
+    val workspacePickerError: String? = null,
+    val recentWorkspacePaths: List<String> = emptyList(),
     val pendingTools: List<PendingToolApproval> = emptyList(),
     val toolAnswers: Map<String, String> = emptyMap(),
     val toolConfirmations: Map<String, String> = emptyMap(),
@@ -93,13 +109,20 @@ data class MobileGatewayUiState(
     val worktree: GatewayWorktree? = null,
     val commandStatuses: List<MobileCommandStatus> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
+    val attachments: List<ImageAttachment> = emptyList(),
 )
 
 internal data class GatewayHealthTarget(
     val baseUrl: String,
+    val fallbackBaseUrls: List<String> = emptyList(),
     val desktopName: String,
     val protocolVersion: String,
     val requiresPairingAllowed: Boolean,
+)
+
+private data class ReachableGateway(
+    val baseUrl: String,
+    val health: GatewayHealth,
 )
 
 class MobileGatewayViewModel(application: Application) : AndroidViewModel(application) {
@@ -117,6 +140,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             _state.update {
                 it.copy(
                     baseUrl = credential.baseUrl,
+                    fallbackBaseUrls = credential.fallbackBaseUrls,
                     desktopName = credential.desktopName,
                     protocolVersion = credential.protocolVersion,
                     isPaired = true,
@@ -200,6 +224,11 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    fun scanAndPair(payload: String) {
+        loadPairingPayloadFromQr(payload)
+        pair()
+    }
+
     fun pair() {
         val current = state.value
         viewModelScope.launch {
@@ -207,12 +236,14 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update { it.copy(status = ConnectionStatus.Pairing, errorMessage = null) }
                 val payload = parsePairingPayload(current.pairingPayloadText)
                 ensurePairingPayloadUsable(payload)
-                val health = client.checkHealth(payload.baseUrl)
+                val reachable = checkFirstReachableHealth(payload.baseUrl, payload.fallbackBaseUrls)
+                val health = reachable.health
                 updateGatewayHealth(payload, health)
                 ensureCompatibleGateway(health)
-                val claim = client.claimPairing(payload, current.deviceName)
+                val claim = client.claimPairing(payload.copy(baseUrl = reachable.baseUrl), current.deviceName)
                 val credential = StoredGatewayCredential(
                     baseUrl = payload.baseUrl,
+                    fallbackBaseUrls = payload.fallbackBaseUrls,
                     deviceToken = claim.deviceToken,
                     desktopName = payload.desktopName,
                     protocolVersion = claim.protocolVersion,
@@ -223,6 +254,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update {
                     it.copy(
                         baseUrl = credential.baseUrl,
+                        fallbackBaseUrls = credential.fallbackBaseUrls,
                         desktopName = credential.desktopName,
                         protocolVersion = credential.protocolVersion,
                         isPaired = true,
@@ -253,7 +285,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     ?: throw IllegalStateException(
                         getApplication<Application>().getString(R.string.error_gateway_health_target_missing)
                 )
-                val health = client.checkHealth(target.baseUrl)
+                val health = checkFirstReachableHealth(target.baseUrl, target.fallbackBaseUrls).health
                 updateGatewayHealth(target, health)
                 ensureCompatibleGateway(health, requiresPairingAllowed = target.requiresPairingAllowed)
                 health
@@ -294,6 +326,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 status = ConnectionStatus.Connecting,
                 errorMessage = null,
                 baseUrl = credential.baseUrl,
+                fallbackBaseUrls = credential.fallbackBaseUrls,
                 desktopName = credential.desktopName,
                 protocolVersion = credential.protocolVersion,
                 isPaired = true,
@@ -310,37 +343,46 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         var attempt = 0
         while (reconnectRequested) {
             val credential = tokenStore.load() ?: return
-            _state.update {
-                it.copy(
-                    status = if (attempt == 0) ConnectionStatus.Connecting else ConnectionStatus.Reconnecting,
-                    errorMessage = null,
-                    baseUrl = credential.baseUrl,
-                    desktopName = credential.desktopName,
-                    protocolVersion = credential.protocolVersion,
-                    isPaired = true,
-                    reconnectAttempt = attempt,
-                    reconnectDelayMillis = if (attempt == 0) 0 else ReconnectPolicy.delayMillisForAttempt(attempt),
-                )
-            }
-
             var terminalRequiresRePair = false
             var terminalMessage: String? = null
-            client.connect(credential.baseUrl, credential.deviceToken).collect { event ->
-                when (event) {
-                    GatewayEvent.Connected -> {
-                        attempt = 0
-                        handleGatewayEvent(event)
+            val endpoints = credential.connectionBaseUrls()
+            for (endpoint in endpoints) {
+                if (!reconnectRequested) return
+                _state.update {
+                    it.copy(
+                        status = if (attempt == 0) ConnectionStatus.Connecting else ConnectionStatus.Reconnecting,
+                        errorMessage = null,
+                        baseUrl = endpoint,
+                        fallbackBaseUrls = credential.fallbackBaseUrls,
+                        desktopName = credential.desktopName,
+                        protocolVersion = credential.protocolVersion,
+                        isPaired = true,
+                        reconnectAttempt = attempt,
+                        reconnectDelayMillis = if (attempt == 0) 0 else ReconnectPolicy.delayMillisForAttempt(attempt),
+                    )
+                }
+
+                client.connect(endpoint, credential.deviceToken).collect { event ->
+                    when (event) {
+                        GatewayEvent.Connected -> {
+                            attempt = 0
+                            handleGatewayEvent(event)
+                        }
+                        is GatewayEvent.ConnectionFailed -> {
+                            terminalMessage = event.message
+                            terminalRequiresRePair = ReconnectPolicy.isAuthenticationRejected(event.httpCode, event.message)
+                            handleGatewayEvent(event)
+                        }
+                        is GatewayEvent.ConnectionClosed -> {
+                            terminalMessage = event.reason
+                            handleGatewayEvent(event)
+                        }
+                        else -> handleGatewayEvent(event)
                     }
-                    is GatewayEvent.ConnectionFailed -> {
-                        terminalMessage = event.message
-                        terminalRequiresRePair = ReconnectPolicy.isAuthenticationRejected(event.httpCode, event.message)
-                        handleGatewayEvent(event)
-                    }
-                    is GatewayEvent.ConnectionClosed -> {
-                        terminalMessage = event.reason
-                        handleGatewayEvent(event)
-                    }
-                    else -> handleGatewayEvent(event)
+                }
+
+                if (terminalRequiresRePair || !reconnectRequested) {
+                    break
                 }
             }
 
@@ -421,8 +463,74 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun createSession() {
-        send(GatewayEnvelope(type = "session.create"))
+    fun openWorkspacePicker() {
+        if (state.value.status != ConnectionStatus.Connected) {
+            connect()
+        }
+        _state.update {
+            it.copy(
+                workspacePickerVisible = true,
+                workspacePickerError = null,
+                isLoadingWorkspaces = true,
+            )
+        }
+        requestWorkspaces()
+    }
+
+    fun closeWorkspacePicker() {
+        _state.update {
+            it.copy(
+                workspacePickerVisible = false,
+                workspacePickerError = null,
+                isLoadingWorkspaces = false,
+            )
+        }
+    }
+
+    fun requestWorkspaces() {
+        val sent = send(GatewayEnvelope(type = "workspace.list"))
+        if (!sent) {
+            _state.update {
+                it.copy(
+                    isLoadingWorkspaces = false,
+                    workspacePickerError = getApplication<Application>().getString(
+                        R.string.error_websocket_not_connected,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun createSession(workspacePath: String): Boolean {
+        val path = workspacePath.trim()
+        if (path.isEmpty()) {
+            _state.update {
+                it.copy(
+                    workspacePickerError = getApplication<Application>().getString(
+                        R.string.error_workspace_required,
+                    ),
+                )
+            }
+            return false
+        }
+        val payload = JSONObject().put("workspace_path", path)
+        val sent = send(
+            GatewayEnvelope(
+                type = "session.create",
+                payload = payload,
+            )
+        )
+        if (!sent) return false
+        _state.update {
+            it.copy(
+                preferredWorkspacePath = path,
+                recentWorkspacePaths = (listOf(path) + it.recentWorkspacePaths.filter { existing -> existing != path }).take(8),
+                workspacePickerVisible = false,
+                workspacePickerError = null,
+                isLoadingWorkspaces = false,
+            )
+        }
+        return true
     }
 
     fun selectSession(sessionId: String) {
@@ -430,25 +538,86 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         send(GatewayEnvelope(type = "session.select", sessionId = sessionId))
     }
 
+    fun addAttachment(uri: Uri) {
+        val resolver = getApplication<Application>().contentResolver
+        val mime = runCatching { resolver.getType(uri) }.getOrNull()
+        val size = runCatching {
+            resolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+        }.getOrNull()
+        _state.update {
+            if (it.attachments.any { att -> att.uri == uri }) it
+            else it.copy(attachments = it.attachments + ImageAttachment(uri, mime, size))
+        }
+    }
+
+    fun removeAttachment(uri: Uri) {
+        _state.update { it.copy(attachments = it.attachments.filterNot { att -> att.uri == uri }) }
+    }
+
     fun sendMessage() {
         val current = state.value
         val text = current.messageText.trim()
-        if (text.isEmpty()) return
+        val attachments = current.attachments
+        if (text.isEmpty() && attachments.isEmpty()) return
+
         val payload = JSONObject().put("text", text)
         val workspacePath = current.preferredWorkspacePath.trim().takeIf { it.isNotEmpty() }
         workspacePath?.let { payload.put("workspace_path", it) }
-        val sent = send(
+
+        if (attachments.isNotEmpty()) {
+            val imagesArray = JSONArray()
+            val resolver = getApplication<Application>().contentResolver
+            attachments.forEach { att ->
+                runCatching {
+                    val bytes = resolver.openInputStream(att.uri)?.use { it.readBytes() }
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val mime = att.mimeType?.takeIf { it.startsWith("image/") } ?: "image/jpeg"
+                        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        imagesArray.put(
+                            JSONObject()
+                                .put("type", "image_url")
+                                .put(
+                                    "image_url",
+                                    JSONObject().put("url", "data:$mime;base64,$b64"),
+                                )
+                        )
+                    }
+                }
+            }
+            if (imagesArray.length() > 0) {
+                payload.put("images", imagesArray)
+            }
+        }
+
+        val activeSession = current.sessions.firstOrNull { it.id == current.selectedSessionId }
+        val shouldQueue = activeSession?.isResponding == true && current.selectedSessionId != null
+
+        val envelope = if (shouldQueue) {
+            GatewayEnvelope(
+                type = "queue.update",
+                sessionId = current.selectedSessionId,
+                payload = payload.put("action", "add"),
+            )
+        } else {
             GatewayEnvelope(
                 type = "message.send",
                 sessionId = current.selectedSessionId.takeIf { workspacePath == null },
                 payload = payload,
             )
-        )
+        }
+        val sent = send(envelope)
         if (!sent) return
+        val logKind = if (shouldQueue) "mobile" else "mobile"
+        val logText = if (shouldQueue) {
+            getApplication<Application>().getString(R.string.queue_add_log)
+        } else {
+            text.ifBlank { "(image)" }
+        }
         _state.update {
             it.copy(
                 messageText = "",
-                logLines = it.logLines.append(GatewayLogLine("mobile", text)),
+                attachments = emptyList(),
+                logLines = it.logLines.append(GatewayLogLine(logKind, logText)),
             )
         }
     }
@@ -726,10 +895,26 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    private suspend fun checkFirstReachableHealth(
+        baseUrl: String,
+        fallbackBaseUrls: List<String>,
+    ): ReachableGateway {
+        var lastError: Throwable? = null
+        com.willdeep.android.mobile.connectionBaseUrls(baseUrl, fallbackBaseUrls).forEach { candidate ->
+            runCatching { client.checkHealth(candidate) }
+                .onSuccess { health -> return ReachableGateway(candidate, health) }
+                .onFailure { lastError = it }
+        }
+        throw lastError ?: IllegalStateException(
+            getApplication<Application>().getString(R.string.error_gateway_health_target_missing)
+        )
+    }
+
     private fun updateGatewayHealth(payload: PairingPayload, health: GatewayHealth) {
         updateGatewayHealth(
             GatewayHealthTarget(
                 baseUrl = payload.baseUrl,
+                fallbackBaseUrls = payload.fallbackBaseUrls,
                 desktopName = payload.desktopName,
                 protocolVersion = payload.protocolVersion,
                 requiresPairingAllowed = true,
@@ -742,6 +927,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update {
             it.copy(
                 baseUrl = target.baseUrl,
+                fallbackBaseUrls = target.fallbackBaseUrls,
                 desktopName = target.desktopName,
                 protocolVersion = health.protocolVersion.ifBlank { target.protocolVersion },
                 gatewayServerVersion = health.serverVersion.ifBlank { health.appVersion },
@@ -1022,6 +1208,15 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     )
                 }
             }
+            is GatewayEvent.WorkspacesUpdated -> {
+                _state.update {
+                    it.copy(
+                        workspaces = event.workspaces,
+                        isLoadingWorkspaces = false,
+                        workspacePickerError = null,
+                    )
+                }
+            }
             is GatewayEvent.Raw -> Unit
         }
     }
@@ -1130,6 +1325,7 @@ internal fun resolveGatewayHealthTarget(state: MobileGatewayUiState): GatewayHea
         val payload = PairingPayload.parse(state.pairingPayloadText)
         return GatewayHealthTarget(
             baseUrl = payload.baseUrl,
+            fallbackBaseUrls = payload.fallbackBaseUrls,
             desktopName = payload.desktopName,
             protocolVersion = payload.protocolVersion,
             requiresPairingAllowed = true,
@@ -1140,6 +1336,7 @@ internal fun resolveGatewayHealthTarget(state: MobileGatewayUiState): GatewayHea
     }
     return GatewayHealthTarget(
         baseUrl = state.baseUrl,
+        fallbackBaseUrls = state.fallbackBaseUrls,
         desktopName = state.desktopName,
         protocolVersion = state.protocolVersion,
         requiresPairingAllowed = false,

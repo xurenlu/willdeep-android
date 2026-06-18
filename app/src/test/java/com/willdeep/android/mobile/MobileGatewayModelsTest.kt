@@ -24,9 +24,66 @@ class MobileGatewayModelsTest {
         )
 
         assertEquals("http://192.168.1.20:8877", payload.baseUrl)
+        assertEquals(emptyList<String>(), payload.fallbackBaseUrls)
         assertEquals("pair_123", payload.pairingToken)
         assertEquals("mobile-gateway.v1", payload.protocolVersion)
         assertEquals("Rocky's Mac", payload.desktopName)
+    }
+
+    @Test
+    fun pairingPayloadParsesFallbackBaseUrls() {
+        val payload = PairingPayload.parse(
+            """
+            {
+              "base_url": "http://192.168.1.20:8877/",
+              "fallback_base_urls": [
+                "http://100.90.80.70:8877/",
+                "http://192.168.1.20:8877",
+                "not a url"
+              ],
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
+            }
+            """.trimIndent()
+        )
+
+        assertEquals("http://192.168.1.20:8877", payload.baseUrl)
+        assertEquals(listOf("http://100.90.80.70:8877"), payload.fallbackBaseUrls)
+    }
+
+    @Test
+    fun pairingPayloadParsesTailscaleFragmentFallback() {
+        val payload = PairingPayload.parse(
+            """
+            {
+              "base_url": "http://192.168.1.20:8877/#tailscale=100.90.80.70",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z"
+            }
+            """.trimIndent()
+        )
+
+        assertEquals("http://192.168.1.20:8877", payload.baseUrl)
+        assertEquals(listOf("http://100.90.80.70:8877"), payload.fallbackBaseUrls)
+    }
+
+    @Test
+    fun connectionBaseUrlsDeduplicatesPrimaryAndFallbacks() {
+        assertEquals(
+            listOf("http://192.168.1.20:8877", "http://100.90.80.70:8877"),
+            connectionBaseUrls(
+                baseUrl = "http://192.168.1.20:8877/",
+                fallbackBaseUrls = listOf(
+                    "http://100.90.80.70:8877/",
+                    "http://192.168.1.20:8877",
+                    "",
+                ),
+            ),
+        )
     }
 
     @Test

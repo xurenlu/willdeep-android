@@ -15,6 +15,7 @@ class InvalidPairingPayloadException(cause: Throwable? = null) : IllegalArgument
 
 data class PairingPayload(
     val baseUrl: String,
+    val fallbackBaseUrls: List<String> = emptyList(),
     val pairingToken: String,
     val protocolVersion: String,
     val desktopName: String,
@@ -33,14 +34,20 @@ data class PairingPayload(
         fun parse(raw: String): PairingPayload {
             try {
                 val json = JSONObject(raw.trim())
-                val baseUrl = json.optString("base_url").trim().trimEnd('/')
+                val baseUrlRaw = json.optString("base_url").trim()
+                val baseHttpUrl = baseUrlRaw.toHttpUrlOrNull()
+                    ?: throw InvalidPairingPayloadException()
+                val baseUrl = baseHttpUrl.newBuilder()
+                    .fragment(null)
+                    .build()
+                    .toString()
+                    .trimEnd('/')
                 val pairingToken = json.optString("pairing_token").trim()
                 val protocolVersion = json.optString("protocol_version").trim()
                 val desktopName = json.optString("desktop_name").trim()
                 val expiresAt = json.optString("expires_at").trim()
                 if (
                     baseUrl.isBlank() ||
-                    baseUrl.toHttpUrlOrNull() == null ||
                     pairingToken.isBlank() ||
                     protocolVersion.isBlank() ||
                     desktopName.isBlank() ||
@@ -48,9 +55,17 @@ data class PairingPayload(
                 ) {
                     throw InvalidPairingPayloadException()
                 }
+                val fallbackBaseUrls = normalizedFallbackBaseUrls(
+                    baseUrl = baseUrl,
+                    explicitFallbacks = json.optJSONArray("fallback_base_urls"),
+                    fragment = baseHttpUrl.fragment,
+                    port = baseHttpUrl.port,
+                    scheme = baseHttpUrl.scheme,
+                )
                 Instant.parse(expiresAt)
                 return PairingPayload(
                     baseUrl = baseUrl,
+                    fallbackBaseUrls = fallbackBaseUrls,
                     pairingToken = pairingToken,
                     protocolVersion = protocolVersion,
                     desktopName = desktopName,
@@ -63,6 +78,53 @@ data class PairingPayload(
             }
         }
     }
+}
+
+fun connectionBaseUrls(baseUrl: String, fallbackBaseUrls: List<String>): List<String> {
+    val seen = LinkedHashSet<String>()
+    (listOf(baseUrl) + fallbackBaseUrls).forEach { raw ->
+        val normalized = raw.trim().trimEnd('/')
+        if (normalized.isNotBlank() && normalized.toHttpUrlOrNull() != null) {
+            seen.add(normalized)
+        }
+    }
+    return seen.toList()
+}
+
+private fun normalizedFallbackBaseUrls(
+    baseUrl: String,
+    explicitFallbacks: JSONArray?,
+    fragment: String?,
+    port: Int,
+    scheme: String,
+): List<String> {
+    val values = mutableListOf<String>()
+    if (explicitFallbacks != null) {
+        for (index in 0 until explicitFallbacks.length()) {
+            values += explicitFallbacks.optString(index)
+        }
+    }
+    values += fallbackBaseUrlsFromFragment(fragment, port, scheme)
+    return connectionBaseUrls(baseUrl, values).drop(1)
+}
+
+private fun fallbackBaseUrlsFromFragment(
+    fragment: String?,
+    port: Int,
+    scheme: String,
+): List<String> {
+    val text = fragment?.trim().orEmpty()
+    if (text.isBlank()) return emptyList()
+    return text
+        .split('&', ';', ',')
+        .mapNotNull { part ->
+            val value = part.substringAfter('=', part).trim()
+            when {
+                value.startsWith("http://") || value.startsWith("https://") -> value
+                value.matches(Regex("""\d{1,3}(?:\.\d{1,3}){3}""")) -> "$scheme://$value:$port"
+                else -> null
+            }
+        }
 }
 
 data class PairedDevice(
@@ -156,6 +218,7 @@ data class GatewayMessage(
     val createdAt: String,
     val sessionId: String?,
     val isStreaming: Boolean = false,
+    val imageUrls: List<String> = emptyList(),
 )
 
 data class GatewayWorktreeFile(
@@ -172,6 +235,13 @@ data class GatewayWorktree(
     val totalDeletedLines: Int,
     val files: List<GatewayWorktreeFile>,
     val sessionId: String?,
+)
+
+data class GatewayWorkspace(
+    val path: String,
+    val name: String,
+    val lastUsedAt: String,
+    val sessionCount: Int,
 )
 
 data class GatewayEnvelope(
@@ -223,6 +293,7 @@ sealed interface GatewayEvent {
     data class PatchDiffLoaded(val commandId: String?, val diff: PatchDiff) : GatewayEvent
     data class JobUpdated(val job: GatewayJob) : GatewayEvent
     data class FileLoaded(val commandId: String?, val file: GatewayFile) : GatewayEvent
+    data class WorkspacesUpdated(val workspaces: List<GatewayWorkspace>) : GatewayEvent
     data class Raw(val type: String) : GatewayEvent
 }
 
@@ -282,6 +353,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         "tool.updated" -> payload.toToolUpdatedEvent(sessionId)
         "patch.upsert" -> payload.toPatchEvent(sessionId)
         "job.updated" -> GatewayEvent.JobUpdated(payload.toJob(sessionId))
+        "workspace.list" -> GatewayEvent.WorkspacesUpdated(payload.optJSONArray("workspaces").toWorkspaces())
         else -> GatewayEvent.Raw(type)
     }
 }
@@ -461,14 +533,73 @@ private fun JSONObject.toQueuedMessage(sessionId: String?): GatewayQueuedMessage
 }
 
 private fun JSONObject.toMessage(sessionId: String?): GatewayMessage {
+    val (text, images) = extractMessageContent(this)
     return GatewayMessage(
         id = firstString("id", "message_id").ifBlank { UUID.randomUUID().toString() },
         role = firstString("role").ifBlank { "assistant" },
-        content = firstString("content", "text", "delta"),
+        content = text,
         createdAt = firstString("created_at", "ts"),
         sessionId = firstString("session_id").ifBlank { sessionId },
         isStreaming = optBoolean("is_streaming", false),
+        imageUrls = images,
     )
+}
+
+private fun extractMessageContent(json: JSONObject): Pair<String, List<String>> {
+    val texts = mutableListOf<String>()
+    val images = mutableListOf<String>()
+
+    fun visit(value: Any?) {
+        when (value) {
+            null, JSONObject.NULL -> return
+            is String -> {
+                val trimmed = value.trim()
+                if (trimmed.isNotEmpty()) texts.add(trimmed)
+            }
+            is JSONArray -> {
+                for (i in 0 until value.length()) visit(value.opt(i))
+            }
+            is JSONObject -> {
+                val type = value.optString("type").lowercase()
+                when {
+                    type == "text" || type == "output_text" || type == "input_text" -> {
+                        val t = value.optString("text").ifBlank { value.optString("content") }
+                        if (t.isNotBlank()) texts.add(t.trim())
+                    }
+                    type == "image_url" -> {
+                        val url = value.optJSONObject("image_url")?.optString("url")
+                            ?: value.optString("image_url")
+                        if (!url.isNullOrBlank()) images.add(url)
+                    }
+                    type == "image" || type == "input_image" -> {
+                        val url = value.optString("url").ifBlank {
+                            value.optJSONObject("source")?.optString("url").orEmpty()
+                        }.ifBlank { value.optString("image_url") }
+                        if (url.isNotBlank()) images.add(url)
+                    }
+                    else -> {
+                        // 兜底：常见 key
+                        listOf("text", "content", "delta", "body", "value").forEach { k ->
+                            if (value.has(k)) visit(value.opt(k))
+                        }
+                        listOf("url", "image_url").forEach { k ->
+                            val u = value.optString(k)
+                            if (u.isNotBlank() && u.startsWith("http", ignoreCase = true)) {
+                                images.add(u)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    listOf("content", "text", "delta", "body", "message", "parts", "segments").forEach { key ->
+        if (json.has(key)) visit(json.opt(key))
+    }
+
+    val combined = texts.joinToString("\n").trim()
+    return combined to images.distinct()
 }
 
 private fun JSONObject.toWorktree(sessionId: String?): GatewayWorktree {
@@ -480,6 +611,25 @@ private fun JSONObject.toWorktree(sessionId: String?): GatewayWorktree {
         files = optJSONArray("files").toWorktreeFiles(),
         sessionId = firstString("session_id").ifBlank { sessionId },
     )
+}
+
+private fun JSONArray?.toWorkspaces(): List<GatewayWorkspace> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            val item = getJSONObject(index)
+            val path = item.firstString("path", "workspace_path", "absolute_path")
+            if (path.isBlank()) continue
+            add(
+                GatewayWorkspace(
+                    path = path,
+                    name = item.firstString("name", "workspace_name", "title").ifBlank { path.substringAfterLast('/').ifBlank { path } },
+                    lastUsedAt = item.firstString("last_used_at", "updated_at", "ts"),
+                    sessionCount = item.optInt("session_count", 0),
+                )
+            )
+        }
+    }
 }
 
 private fun JSONArray?.toWorktreeFiles(): List<GatewayWorktreeFile> {

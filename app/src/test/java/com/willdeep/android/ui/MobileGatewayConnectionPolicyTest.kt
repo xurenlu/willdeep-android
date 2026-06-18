@@ -55,4 +55,19 @@ class MobileGatewayConnectionPolicyTest {
             )
         )
     }
+
+    @Test
+    fun gatewayHealthTargetKeepsFallbackBaseUrls() {
+        val target = resolveGatewayHealthTarget(
+            MobileGatewayUiState(
+                baseUrl = "http://192.168.1.20:8877",
+                fallbackBaseUrls = listOf("http://100.90.80.70:8877"),
+                desktopName = "Mac",
+                protocolVersion = "mobile-gateway.v1",
+            )
+        )
+
+        assertTrue(target != null)
+        assertTrue(target?.fallbackBaseUrls == listOf("http://100.90.80.70:8877"))
+    }
 }

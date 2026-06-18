@@ -1,9 +1,6 @@
 package com.willdeep.android.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -14,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +21,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -37,20 +37,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.willdeep.android.BuildConfig
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
@@ -72,9 +72,13 @@ fun WillDeepApp(
 ) {
     val state by viewModel.state.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
-    var scannerVisible by rememberSaveable { mutableStateOf(false) }
+    var screen by rememberSaveable { mutableStateOf("home") }
+
     LaunchedEffect(sharedMessageVersion) {
         viewModel.importSharedMessage(sharedMessageText)
+        if (sharedMessageVersion > 0 && sharedMessageText.isNotBlank()) {
+            screen = "session"
+        }
     }
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -87,293 +91,41 @@ fun WillDeepApp(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(stringResource(R.string.screen_title))
-                        Text(
-                            text = stringResource(R.string.screen_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                PairingCard(
-                    state = state,
-                    onPayloadChange = viewModel::updatePairingPayload,
-                    onDeviceNameChange = viewModel::updateDeviceName,
-                    onCheckGateway = viewModel::checkGatewayHealth,
-                    onPair = viewModel::pair,
-                    onScan = { scannerVisible = true },
-                    onConnect = viewModel::connect,
-                    onDisconnect = viewModel::disconnect,
-                    onForget = viewModel::forgetToken,
-                )
-            }
-            if (scannerVisible) {
-                item {
-                    PairingScannerCard(
-                        onPayloadScanned = { payload ->
-                            viewModel.loadPairingPayloadFromQr(payload)
-                            scannerVisible = false
-                        },
-                        onClose = { scannerVisible = false },
-                    )
-                }
-            }
-            item {
-                ComposerCard(
-                    state = state,
-                    onMessageChange = viewModel::updateMessage,
-                    onSend = viewModel::sendMessage,
-                    onQueue = viewModel::queueCurrentMessage,
-                    onStop = viewModel::stopTurn,
-                )
-            }
-            item {
-                QueueCard(
-                    state = state,
-                    onSendNow = viewModel::sendQueuedNow,
-                    onRemove = viewModel::removeQueuedMessage,
-                    onClear = viewModel::clearQueue,
-                )
-            }
-            item {
-                SessionCard(
-                    state = state,
-                    onRefresh = viewModel::refreshSessions,
-                    onCreate = viewModel::createSession,
-                    onSelect = viewModel::selectSession,
-                )
-            }
-            item {
-                ConversationCard(state)
-            }
-            item {
-                WorktreeCard(
-                    state = state,
-                    onReadFile = viewModel::requestWorktreeFileRead,
-                )
-            }
-            item {
-                FilesCard(
-                    state = state,
-                    onPathChange = viewModel::updateFilePath,
-                    onReadFile = viewModel::requestFileRead,
-                )
-            }
-            item {
-                ApprovalCard(
-                    state = state,
-                    onToolDecision = viewModel::decideTool,
-                    onToolAnswerChange = viewModel::updateToolAnswer,
-                    onToolConfirmationChange = viewModel::updateToolConfirmation,
-                    onPatchDiffRequest = viewModel::requestPatchDiff,
-                    onPatchDecision = viewModel::decidePatch,
-                )
-            }
-            item {
-                JobsCard(
-                    state = state,
-                    onKillJob = viewModel::killJob,
-                )
-            }
-            item {
-                EventLogCard(state)
-            }
-        }
-    }
-}
 
-@Composable
-private fun PairingCard(
-    state: MobileGatewayUiState,
-    onPayloadChange: (String) -> Unit,
-    onDeviceNameChange: (String) -> Unit,
-    onCheckGateway: () -> Unit,
-    onPair: () -> Unit,
-    onScan: () -> Unit,
-    onConnect: () -> Unit,
-    onDisconnect: () -> Unit,
-    onForget: () -> Unit,
-) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SectionTitle(stringResource(R.string.section_pairing))
-            Text(
-                text = if (state.isPaired && state.desktopName.isNotBlank()) {
-                    stringResource(R.string.paired_to, state.desktopName)
-                } else {
-                    stringResource(R.string.not_paired)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            StatusLine(state)
-            if (state.baseUrl.isNotBlank()) {
-                Text(
-                    text = stringResource(R.string.gateway_url, state.baseUrl),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (state.protocolVersion.isNotBlank()) {
-                Text(
-                    text = stringResource(R.string.protocol_version, state.protocolVersion),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (state.gatewayServerVersion.isNotBlank()) {
-                Text(
-                    text = stringResource(R.string.gateway_server_version, state.gatewayServerVersion),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            state.pairingAllowed?.let { allowed ->
-                Text(
-                    text = if (allowed) {
-                        stringResource(R.string.gateway_pairing_allowed)
-                    } else {
-                        stringResource(R.string.gateway_pairing_blocked)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (allowed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                )
-            }
-            OutlinedTextField(
-                value = state.pairingPayloadText,
-                onValueChange = onPayloadChange,
-                label = { Text(stringResource(R.string.pairing_payload_label)) },
-                placeholder = { Text(stringResource(R.string.pairing_payload_placeholder)) },
-                minLines = 4,
-                maxLines = 8,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.deviceName,
-                onValueChange = onDeviceNameChange,
-                label = { Text(stringResource(R.string.device_name_label)) },
-                placeholder = { Text(stringResource(R.string.device_name_placeholder)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onCheckGateway,
-                    enabled = (state.pairingPayloadText.isNotBlank() || state.baseUrl.isNotBlank()) &&
-                        !state.isCheckingGateway,
-                ) {
-                    Text(
-                        if (state.isCheckingGateway) {
-                            stringResource(R.string.checking_gateway_button)
-                        } else {
-                            stringResource(R.string.check_gateway_button)
-                        }
-                    )
-                }
-                Button(
-                    onClick = onPair,
-                    enabled = state.pairingPayloadText.isNotBlank() &&
-                        state.status != ConnectionStatus.Pairing &&
-                        !state.isCheckingGateway,
-                ) {
-                    Text(stringResource(R.string.pair_button))
-                }
-                OutlinedButton(onClick = onScan) {
-                    Text(stringResource(R.string.scan_qr_button))
-                }
-                if (state.status == ConnectionStatus.Connected || state.status == ConnectionStatus.Reconnecting) {
-                    OutlinedButton(onClick = onDisconnect) {
-                        Text(stringResource(R.string.disconnect_button))
-                    }
-                } else {
-                    OutlinedButton(onClick = onConnect, enabled = state.isPaired) {
-                        Text(stringResource(R.string.connect_button))
-                    }
-                }
-                TextButton(onClick = onForget, enabled = state.isPaired) {
-                    Text(stringResource(R.string.forget_button))
-                }
-            }
-            Text(
-                text = stringResource(R.string.pairing_help),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PairingScannerCard(
-    onPayloadScanned: (String) -> Unit,
-    onClose: () -> Unit,
-) {
-    val context = LocalContext.current
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    when (screen) {
+        "scanner" -> ScannerScreen(
+            onBack = { screen = "home" },
+            onPayloadScanned = { payload ->
+                viewModel.scanAndPair(payload)
+                screen = "home"
+            },
         )
-    }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        hasCameraPermission = granted
-    }
-
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            launcher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(stringResource(R.string.qr_scanner_title), modifier = Modifier.weight(1f))
-                TextButton(onClick = onClose) {
-                    Text(stringResource(R.string.close_scanner_button))
+        "session" -> SessionDetailScreen(
+            viewModel = viewModel,
+            state = state,
+            onBack = { screen = "home" },
+            onScan = { screen = "scanner" },
+        )
+        else -> HomeScreen(
+            state = state,
+            versionName = BuildConfig.VERSION_NAME,
+            onScanClick = { screen = "scanner" },
+            onCreateSession = { viewModel.openWorkspacePicker() },
+            onSelectSession = { id ->
+                viewModel.selectSession(id)
+                screen = "session"
+            },
+            onConnect = viewModel::connect,
+            onDisconnect = viewModel::disconnect,
+            onForget = viewModel::forgetToken,
+            onWorkspacePickerDismiss = viewModel::closeWorkspacePicker,
+            onWorkspacePickerRetry = viewModel::requestWorkspaces,
+            onWorkspaceSelected = { path ->
+                if (viewModel.createSession(path)) {
+                    screen = "session"
                 }
-            }
-            Text(
-                text = stringResource(R.string.qr_scanner_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary,
-            )
-            if (hasCameraPermission) {
-                PairingQrScanner(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(320.dp),
-                    onPayloadScanned = onPayloadScanned,
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.camera_permission_required),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                OutlinedButton(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
-                    Text(stringResource(R.string.camera_permission_button))
-                }
-            }
-        }
+            },
+        )
     }
 }
 
@@ -466,7 +218,7 @@ private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -
 }
 
 @Composable
-private fun ConversationCard(state: MobileGatewayUiState) {
+internal fun ConversationCard(state: MobileGatewayUiState) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -522,16 +274,37 @@ private fun ConversationMessageRow(message: GatewayMessage) {
                     label = { Text(stringResource(R.string.message_streaming)) },
                 )
             }
-            Text(
-                text = message.content.ifBlank { stringResource(R.string.message_empty_content) },
-                style = MaterialTheme.typography.bodySmall,
-            )
+            if (message.imageUrls.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    message.imageUrls.take(6).forEach { url ->
+                        coil.compose.AsyncImage(
+                            model = url,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(MaterialTheme.shapes.small),
+                        )
+                    }
+                }
+            }
+            if (message.content.isNotBlank()) {
+                MarkdownText(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else if (message.imageUrls.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.message_empty_content),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun WorktreeCard(
+internal fun WorktreeCard(
     state: MobileGatewayUiState,
     onReadFile: (GatewayWorktreeFile, String?) -> Unit,
 ) {
@@ -704,7 +477,7 @@ private fun FilePreview(file: GatewayFile) {
 }
 
 @Composable
-private fun ApprovalCard(
+internal fun ApprovalCard(
     state: MobileGatewayUiState,
     onToolDecision: (PendingToolApproval, Boolean) -> Unit,
     onToolAnswerChange: (String, String) -> Unit,
@@ -974,45 +747,115 @@ private fun JobRow(job: GatewayJob, onKill: () -> Unit) {
 }
 
 @Composable
-private fun ComposerCard(
+internal fun ComposerCard(
     state: MobileGatewayUiState,
+    isResponding: Boolean,
     onMessageChange: (String) -> Unit,
     onSend: () -> Unit,
-    onQueue: () -> Unit,
     onStop: () -> Unit,
+    onAddAttachment: (android.net.Uri) -> Unit,
+    onRemoveAttachment: (android.net.Uri) -> Unit,
 ) {
+    val pickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(maxItems = 6)
+    ) { uris ->
+        uris.forEach { onAddAttachment(it) }
+    }
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             SectionTitle(stringResource(R.string.section_composer))
+            if (state.attachments.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.attachments.forEach { att ->
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier.size(84.dp),
+                        ) {
+                            coil.compose.AsyncImage(
+                                model = att.uri,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(84.dp)
+                                    .clip(MaterialTheme.shapes.small),
+                            )
+                            IconButton(
+                                onClick = { onRemoveAttachment(att.uri) },
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .align(androidx.compose.ui.Alignment.TopEnd),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_close),
+                                    contentDescription = stringResource(R.string.attachment_remove),
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                        .padding(2.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             OutlinedTextField(
                 value = state.messageText,
                 onValueChange = onMessageChange,
-                label = { Text(stringResource(R.string.message_label)) },
                 placeholder = { Text(stringResource(R.string.message_placeholder)) },
-                minLines = 4,
+                minLines = 2,
+                maxLines = 8,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onSend,
-                    enabled = state.status == ConnectionStatus.Connected && state.messageText.isNotBlank(),
-                ) {
-                    Text(stringResource(R.string.send_button))
-                }
-                OutlinedButton(
-                    onClick = onQueue,
-                    enabled = state.status == ConnectionStatus.Connected && state.messageText.isNotBlank(),
-                ) {
-                    Text(stringResource(R.string.queue_button))
-                }
-                OutlinedButton(
-                    onClick = onStop,
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                IconButton(
+                    onClick = {
+                        pickerLauncher.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    },
                     enabled = state.status == ConnectionStatus.Connected,
                 ) {
-                    Text(stringResource(R.string.stop_turn_button))
+                    Icon(
+                        painter = painterResource(R.drawable.ic_image),
+                        contentDescription = stringResource(R.string.composer_add_image),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                if (isResponding) {
+                    androidx.compose.material3.FilledIconButton(
+                        onClick = onStop,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                            containerColor = androidx.compose.ui.graphics.Color(0xFFD9342B),
+                            contentColor = androidx.compose.ui.graphics.Color.White,
+                        ),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_stop_square),
+                            contentDescription = stringResource(R.string.stop_turn_button),
+                        )
+                    }
+                } else {
+                    val canSend = state.status == ConnectionStatus.Connected &&
+                        (state.messageText.isNotBlank() || state.attachments.isNotEmpty())
+                    androidx.compose.material3.FilledIconButton(
+                        onClick = onSend,
+                        enabled = canSend,
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_send),
+                            contentDescription = stringResource(R.string.send_button),
+                        )
+                    }
                 }
             }
         }
@@ -1020,7 +863,7 @@ private fun ComposerCard(
 }
 
 @Composable
-private fun QueueCard(
+internal fun QueueCard(
     state: MobileGatewayUiState,
     onSendNow: (GatewayQueuedMessage) -> Unit,
     onRemove: (GatewayQueuedMessage) -> Unit,
@@ -1193,7 +1036,7 @@ private fun CommandStatusRow(command: MobileCommandStatus) {
 }
 
 @Composable
-private fun StatusLine(state: MobileGatewayUiState) {
+internal fun StatusLine(state: MobileGatewayUiState) {
     val text = when (state.status) {
         ConnectionStatus.Idle -> stringResource(R.string.status_idle)
         ConnectionStatus.Pairing -> stringResource(R.string.status_pairing)

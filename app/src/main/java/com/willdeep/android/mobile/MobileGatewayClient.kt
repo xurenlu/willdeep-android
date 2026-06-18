@@ -1,5 +1,6 @@
 package com.willdeep.android.mobile
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -74,9 +75,13 @@ class MobileGatewayClient(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                runCatching { Log.d("GatewayWs", "recv: " + text.take(2000)) }
                 runCatching { parseGatewayEvent(text) }
                     .onSuccess { trySend(it) }
-                    .onFailure { trySend(GatewayEvent.Error(null, it.message ?: "Invalid gateway event")) }
+                    .onFailure {
+                        runCatching { Log.e("GatewayWs", "parse failed: ${it.message}", it) }
+                        trySend(GatewayEvent.Error(null, it.message ?: "Invalid gateway event"))
+                    }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {

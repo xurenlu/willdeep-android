@@ -1,5 +1,145 @@
 # Changelog
 
+## [1.18.0-rc1] - 2026-06-18
+
+### Added
+
+- Added Mobile Gateway Tailscale fallback support. Pairing payloads can now carry `fallback_base_urls`, and Android also accepts `base_url#tailscale=100.x.x.x` style QR hints for compatibility with Mac payload experiments.
+- `PairingPayload` now normalizes `base_url` by stripping URL fragments, de-duplicates fallback endpoints, and keeps the LAN URL as the primary endpoint.
+- Stored gateway credentials now persist fallback endpoints alongside the device token, desktop name, and protocol version.
+- Connection and health flows now try the LAN endpoint first, then fallback endpoints such as Tailscale before entering bounded reconnect backoff.
+- Added JVM tests for fallback payload parsing, URL-fragment parsing, endpoint de-duplication, and health-target fallback retention.
+
+### Changed
+
+- Bumped Android client version to `1.18.0-rc1` (`versionCode = 83`).
+
+## [1.17.0-rc59] - 2026-06-17
+
+### Changed
+
+- Stripped the noisy pairing card from the not-paired home screen. The flow is now: tap the scan card → camera opens → scan the QR from Mac → app auto-pairs and connects. No more exposed `payload` textarea, `device_name` field, `Gateway URL`, `protocol_version`, `gateway_server_version`, `pairing_allowed` chip, or the `Check Gateway` / `Pair` / `Disconnect` / `Forget token` button grid.
+- New `MobileGatewayViewModel.scanAndPair(payload)` chains the existing `loadPairingPayloadFromQr` and `pair` so the scanner can hand off in one call. `WillDeepApp` wires the scanner to it.
+- Not-paired body now shows only: the big "Scan to pair" card + (optional) a small spinner card while pairing/connecting + (optional) a red error card with one "Scan to pair" button.
+- Paired-state `ConnectionSummaryRow` no longer leaks `state.baseUrl` (the `http://192.168.x.x:port` subtitle) or the verbose reconnect counter. Subtitle is now just `Connected` / `Reconnecting…` / `Disconnected` / error.
+- Renamed `forget_button`: EN `"Forget token"` → `"Unpair"`; zh-CN `"忘记 token"` → `"解除配对"`.
+- Reworded `error_device_revoked` to drop the word "token": EN `"Mac no longer recognizes this phone. Scan the QR code again to re-pair."`; zh-CN `"Mac 已不再识别这台手机，请重新扫码配对。"`.
+- Added string `status_reconnecting_short` (EN `"Reconnecting…"` / zh-CN `"正在重连…"`).
+- Bumped Android client version to `1.17.0-rc59` (`versionCode = 82`).
+
+### Removed
+
+- Deleted `PairingCard` composable from `WillDeepApp.kt`. It is no longer referenced; the not-paired home now uses `ScanPromptCard` + small status cards only. Strings `section_pairing`, `not_paired`, `gateway_url`, `gateway_server_version`, `gateway_pairing_allowed/blocked`, `pairing_payload_label/placeholder`, `device_name_label/placeholder`, `check_gateway_button`, `checking_gateway_button`, `pair_button`, `pairing_help` are no longer surfaced in the UI but kept in resources for now to avoid churn (they remain referenced from `StatusLine` and indirect call sites; can be pruned in a follow-up sweep).
+
+## [1.17.0-rc58] - 2026-06-17
+
+### Added
+
+- New session flow now requires picking a Mac workspace first. Tapping the home `+` FAB opens a workspace picker dialog instead of immediately creating an empty session on the phone.
+- New gateway protocol command `workspace.list` (Android → Mac) plus a matching `workspace.list` event payload (`payload.workspaces`) the Mac desktop peer is expected to return. Each entry carries `path`, optional `name`, `last_used_at`, and `session_count`. TODO: Mac side (`willdeep-agent` command whitelist + desktop peer responder) still owes its half of the contract — picker degrades gracefully (loading → empty + manual path entry) until that lands.
+- `session.create` envelope now ships a `payload.workspace_path` field so the Mac binds the new session to the chosen workspace.
+- `MobileGatewayUiState` carries `workspaces`, `isLoadingWorkspaces`, `workspacePickerVisible`, `workspacePickerError`, and `recentWorkspacePaths`. The picker remembers the last 8 paths chosen on this device for one-tap reuse.
+- Strings (EN / zh-CN): `workspace_picker_title`, `workspace_picker_hint`, `workspace_picker_loading`, `workspace_picker_empty`, `workspace_picker_disconnected`, `workspace_picker_recent_title`, `workspace_picker_manual_title`, `workspace_picker_manual_placeholder`, `workspace_picker_create_button`, `workspace_picker_refresh_button`, `workspace_picker_session_count`, `cancel_button`, `error_workspace_required`.
+
+### Changed
+
+- `MobileGatewayViewModel.createSession` now takes a `workspacePath: String` and returns `Boolean`. Callers must route through the workspace picker first; the legacy zero-arg invocation no longer exists.
+- Replaced the launcher icon with the Xedit / Mac WillDeep logo (sourced from `~/Sites/Xedit/appicons/icon_1024x1024.png`). Generated `ic_launcher.png` and `ic_launcher_round.png` at 48 / 72 / 96 / 144 / 192 px for the `mdpi` / `hdpi` / `xhdpi` / `xxhdpi` / `xxxhdpi` mipmap buckets via `sips`.
+- Removed the adaptive-icon scaffolding (`mipmap-anydpi/ic_launcher.xml`, `ic_launcher_round.xml`, `drawable/ic_launcher_background.xml`, `drawable/ic_launcher_foreground.xml`) and the original `.webp` mipmaps so launchers display the full rounded-square Mac artwork instead of system-masking it.
+- Bumped Android client version to `1.17.0-rc58` (`versionCode = 81`).
+
+## [1.17.0-rc57] - 2026-06-17
+
+### Changed
+
+- `SessionDetailScreen` no longer pins the composer to the bottom. The composer is now the last item inside the conversation `LazyColumn`, so the input box scrolls with the conversation (Codex-style).
+- Rewrote `ComposerCard`:
+  - Removed the explicit "Queue" button. Implicit queueing: if the active session is `isResponding`, sending automatically issues a `queue.update` (`action: add`) envelope instead of `message.send`.
+  - Stop control is now a red filled square button (only visible while the session is responding); send is a circular FAB-style button (visible otherwise).
+  - Added an image-attachment button: opens `PickMultipleVisualMedia` (up to 6 images). Selected images appear as 84dp thumbnails above the text field with an `×` remove button; they ride along with the next send.
+- `MobileGatewayUiState` now carries `attachments: List<ImageAttachment>`. New `addAttachment` / `removeAttachment` view-model actions.
+- `sendMessage` now base64-encodes attached images into a `data:` URL and packs them into `payload.images` as OpenAI-style `{type:"image_url", image_url:{url:...}}` entries. Mac-side support for this field is needed in `willdeep-mac` for the images to be visible there.
+- Home session list is now grouped by `workspace_name`. Each group has a header (workspace name + count) followed by its session cards. Sessions with no workspace name fall under an "Other" / "其他" group.
+
+### Added
+
+- Vector drawables: `ic_send`, `ic_stop_square`, `ic_image`, `ic_close`.
+- Strings: `composer_add_image`, `attachment_remove`, `workspace_unknown_group` (EN / zh-CN).
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc57` (`versionCode = 80`).
+
+## [1.17.0-rc56] - 2026-06-17
+
+### Fixed
+
+- `SessionDetailScreen` was leaking pending tool approvals, patch proposals, queued messages, conversation messages, and worktree updates across sessions: every session showed the same approval card. Now the detail view scopes those lists by `selectedSessionId` (entries with a different `sessionId` are filtered out) before passing the state down to `ApprovalCard` / `ConversationCard` / `QueueCard` / `WorktreeCard`.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc56` (`versionCode = 79`).
+
+## [1.17.0-rc55] - 2026-06-17
+
+### Fixed
+
+- Conversation messages no longer collapse to "No visible text" when the Mac sends OpenAI-style multi-part `content` arrays. `extractMessageContent` now walks the JSON tree, picks up every `{type: "text"}` / `output_text` / `input_text` segment, and collects image URLs from `image_url` / `image` parts into `GatewayMessage.imageUrls`.
+
+### Added
+
+- Assistant replies are now rendered with a minimal Markdown layer: fenced code blocks (```lang … ```), inline `code`, **bold**, *italic*, `# ## ###` headings, `-/*/+` bullet lists, `>` block quotes, and `[text](url)` links.
+- Conversation rows now render image attachments (`imageUrls`) as Coil-loaded thumbnails (up to 6 per message). `coil-compose` 2.7.0 was added as a dependency.
+- WebSocket frames are logged to logcat under the `GatewayWs` tag (first 2000 chars) to make protocol debugging tractable.
+
+### Notes
+
+- The "Mac side does not show the conversation" report is a Mac-side issue (the Android side already sends `message.send` envelopes correctly per protocol). It needs to be addressed in the `willdeep-mac` repository — the Mac gateway must also append mobile-originated messages to its local conversation log.
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc55` (`versionCode = 78`).
+
+## [1.17.0-rc54] - 2026-06-16
+
+### Changed
+
+- Home screen now switches between two states based on `state.isPaired`:
+  - **Not paired**: a prominent "Scan to pair" CTA card + the full `PairingCard` (payload paste, device name, check / pair / connect / disconnect / forget). No filter chips, no session list.
+  - **Paired**: a compact one-row connection summary (status dot + paired desktop name + base URL + Connect/Disconnect + Forget), filter chips (counts), and the session card list.
+- Tapping a session card or the "+ New session" FAB now opens a dedicated `SessionDetailScreen` instead of the legacy workspace dump. The detail screen has: back arrow + session title, pending tool/patch approvals on top, conversation stream, queued requests, changed-files panel, and a bottom `ComposerCard` (send / queue / stop).
+- Removed the intermediate `WorkspaceScreen` route; routes are now `home` ↔ `scanner` ↔ `session`.
+- Scanner now navigates back to home (not workspace) after a successful payload scan, so the user lands on the new paired-state home and can pick a session.
+
+### Refactored
+
+- Promoted `PairingCard`, `ConversationCard`, `ApprovalCard`, `ComposerCard`, `QueueCard`, `WorktreeCard`, `StatusLine` to `internal` so the new `HomeScreen` and `SessionDetailScreen` can compose them across files.
+
+### i18n
+
+- Added `session_detail_title` (EN / zh-CN).
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc54` (`versionCode = 77`).
+
+## [1.17.0-rc53] - 2026-06-16
+
+### Changed
+
+- Redesigned the home screen in a Codex-style: large "Code" title, filter chips (All / Working / Needs input / Completed), tappable session cards with a connection-state dot, an extended "+ New session" floating action button, and a discreet version badge at the bottom.
+- Moved the QR pairing scanner out of the home screen and into a dedicated full-screen `ScannerScreen`, reachable via a small QR icon in the home top bar (and from the workspace top bar). The legacy embedded `PairingScannerCard` was removed.
+- Introduced state-based routing (`home` ↔ `scanner` ↔ `workspace`) in `WillDeepApp` so the busy multi-section legacy UI now lives behind the `WorkspaceScreen` route, opened by tapping a session card or creating a new one.
+- Added new vector drawables for scan / back / add icons to avoid pulling in `material-icons-extended`.
+
+### i18n
+
+- Added English and Simplified Chinese strings for the new home, scanner, and workspace surfaces (`home_title`, filter labels, `home_session_connected`/`disconnected`, `scanner_screen_title`, etc.).
+
+### Changed
+
+- Bumped Android client version to `1.17.0-rc53` (`versionCode = 76`).
+
 ## [1.17.0-rc52] - 2026-06-15
 
 ### Fixed
