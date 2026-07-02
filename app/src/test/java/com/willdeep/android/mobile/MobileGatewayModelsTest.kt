@@ -72,6 +72,29 @@ class MobileGatewayModelsTest {
     }
 
     @Test
+    fun pairingPayloadParsesRelayFields() {
+        val payload = PairingPayload.parse(
+            """
+            {
+              "base_url": "http://192.168.1.20:8877/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z",
+              "relay_base_url": "https://j.niuwoai.com/",
+              "relay_room": "/office-mac/",
+              "relay_token": "0123456789abcdef0123456789abcdef"
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(payload.hasRelay())
+        assertEquals("https://j.niuwoai.com", payload.relayBaseUrl)
+        assertEquals("office-mac", payload.relayRoom)
+        assertEquals("0123456789abcdef0123456789abcdef", payload.relayToken)
+    }
+
+    @Test
     fun connectionBaseUrlsDeduplicatesPrimaryAndFallbacks() {
         assertEquals(
             listOf("http://192.168.1.20:8877", "http://100.90.80.70:8877"),
@@ -216,6 +239,18 @@ class MobileGatewayModelsTest {
               "protocol_version": "mobile-gateway.v1",
               "desktop_name": "Rocky's Mac",
               "expires_at": "not an instant"
+            }
+            """.trimIndent()
+        )
+        assertInvalidPairingPayload(
+            """
+            {
+              "base_url": "http://192.168.1.20:8877/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2026-06-13T12:02:00Z",
+              "relay_base_url": "https://j.niuwoai.com"
             }
             """.trimIndent()
         )

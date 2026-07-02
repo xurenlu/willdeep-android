@@ -11,6 +11,7 @@ data class StoredGatewayCredential(
     val deviceToken: String,
     val desktopName: String,
     val protocolVersion: String,
+    val relayRoom: String? = null,
 ) {
     fun connectionBaseUrls(): List<String> {
         return connectionBaseUrls(baseUrl, fallbackBaseUrls)
@@ -39,6 +40,7 @@ class DeviceTokenStore(context: Context) {
             deviceToken = token,
             desktopName = preferences.getString(KEY_DESKTOP_NAME, null) ?: "WillDeep Mac",
             protocolVersion = preferences.getString(KEY_PROTOCOL_VERSION, null) ?: MOBILE_GATEWAY_PROTOCOL_VERSION,
+            relayRoom = preferences.getString(KEY_RELAY_ROOM, null)?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -49,6 +51,7 @@ class DeviceTokenStore(context: Context) {
             .putString(KEY_DEVICE_TOKEN, credential.deviceToken)
             .putString(KEY_DESKTOP_NAME, credential.desktopName)
             .putString(KEY_PROTOCOL_VERSION, credential.protocolVersion)
+            .putString(KEY_RELAY_ROOM, credential.relayRoom.orEmpty())
             .apply()
     }
 
@@ -62,6 +65,7 @@ class DeviceTokenStore(context: Context) {
         const val KEY_DEVICE_TOKEN = "device_token"
         const val KEY_DESKTOP_NAME = "desktop_name"
         const val KEY_PROTOCOL_VERSION = "protocol_version"
+        const val KEY_RELAY_ROOM = "relay_room"
     }
 }
 

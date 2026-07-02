@@ -236,18 +236,29 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update { it.copy(status = ConnectionStatus.Pairing, errorMessage = null) }
                 val payload = parsePairingPayload(current.pairingPayloadText)
                 ensurePairingPayloadUsable(payload)
-                val reachable = checkFirstReachableHealth(payload.baseUrl, payload.fallbackBaseUrls)
-                val health = reachable.health
-                updateGatewayHealth(payload, health)
-                ensureCompatibleGateway(health)
-                val claim = client.claimPairing(payload.copy(baseUrl = reachable.baseUrl), current.deviceName)
-                val credential = StoredGatewayCredential(
-                    baseUrl = payload.baseUrl,
-                    fallbackBaseUrls = payload.fallbackBaseUrls,
-                    deviceToken = claim.deviceToken,
-                    desktopName = payload.desktopName,
-                    protocolVersion = claim.protocolVersion,
-                )
+                val credential = if (payload.hasRelay()) {
+                    StoredGatewayCredential(
+                        baseUrl = payload.relayBaseUrl.orEmpty(),
+                        fallbackBaseUrls = emptyList(),
+                        deviceToken = payload.relayToken.orEmpty(),
+                        desktopName = payload.desktopName,
+                        protocolVersion = payload.protocolVersion,
+                        relayRoom = payload.relayRoom,
+                    )
+                } else {
+                    val reachable = checkFirstReachableHealth(payload.baseUrl, payload.fallbackBaseUrls)
+                    val health = reachable.health
+                    updateGatewayHealth(payload, health)
+                    ensureCompatibleGateway(health)
+                    val claim = client.claimPairing(payload.copy(baseUrl = reachable.baseUrl), current.deviceName)
+                    StoredGatewayCredential(
+                        baseUrl = payload.baseUrl,
+                        fallbackBaseUrls = payload.fallbackBaseUrls,
+                        deviceToken = claim.deviceToken,
+                        desktopName = payload.desktopName,
+                        protocolVersion = claim.protocolVersion,
+                    )
+                }
                 tokenStore.save(credential)
                 credential
             }.onSuccess { credential ->
@@ -362,7 +373,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     )
                 }
 
-                client.connect(endpoint, credential.deviceToken).collect { event ->
+                client.connect(endpoint, credential.deviceToken, credential.relayRoom).collect { event ->
                     when (event) {
                         GatewayEvent.Connected -> {
                             attempt = 0

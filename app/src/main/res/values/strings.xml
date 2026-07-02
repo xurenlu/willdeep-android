@@ -46,6 +46,11 @@
     <string name="file_path_placeholder">README.md</string>
     <string name="message_label">Message</string>
     <string name="message_placeholder">Tell the Mac WillDeep what to build or change</string>
+    <string name="composer_placeholder">Message WillDeep…</string>
+    <string name="composer_placeholder_queue">Queue a follow-up while it works…</string>
+    <string name="composer_placeholder_offline">Reconnecting — message will send once back online</string>
+    <string name="composer_responding_hint">Agent is working · sending will queue</string>
+    <string name="composer_queue_button">Queue message</string>
     <string name="shared_message_loaded_log">Shared text loaded into Ask WillDeep.</string>
     <string name="conversation_empty">No conversation messages yet.</string>
     <string name="message_role_user">You</string>

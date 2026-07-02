@@ -61,9 +61,15 @@ class MobileGatewayClient(
         }
     }
 
-    fun connect(baseUrl: String, deviceToken: String): Flow<GatewayEvent> = callbackFlow {
+    fun connect(baseUrl: String, deviceToken: String, relayRoom: String? = null): Flow<GatewayEvent> = callbackFlow {
+        val path = relayRoom
+            ?.trim()
+            ?.trim('/')
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "ws/broadcast/$it" }
+            ?: "mobile/ws"
         val request = Request.Builder()
-            .url(baseUrl.wsEndpoint("mobile/ws"))
+            .url(baseUrl.wsEndpoint(path))
             .header("Authorization", "Bearer $deviceToken")
             .header("X-App-Version", BuildConfig.VERSION_NAME)
             .build()

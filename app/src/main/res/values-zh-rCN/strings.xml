@@ -46,6 +46,11 @@
     <string name="file_path_placeholder">README.md</string>
     <string name="message_label">消息</string>
     <string name="message_placeholder">告诉 Mac 上的 WillDeep 要构建或修改什么</string>
+    <string name="composer_placeholder">给 WillDeep 发消息…</string>
+    <string name="composer_placeholder_queue">追加一条排队消息，发送后会等当前回合结束再处理…</string>
+    <string name="composer_placeholder_offline">连接中，恢复后会立刻发送</string>
+    <string name="composer_responding_hint">Agent 正在工作 · 发送会进入队列</string>
+    <string name="composer_queue_button">加入队列</string>
     <string name="shared_message_loaded_log">已将分享文本载入“询问 WillDeep”。</string>
     <string name="conversation_empty">还没有对话消息。</string>
     <string name="message_role_user">你</string>

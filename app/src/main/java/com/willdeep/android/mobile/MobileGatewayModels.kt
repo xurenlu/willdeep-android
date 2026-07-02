@@ -20,6 +20,9 @@ data class PairingPayload(
     val protocolVersion: String,
     val desktopName: String,
     val expiresAt: String,
+    val relayBaseUrl: String? = null,
+    val relayRoom: String? = null,
+    val relayToken: String? = null,
 ) {
     fun isExpired(now: Instant = Instant.now()): Boolean {
         val expiry = expiresAt.takeIf { it.isNotBlank() }?.let(Instant::parse) ?: return false
@@ -28,6 +31,12 @@ data class PairingPayload(
 
     fun hasCompatibleProtocol(): Boolean {
         return protocolVersion == MOBILE_GATEWAY_PROTOCOL_VERSION
+    }
+
+    fun hasRelay(): Boolean {
+        return !relayBaseUrl.isNullOrBlank() &&
+            !relayRoom.isNullOrBlank() &&
+            !relayToken.isNullOrBlank()
     }
 
     companion object {
@@ -62,6 +71,13 @@ data class PairingPayload(
                     port = baseHttpUrl.port,
                     scheme = baseHttpUrl.scheme,
                 )
+                val relayBaseUrl = normalizedOptionalBaseUrl(json.optString("relay_base_url"))
+                val relayRoom = json.optString("relay_room").trim().trim('/')
+                val relayToken = json.optString("relay_token").trim()
+                val hasAnyRelayField = relayBaseUrl != null || relayRoom.isNotBlank() || relayToken.isNotBlank()
+                if (hasAnyRelayField && (relayBaseUrl == null || relayRoom.isBlank() || relayToken.isBlank())) {
+                    throw InvalidPairingPayloadException()
+                }
                 Instant.parse(expiresAt)
                 return PairingPayload(
                     baseUrl = baseUrl,
@@ -70,6 +86,9 @@ data class PairingPayload(
                     protocolVersion = protocolVersion,
                     desktopName = desktopName,
                     expiresAt = expiresAt,
+                    relayBaseUrl = relayBaseUrl,
+                    relayRoom = relayRoom.ifBlank { null },
+                    relayToken = relayToken.ifBlank { null },
                 )
             } catch (error: InvalidPairingPayloadException) {
                 throw error
@@ -78,6 +97,17 @@ data class PairingPayload(
             }
         }
     }
+}
+
+private fun normalizedOptionalBaseUrl(raw: String): String? {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank()) return null
+    return trimmed.toHttpUrlOrNull()
+        ?.newBuilder()
+        ?.fragment(null)
+        ?.build()
+        ?.toString()
+        ?.trimEnd('/')
 }
 
 fun connectionBaseUrls(baseUrl: String, fallbackBaseUrls: List<String>): List<String> {

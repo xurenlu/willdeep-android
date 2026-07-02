@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.19.0-rc1] - 2026-07-01
+
+### Added
+
+- Added public relay pairing support. QR payloads that include `relay_base_url`, `relay_room`, and `relay_token` now skip the LAN `pair/claim` step and connect directly to `cdnproxy` `/ws/broadcast/<room>` with the relay bearer token.
+- Stored gateway credentials now remember the optional relay room, while legacy LAN credentials continue to use the existing `/mobile/ws` endpoint.
+- Bumped Android client version to `1.19.0-rc1` (`versionCode = 85`).
+
+## [1.18.0-rc2] - 2026-06-20
+
+### Changed
+
+- Reworked the session composer end-to-end. The old in-list `ComposerCard` (ElevatedCard + section title + OutlinedTextField + image/send/stop row) is gone. New `MessageInputBar` is pinned to `Scaffold.bottomBar`, follows `imePadding()` so the keyboard pushes it up cleanly, and renders as a single chat-pill row: `[+ image] [rounded BasicTextField with placeholder] [send circle]`.
+- Composer now exposes the "queue while responding" path that already existed in `MobileGatewayViewModel.sendMessage`. While the agent is responding, the send button stays visible (recolored secondary, content description `composer_queue_button`) so tapping it issues `queue.update {action:add}`. A subtle "Agent is working · sending will queue" hint with an inline red `Stop turn` text button shows above the input.
+- Conversation list now uses `LazyListState` and auto-scrolls to the bottom whenever `conversationMessages.size` or `queuedMessages.size` changes, so streamed assistant tokens stay in view without manual scrolling.
+- Placeholder text adapts to state: connected → `composer_placeholder` ("Message WillDeep…" / "给 WillDeep 发消息…"); agent responding → `composer_placeholder_queue`; disconnected → `composer_placeholder_offline`.
+- Attachment thumbnails moved into the bottom bar above the pill (shrunk from 84dp to 64dp) so they no longer steal scroll real estate.
+- Bumped Android client version to `1.18.0-rc2` (`versionCode = 84`).
+
+### Removed
+
+- Deleted `ComposerCard` from `WillDeepApp.kt` and its companion strings `section_composer` (unsurfaced; resource kept for now). `message_placeholder` is also unused by the new bar but retained until the next string sweep.
+
 ## [1.18.0-rc1] - 2026-06-18
 
 ### Added
