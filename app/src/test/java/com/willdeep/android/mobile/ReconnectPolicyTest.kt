@@ -26,6 +26,13 @@ class ReconnectPolicyTest {
     }
 
     @Test
+    fun heartbeatExpiresAfterTimeoutWindow() {
+        assertFalse(ReconnectPolicy.isHeartbeatExpired(nowMillis = 4_999L, lastEventMillis = 0L))
+        assertTrue(ReconnectPolicy.isHeartbeatExpired(nowMillis = 5_000L, lastEventMillis = 0L))
+        assertTrue(ReconnectPolicy.isHeartbeatExpired(nowMillis = 80_000L, lastEventMillis = 74_000L))
+    }
+
+    @Test
     fun authRejectionDetectsHttpAndGatewayMessages() {
         assertTrue(ReconnectPolicy.isAuthenticationRejected(401, "HTTP 401"))
         assertTrue(ReconnectPolicy.isAuthenticationRejected(403, "HTTP 403"))

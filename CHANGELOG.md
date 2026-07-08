@@ -1,5 +1,153 @@
 # Changelog
 
+## [1.22.0-rc4] - 2026-07-08
+
+### Fixed
+
+- Replaced the vague empty conversation fallback with explicit assistant thinking, tool activity, or waiting-for-visible-output states so session details no longer show "No visible text" for hidden reasoning or tool-status messages.
+- Added message parsing coverage for reasoning-only and tool-only assistant content arrays.
+- Bumped Android client version to `1.22.0-rc4` (`versionCode = 100`).
+
+## [1.22.0-rc3] - 2026-07-07
+
+### Fixed
+
+- Added compact H5 QR parsing for `r` / `t` relay URLs and `b` / `k` local gateway URLs so dense QR codes are no longer required for browser/App scanning.
+- Kept compatibility with legacy raw JSON and `p` / `pair` / `payload` base64url QR payloads.
+- Bumped Android client version to `1.22.0-rc3` (`versionCode = 99`).
+
+## [1.22.0-rc2] - 2026-07-07
+
+### Added
+
+- Added H5 QR URL parsing so the Android scanner accepts `https://.../?p=<base64url-payload>` as well as the legacy raw JSON payload.
+- Added `willdeep://mobile/pair?p=...` deep-link handling so the H5 page can wake the Android app and hand off the same Mobile Gateway credentials.
+
+### Changed
+
+- Bumped Android client version to `1.22.0-rc2` (`versionCode = 98`).
+
+## [1.22.0-rc1] - 2026-07-06
+
+### Added
+
+- Integrated Umeng U-Push SDK through Maven (`com.umeng.umsdk:common`, `asms`, and `push`) for real remote push delivery.
+- Added `UMENG_PUSH_ENABLED`, `UMENG_APPKEY`, `UMENG_MESSAGE_SECRET`, and `UMENG_CHANNEL` build configuration, sourced from Gradle properties, environment variables, or ignored `local.properties`, so push can be enabled without committing credentials.
+- Added `WillDeepApplication`, Umeng pre-initialization/registration, device-token storage, and optional `push.register` WebSocket registration for Mac gateway support.
+- Added Umeng custom-payload handling that converts remote attention payloads into the existing WillDeep approval/input notification flow.
+- Added `push` / `push_small` notification icon resources and resource keep rules for push notification display.
+- Added `docs/UMENG_PUSH_SETUP.md` with local configuration, server-secret boundaries, payload contract, and privacy-compliance notes.
+- Added JVM tests for remote push attention payload parsing.
+
+### Changed
+
+- Bumped Android client version to `1.22.0-rc1` (`versionCode = 97`).
+
+## [1.21.0-rc2] - 2026-07-06
+
+### Fixed
+
+- Collapsed the paired Mac status actions when opening or choosing from the workspace switcher, so Disconnect / Re-pair / Unpair controls no longer remain visible while viewing workspace tabs such as All.
+- Bumped Android client version to `1.21.0-rc2` (`versionCode = 96`).
+
+## [1.21.0-rc1] - 2026-07-06
+
+### Added
+
+- Added Android attention notifications for Mac-side `tool.pending` and `patch.upsert` events so the phone alerts the user when WillDeep needs approval, patch review, typed confirmation, or an `ask_user` answer.
+- Safe approval and patch notifications now include direct `Approve` / `Reject` actions; requests requiring an answer or typed `confirm` open the matching session instead of approving from the notification.
+- Notification taps route back into the relevant session and queue direct notification decisions until the WebSocket is connected and the matching pending item is available.
+- Added Android 13+ `POST_NOTIFICATIONS` permission handling plus localized notification channel/title/body strings.
+- Added JVM coverage for the notification action intent contract.
+
+### Changed
+
+- Bumped Android client version to `1.21.0-rc1` (`versionCode = 95`).
+
+## [1.20.0-rc9] - 2026-07-06
+
+### Changed
+
+- Locked the Android app to portrait orientation so the mobile control surface no longer rotates into landscape.
+- Tightened the home hero by moving the `Code` title up, reducing its size, and removing the subtitle plus session-count badge.
+- Bumped Android client version to `1.20.0-rc9` (`versionCode = 94`).
+
+## [1.20.0-rc8] - 2026-07-06
+
+### Fixed
+
+- Tightened Android desktop liveness detection so a relay/WebSocket-only connection is no longer treated as Mac online.
+- The Android heartbeat watchdog now probes once per second and marks the Mac offline after 5 seconds without a Mac-originated snapshot/session/workspace/message event.
+- Bumped Android client version to `1.20.0-rc8` (`versionCode = 93`).
+
+## [1.20.0-rc7] - 2026-07-06
+
+### Changed
+
+- Combined the paired Mac status and workspace switcher into one compact home row with concise dot/icon + text affordances.
+- Replaced the composer image icon with the generic plus attachment icon.
+- Added WebSocket ping/pong plus an Android-side desktop heartbeat watchdog: the client probes `session.list` every 15 seconds and treats 45 seconds without any Mac event as offline, then enters automatic reconnect.
+- Bumped Android client version to `1.20.0-rc7` (`versionCode = 92`).
+
+## [1.20.0-rc6] - 2026-07-06
+
+### Changed
+
+- Replaced the centered capability picker dialog and uneven chips with a bottom sheet picker using full-width rows, stable typography, and radio/checkbox selection controls.
+- Renamed the approval picker title from `Run controls` / `运行控制` to `Approval mode` / `审批模式`.
+- Bumped Android client version to `1.20.0-rc6` (`versionCode = 91`).
+
+## [1.20.0-rc5] - 2026-07-06
+
+### Fixed
+
+- Removed inactive gray status dots from the session composer icon toolbar so only active controls show a blue indicator or selected-count badge.
+- Bumped Android client version to `1.20.0-rc5` (`versionCode = 90`).
+
+## [1.20.0-rc4] - 2026-07-06
+
+### Changed
+
+- Reworked the session composer run controls into a compact icon-only toolbar so approval mode, provider, model, skills, experts, and plugins no longer consume a full title/value row above the input.
+- Added dedicated vector icons for approval, provider, model, skills, expert mode, and plugins, with small active indicators and count badges for selected multi-choice controls.
+- Bumped Android client version to `1.20.0-rc4` (`versionCode = 89`).
+
+## [1.20.0-rc3] - 2026-07-06
+
+### Fixed
+
+- Treated old Mac gateway `Unsupported mobile command: capabilities.get.` responses as a graceful capability downgrade instead of a connection-level Android error.
+- Bumped Android client version to `1.20.0-rc3` (`versionCode = 88`).
+
+## [1.20.0-rc2] - 2026-07-06
+
+### Added
+
+- Added `capabilities.updated` parsing and `capabilities.get` requests so Android now renders Mac-reported providers, models, skills, experts, and plugins instead of local placeholder lists.
+- Added compact picker dialogs for approval mode, provider, model, skills, experts, and plugins in the session composer.
+
+### Changed
+
+- Collapsed the home connection state into a compact status row that expands only when the user needs connect/disconnect/unpair actions.
+- Collapsed the workspace selector into a compact summary row with an expandable horizontal picker, and limited each workspace group to the first five sessions until expanded.
+- Resized the session composer so run controls stay in a single horizontal strip while the message text area defaults to a larger three-to-five-line writing surface.
+- `message.send` now uses Mac capability IDs with `provider_id`, `model`, `skills`, `experts`, and `plugins` payload fields.
+- Bumped Android client version to `1.20.0-rc2` (`versionCode = 87`).
+
+## [1.20.0-rc1] - 2026-07-06
+
+### Added
+
+- Added a horizontally scrollable workspace rail above the home session list. It includes an all-workspaces tab plus Mac-reported or session-derived workspaces, and selecting a workspace filters the visible sessions.
+- Added mobile run controls to the session composer: approval mode, model selection, skill selection, expert mode, and plugin activation.
+- `message.send` now includes mobile-selected `approval_mode`, `model`, `skills`, `expert_mode`, and `plugins_enabled` fields so the Mac side can honor the chosen run context without introducing a new WebSocket command type.
+
+### Changed
+
+- Redesigned the paired home screen with more top whitespace, a clearer hero area, and a workspace-first session browsing flow.
+- Redesigned the session bottom composer as a rounded mobile control console. Pending user asks, tool approvals, patch proposals, queued requests, and worktree changes now render directly below the latest input instead of above the conversation list.
+- Bumped Android client version to `1.20.0-rc1` (`versionCode = 86`).
+
 ## [1.19.0-rc1] - 2026-07-01
 
 ### Added

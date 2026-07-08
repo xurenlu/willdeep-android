@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.time.Instant
+import java.util.Base64
 
 class MobileGatewayModelsTest {
     @Test
@@ -92,6 +93,78 @@ class MobileGatewayModelsTest {
         assertEquals("https://j.niuwoai.com", payload.relayBaseUrl)
         assertEquals("office-mac", payload.relayRoom)
         assertEquals("0123456789abcdef0123456789abcdef", payload.relayToken)
+    }
+
+    @Test
+    fun pairingPayloadParsesH5UrlPayload() {
+        val json = """
+            {
+              "base_url": "https://j.niuwoai.com",
+              "pairing_token": "relay-secret",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2036-06-13T12:02:00Z",
+              "relay_base_url": "https://j.niuwoai.com",
+              "relay_room": "office-mac",
+              "relay_token": "relay-secret"
+            }
+        """.trimIndent()
+        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
+        val payload = PairingPayload.parse("https://h5.example.com/?p=$encoded")
+
+        assertTrue(payload.hasRelay())
+        assertEquals("https://j.niuwoai.com", payload.baseUrl)
+        assertEquals("office-mac", payload.relayRoom)
+        assertEquals("relay-secret", payload.relayToken)
+    }
+
+    @Test
+    fun pairingPayloadParsesCompactH5RelayUrl() {
+        val payload = PairingPayload.parse("https://h5.example.com/?r=office-mac&t=relay-secret")
+
+        assertTrue(payload.hasRelay())
+        assertEquals("https://j.niuwoai.com", payload.baseUrl)
+        assertEquals("https://j.niuwoai.com", payload.relayBaseUrl)
+        assertEquals("office-mac", payload.relayRoom)
+        assertEquals("relay-secret", payload.relayToken)
+        assertEquals("relay-secret", payload.pairingToken)
+        assertEquals("mobile-gateway.v1", payload.protocolVersion)
+    }
+
+    @Test
+    fun pairingPayloadParsesAppDeepLinkPayload() {
+        val json = """
+            {
+              "base_url": "http://192.168.1.20:8877/",
+              "pairing_token": "pair_123",
+              "protocol_version": "mobile-gateway.v1",
+              "desktop_name": "Rocky's Mac",
+              "expires_at": "2036-06-13T12:02:00Z"
+            }
+        """.trimIndent()
+        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
+        val payload = PairingPayload.parse("willdeep://mobile/pair?p=$encoded")
+
+        assertEquals("http://192.168.1.20:8877", payload.baseUrl)
+        assertEquals("pair_123", payload.pairingToken)
+    }
+
+    @Test
+    fun pairingPayloadParsesCompactAppDeepLinkRelayUrl() {
+        val payload = PairingPayload.parse("willdeep://mobile/pair?r=office-mac&t=relay-secret")
+
+        assertTrue(payload.hasRelay())
+        assertEquals("office-mac", payload.relayRoom)
+        assertEquals("relay-secret", payload.relayToken)
+    }
+
+    @Test
+    fun pairingPayloadParsesCompactLocalH5Url() {
+        val payload = PairingPayload.parse("https://h5.example.com/?b=http%3A%2F%2F192.168.1.20%3A8877&k=pair_123")
+
+        assertEquals("http://192.168.1.20:8877", payload.baseUrl)
+        assertEquals("pair_123", payload.pairingToken)
+        assertEquals("WillDeep Mac", payload.desktopName)
     }
 
     @Test
@@ -463,6 +536,66 @@ class MobileGatewayModelsTest {
         assertEquals("assistant", append.message.role)
         assertEquals("Patch is ready.", append.message.content)
         assertEquals("s1", append.message.sessionId)
+    }
+
+    @Test
+    fun messageAppendMarksThinkingOnlyContent() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "message.append",
+              "session_id": "s1",
+              "payload": {
+                "id": "m_thinking",
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "reasoning",
+                    "summary": "Internal reasoning is hidden."
+                  }
+                ],
+                "is_streaming": true
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.MessageAppend)
+        val append = event as GatewayEvent.MessageAppend
+        assertEquals("", append.message.content)
+        assertEquals(GatewayMessageActivity.Thinking, append.message.activity)
+        assertTrue(append.message.isStreaming)
+    }
+
+    @Test
+    fun messageAppendMarksToolOnlyContent() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "message.append",
+              "session_id": "s1",
+              "payload": {
+                "id": "m_tool",
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "shell",
+                    "input": {
+                      "command": "git status --short"
+                    }
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.MessageAppend)
+        val append = event as GatewayEvent.MessageAppend
+        assertEquals("", append.message.content)
+        assertEquals(GatewayMessageActivity.Tool, append.message.activity)
     }
 
     @Test

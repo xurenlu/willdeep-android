@@ -1,7 +1,28 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+}
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+
+fun getConfigValue(name: String, defaultValue: String = ""): String {
+    return providers.gradleProperty(name)
+        .orElse(providers.environmentVariable(name))
+        .orElse(localProperties.getProperty(name, ""))
+        .orElse(defaultValue)
+        .get()
+}
+
+fun String.asBuildConfigString(): String {
+    return "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 }
 
 android {
@@ -12,10 +33,21 @@ android {
         applicationId = "com.willdeep.android"
         minSdk = 33
         targetSdk = 36
-        versionCode = 85
-        versionName = "1.19.0-rc1"
+        versionCode = 100
+        versionName = "1.22.0-rc4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val umengAppKey = getConfigValue("UMENG_APPKEY")
+        val umengMessageSecret = getConfigValue("UMENG_MESSAGE_SECRET")
+        val umengChannel = getConfigValue("UMENG_CHANNEL", "willdeep")
+        val umengPushEnabled = getConfigValue("UMENG_PUSH_ENABLED", "false").equals("true", ignoreCase = true)
+        manifestPlaceholders["UMENG_APPKEY"] = umengAppKey
+        manifestPlaceholders["UMENG_MESSAGE_SECRET"] = umengMessageSecret
+        manifestPlaceholders["UMENG_CHANNEL"] = umengChannel
+        buildConfigField("String", "UMENG_APPKEY", umengAppKey.asBuildConfigString())
+        buildConfigField("String", "UMENG_MESSAGE_SECRET", umengMessageSecret.asBuildConfigString())
+        buildConfigField("String", "UMENG_CHANNEL", umengChannel.asBuildConfigString())
+        buildConfigField("boolean", "UMENG_PUSH_ENABLED", umengPushEnabled.toString())
     }
 
     buildTypes {
@@ -60,6 +92,9 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.mlkit.barcode.scanning)
     implementation(libs.coil.compose)
+    implementation(libs.umeng.common)
+    implementation(libs.umeng.asms)
+    implementation(libs.umeng.push)
     testImplementation(libs.junit)
     testImplementation(libs.json)
     androidTestImplementation(libs.androidx.junit)

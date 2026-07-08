@@ -3,10 +3,16 @@ package com.willdeep.android.mobile
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URI
+import java.net.URLDecoder
 import java.time.Instant
+import java.util.Base64
 import java.util.UUID
 
 const val MOBILE_GATEWAY_PROTOCOL_VERSION = "mobile-gateway.v1"
+private const val DEFAULT_RELAY_BASE_URL = "https://j.niuwoai.com"
+private const val DEFAULT_PAIRING_DESKTOP_NAME = "WillDeep Mac"
+private const val DEFAULT_PAIRING_EXPIRES_AT = "2099-01-01T00:00:00Z"
 
 class InvalidPairingPayloadException(cause: Throwable? = null) : IllegalArgumentException(
     "Invalid pairing payload",
@@ -42,7 +48,7 @@ data class PairingPayload(
     companion object {
         fun parse(raw: String): PairingPayload {
             try {
-                val json = JSONObject(raw.trim())
+                val json = JSONObject(extractPairingPayloadJSON(raw))
                 val baseUrlRaw = json.optString("base_url").trim()
                 val baseHttpUrl = baseUrlRaw.toHttpUrlOrNull()
                     ?: throw InvalidPairingPayloadException()
@@ -97,6 +103,85 @@ data class PairingPayload(
             }
         }
     }
+}
+
+internal fun extractPairingPayloadJSON(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.startsWith("{")) return trimmed
+    val params = pairingParams(trimmed)
+    pairingPayloadParam(params)?.let { encoded ->
+        val decoded = encoded.trim()
+        if (decoded.startsWith("{")) return decoded
+        return runCatching {
+            val padded = decoded.padEnd(((decoded.length + 3) / 4) * 4, '=')
+            String(Base64.getUrlDecoder().decode(padded), Charsets.UTF_8).trim()
+        }.getOrElse { throw InvalidPairingPayloadException(it) }
+    }
+    return compactPairingPayloadJSON(params)
+        ?: throw InvalidPairingPayloadException()
+}
+
+private fun pairingPayloadParam(params: Map<String, String>): String? {
+    return listOf("p", "pair", "payload")
+        .firstNotNullOfOrNull { key -> params[key]?.takeIf(String::isNotBlank) }
+}
+
+private fun pairingParams(raw: String): Map<String, String> {
+    raw.toHttpUrlOrNull()?.let { url ->
+        return url.queryParameterNames.associateWith { key -> url.queryParameter(key).orEmpty() }
+    }
+    val query = runCatching { URI(raw).rawQuery }.getOrNull().orEmpty()
+    if (query.isBlank()) return emptyMap()
+    return query.split('&')
+        .map { part ->
+            val key = URLDecoder.decode(part.substringBefore('='), Charsets.UTF_8.name())
+            val value = part.substringAfter('=', "")
+            key to URLDecoder.decode(value, Charsets.UTF_8.name())
+        }
+        .toMap()
+}
+
+private fun compactPairingPayloadJSON(params: Map<String, String>): String? {
+    val relayRoom = params.firstValue("r", "relay_room")?.trim()?.trim('/')?.takeIf(String::isNotBlank)
+    val relayToken = params.firstValue("t", "relay_token", "token")?.trim()?.takeIf(String::isNotBlank)
+    if (relayRoom != null && relayToken != null) {
+        val relayBaseUrl = params.firstValue("u", "relay_base_url")?.trim()?.trimEnd('/')
+            ?.takeIf(String::isNotBlank)
+            ?: DEFAULT_RELAY_BASE_URL
+        return JSONObject()
+            .put("base_url", relayBaseUrl)
+            .put("pairing_token", relayToken)
+            .put("protocol_version", params.firstValue("v", "protocol_version") ?: MOBILE_GATEWAY_PROTOCOL_VERSION)
+            .put("desktop_name", params.firstValue("d", "desktop_name") ?: DEFAULT_PAIRING_DESKTOP_NAME)
+            .put("expires_at", params.firstValue("x", "expires_at") ?: DEFAULT_PAIRING_EXPIRES_AT)
+            .put("relay_base_url", relayBaseUrl)
+            .put("relay_room", relayRoom)
+            .put("relay_token", relayToken)
+            .toString()
+    }
+
+    val baseUrl = params.firstValue("b", "base_url")?.trim()?.trimEnd('/')?.takeIf(String::isNotBlank)
+    val pairingToken = params.firstValue("k", "pairing_token")?.trim()?.takeIf(String::isNotBlank)
+    if (baseUrl != null && pairingToken != null) {
+        val json = JSONObject()
+            .put("base_url", baseUrl)
+            .put("pairing_token", pairingToken)
+            .put("protocol_version", params.firstValue("v", "protocol_version") ?: MOBILE_GATEWAY_PROTOCOL_VERSION)
+            .put("desktop_name", params.firstValue("d", "desktop_name") ?: DEFAULT_PAIRING_DESKTOP_NAME)
+            .put("expires_at", params.firstValue("x", "expires_at") ?: DEFAULT_PAIRING_EXPIRES_AT)
+        params.firstValue("f", "fallback_base_urls")
+            ?.split(',')
+            ?.map { it.trim().trimEnd('/') }
+            ?.filter(String::isNotBlank)
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { json.put("fallback_base_urls", JSONArray(it)) }
+        return json.toString()
+    }
+    return null
+}
+
+private fun Map<String, String>.firstValue(vararg keys: String): String? {
+    return keys.firstNotNullOfOrNull { key -> this[key]?.takeIf(String::isNotBlank) }
 }
 
 private fun normalizedOptionalBaseUrl(raw: String): String? {
@@ -241,6 +326,12 @@ data class GatewayQueuedMessage(
     val sessionId: String?,
 )
 
+enum class GatewayMessageActivity {
+    None,
+    Thinking,
+    Tool,
+}
+
 data class GatewayMessage(
     val id: String,
     val role: String,
@@ -249,6 +340,7 @@ data class GatewayMessage(
     val sessionId: String?,
     val isStreaming: Boolean = false,
     val imageUrls: List<String> = emptyList(),
+    val activity: GatewayMessageActivity = GatewayMessageActivity.None,
 )
 
 data class GatewayWorktreeFile(
@@ -272,6 +364,23 @@ data class GatewayWorkspace(
     val name: String,
     val lastUsedAt: String,
     val sessionCount: Int,
+)
+
+data class GatewayCapabilityOption(
+    val id: String,
+    val title: String,
+    val subtitle: String?,
+    val isActive: Boolean,
+)
+
+data class GatewayCapabilities(
+    val providers: List<GatewayCapabilityOption>,
+    val models: List<GatewayCapabilityOption>,
+    val skills: List<GatewayCapabilityOption>,
+    val experts: List<GatewayCapabilityOption>,
+    val plugins: List<GatewayCapabilityOption>,
+    val activeProviderId: String?,
+    val activeModelId: String?,
 )
 
 data class GatewayEnvelope(
@@ -324,6 +433,7 @@ sealed interface GatewayEvent {
     data class JobUpdated(val job: GatewayJob) : GatewayEvent
     data class FileLoaded(val commandId: String?, val file: GatewayFile) : GatewayEvent
     data class WorkspacesUpdated(val workspaces: List<GatewayWorkspace>) : GatewayEvent
+    data class CapabilitiesUpdated(val capabilities: GatewayCapabilities) : GatewayEvent
     data class Raw(val type: String) : GatewayEvent
 }
 
@@ -384,6 +494,7 @@ fun parseGatewayEvent(raw: String): GatewayEvent {
         "patch.upsert" -> payload.toPatchEvent(sessionId)
         "job.updated" -> GatewayEvent.JobUpdated(payload.toJob(sessionId))
         "workspace.list" -> GatewayEvent.WorkspacesUpdated(payload.optJSONArray("workspaces").toWorkspaces())
+        "capabilities.updated" -> GatewayEvent.CapabilitiesUpdated(payload.toCapabilities())
         else -> GatewayEvent.Raw(type)
     }
 }
@@ -563,21 +674,58 @@ private fun JSONObject.toQueuedMessage(sessionId: String?): GatewayQueuedMessage
 }
 
 private fun JSONObject.toMessage(sessionId: String?): GatewayMessage {
-    val (text, images) = extractMessageContent(this)
+    val role = firstString("role").ifBlank { "assistant" }
+    val content = extractMessageContent(this, role)
     return GatewayMessage(
         id = firstString("id", "message_id").ifBlank { UUID.randomUUID().toString() },
-        role = firstString("role").ifBlank { "assistant" },
-        content = text,
+        role = role,
+        content = content.text,
         createdAt = firstString("created_at", "ts"),
         sessionId = firstString("session_id").ifBlank { sessionId },
         isStreaming = optBoolean("is_streaming", false),
-        imageUrls = images,
+        imageUrls = content.images,
+        activity = content.activity,
     )
 }
 
-private fun extractMessageContent(json: JSONObject): Pair<String, List<String>> {
+private data class ExtractedMessageContent(
+    val text: String,
+    val images: List<String>,
+    val activity: GatewayMessageActivity,
+)
+
+private val THINKING_CONTENT_TYPES = setOf(
+    "reasoning",
+    "thinking",
+    "thought",
+    "analysis",
+    "chain_of_thought",
+)
+
+private val TOOL_CONTENT_TYPES = setOf(
+    "tool_use",
+    "tool_call",
+    "tool_calls",
+    "function_call",
+    "function_calls",
+    "tool_result",
+    "function_result",
+    "tool_output",
+)
+
+private fun extractMessageContent(json: JSONObject, role: String): ExtractedMessageContent {
     val texts = mutableListOf<String>()
     val images = mutableListOf<String>()
+    var activity = when (role.lowercase()) {
+        "tool", "function" -> GatewayMessageActivity.Tool
+        else -> GatewayMessageActivity.None
+    }
+
+    fun markActivity(next: GatewayMessageActivity) {
+        if (next == GatewayMessageActivity.Tool || activity == GatewayMessageActivity.None) {
+            activity = next
+        }
+    }
 
     fun visit(value: Any?) {
         when (value) {
@@ -595,6 +743,15 @@ private fun extractMessageContent(json: JSONObject): Pair<String, List<String>> 
                     type == "text" || type == "output_text" || type == "input_text" -> {
                         val t = value.optString("text").ifBlank { value.optString("content") }
                         if (t.isNotBlank()) texts.add(t.trim())
+                    }
+                    type in THINKING_CONTENT_TYPES -> {
+                        markActivity(GatewayMessageActivity.Thinking)
+                    }
+                    type in TOOL_CONTENT_TYPES -> {
+                        markActivity(GatewayMessageActivity.Tool)
+                        listOf("text", "content", "output", "result", "message").forEach { k ->
+                            if (value.has(k)) visit(value.opt(k))
+                        }
                     }
                     type == "image_url" -> {
                         val url = value.optJSONObject("image_url")?.optString("url")
@@ -624,12 +781,34 @@ private fun extractMessageContent(json: JSONObject): Pair<String, List<String>> 
         }
     }
 
+    if (
+        json.has("thinking") ||
+        json.has("reasoning") ||
+        THINKING_CONTENT_TYPES.contains(json.firstString("type", "kind", "message_type").lowercase())
+    ) {
+        markActivity(GatewayMessageActivity.Thinking)
+    }
+    if (
+        json.has("tool_call") ||
+        json.has("tool_calls") ||
+        json.has("function_call") ||
+        json.has("function_calls") ||
+        json.has("tool_name") ||
+        TOOL_CONTENT_TYPES.contains(json.firstString("type", "kind", "message_type").lowercase())
+    ) {
+        markActivity(GatewayMessageActivity.Tool)
+    }
+
     listOf("content", "text", "delta", "body", "message", "parts", "segments").forEach { key ->
         if (json.has(key)) visit(json.opt(key))
     }
 
     val combined = texts.joinToString("\n").trim()
-    return combined to images.distinct()
+    return ExtractedMessageContent(
+        text = combined,
+        images = images.distinct(),
+        activity = activity,
+    )
 }
 
 private fun JSONObject.toWorktree(sessionId: String?): GatewayWorktree {
@@ -656,6 +835,37 @@ private fun JSONArray?.toWorkspaces(): List<GatewayWorkspace> {
                     name = item.firstString("name", "workspace_name", "title").ifBlank { path.substringAfterLast('/').ifBlank { path } },
                     lastUsedAt = item.firstString("last_used_at", "updated_at", "ts"),
                     sessionCount = item.optInt("session_count", 0),
+                )
+            )
+        }
+    }
+}
+
+private fun JSONObject.toCapabilities(): GatewayCapabilities {
+    return GatewayCapabilities(
+        providers = optJSONArray("providers").toCapabilityOptions(),
+        models = optJSONArray("models").toCapabilityOptions(),
+        skills = optJSONArray("skills").toCapabilityOptions(),
+        experts = optJSONArray("experts").toCapabilityOptions(),
+        plugins = optJSONArray("plugins").toCapabilityOptions(),
+        activeProviderId = firstString("active_provider_id", "activeProviderId").ifBlank { null },
+        activeModelId = firstString("active_model_id", "activeModelId").ifBlank { null },
+    )
+}
+
+private fun JSONArray?.toCapabilityOptions(): List<GatewayCapabilityOption> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            val item = optJSONObject(index) ?: continue
+            val id = item.firstString("id")
+            if (id.isBlank()) continue
+            add(
+                GatewayCapabilityOption(
+                    id = id,
+                    title = item.firstString("title", "name", "label").ifBlank { id },
+                    subtitle = item.firstString("subtitle", "description").ifBlank { null },
+                    isActive = item.optBoolean("is_active", item.optBoolean("active", false)),
                 )
             )
         }

@@ -2,12 +2,20 @@ package com.willdeep.android.ui
 
 import android.app.Application
 import android.net.Uri
+import android.os.SystemClock
 import android.os.Build
 import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.willdeep.android.BuildConfig
+import com.willdeep.android.MobileAttentionActionRequest
+import com.willdeep.android.MobileAttentionActions
+import com.willdeep.android.MobileAttentionDecision
+import com.willdeep.android.MobileAttentionNotifier
 import com.willdeep.android.R
 import com.willdeep.android.mobile.DeviceTokenStore
+import com.willdeep.android.mobile.GatewayCapabilities
+import com.willdeep.android.mobile.GatewayCapabilityOption
 import com.willdeep.android.mobile.GatewayEnvelope
 import com.willdeep.android.mobile.GatewayEvent
 import com.willdeep.android.mobile.GatewayFile
@@ -28,6 +36,8 @@ import com.willdeep.android.mobile.PairingPayload
 import com.willdeep.android.mobile.PendingToolApproval
 import com.willdeep.android.mobile.ReconnectPolicy
 import com.willdeep.android.mobile.StoredGatewayCredential
+import com.willdeep.android.push.MobilePushManager
+import com.willdeep.android.push.MobilePushTokenStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,6 +73,19 @@ data class ImageAttachment(
     val uri: Uri,
     val mimeType: String?,
     val approxBytes: Long?,
+)
+
+enum class ApprovalMode {
+    AskEveryTime,
+    SmartApproval,
+    WorkspaceWritable,
+}
+
+data class MobileCapabilityOption(
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    val isActive: Boolean = false,
 )
 
 data class MobileCommandStatus(
@@ -110,6 +133,17 @@ data class MobileGatewayUiState(
     val commandStatuses: List<MobileCommandStatus> = emptyList(),
     val logLines: List<GatewayLogLine> = emptyList(),
     val attachments: List<ImageAttachment> = emptyList(),
+    val approvalMode: ApprovalMode = ApprovalMode.AskEveryTime,
+    val providerOptions: List<MobileCapabilityOption> = emptyList(),
+    val modelOptions: List<MobileCapabilityOption> = emptyList(),
+    val skillOptions: List<MobileCapabilityOption> = emptyList(),
+    val expertOptions: List<MobileCapabilityOption> = emptyList(),
+    val pluginOptions: List<MobileCapabilityOption> = emptyList(),
+    val selectedProviderId: String = "",
+    val selectedModelId: String = "",
+    val selectedSkillIds: Set<String> = emptySet(),
+    val selectedExpertIds: Set<String> = emptySet(),
+    val selectedPluginIds: Set<String> = emptySet(),
 )
 
 internal data class GatewayHealthTarget(
@@ -128,9 +162,17 @@ private data class ReachableGateway(
 class MobileGatewayViewModel(application: Application) : AndroidViewModel(application) {
     private val tokenStore = DeviceTokenStore(application)
     private val client = MobileGatewayClient()
+    private val attentionNotifier = MobileAttentionNotifier(application)
     private var socketJob: Job? = null
     private var reconnectRequested = false
+    private var heartbeatJob: Job? = null
+    private var lastDesktopEventAtMillis: Long = 0L
     private var manuallyDisconnected = false
+    private var pendingAttentionActions: List<MobileAttentionActionRequest> = emptyList()
+    private var requestedAttentionSessionId: String? = null
+    private var lastRegisteredRemotePushClientId: String? = null
+    private val notifiedToolApprovalIds = mutableSetOf<String>()
+    private val notifiedPatchProposalIds = mutableSetOf<String>()
 
     private val _state = MutableStateFlow(MobileGatewayUiState())
     val state: StateFlow<MobileGatewayUiState> = _state.asStateFlow()
@@ -221,6 +263,24 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     fun updateToolConfirmation(approvalId: String, value: String) {
         _state.update {
             it.copy(toolConfirmations = it.toolConfirmations + (approvalId to value))
+        }
+    }
+
+    fun handleAttentionAction(request: MobileAttentionActionRequest) {
+        request.sessionId?.let { sessionId ->
+            requestedAttentionSessionId = sessionId
+            _state.update { it.copy(selectedSessionId = sessionId) }
+            if (state.value.status == ConnectionStatus.Connected) {
+                send(GatewayEnvelope(type = "session.select", sessionId = sessionId))
+                requestedAttentionSessionId = null
+            }
+        }
+        if (request.isDecision()) {
+            cancelAttentionNotification(request)
+            pendingAttentionActions = (pendingAttentionActions.filterNot { it.sameAttentionTarget(request) } + request)
+            flushPendingAttentionActions()
+        } else if (state.value.isPaired && state.value.status != ConnectionStatus.Connected) {
+            resumeConnectionIfAppropriate()
         }
     }
 
@@ -331,6 +391,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         val credential = tokenStore.load() ?: return
         manuallyDisconnected = false
         reconnectRequested = true
+        stopHeartbeatMonitor()
         socketJob?.cancel()
         _state.update {
             it.copy(
@@ -435,6 +496,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     fun disconnect() {
         manuallyDisconnected = true
         reconnectRequested = false
+        stopHeartbeatMonitor()
         socketJob?.cancel()
         socketJob = null
         client.disconnect()
@@ -512,6 +574,61 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    fun requestCapabilities() {
+        send(GatewayEnvelope(type = "capabilities.get"))
+    }
+
+    private fun noteDesktopEventReceived() {
+        lastDesktopEventAtMillis = SystemClock.elapsedRealtime()
+    }
+
+    private fun startHeartbeatMonitor() {
+        stopHeartbeatMonitor()
+        noteDesktopEventReceived()
+        heartbeatJob = viewModelScope.launch {
+            while (reconnectRequested) {
+                delay(ReconnectPolicy.HEARTBEAT_INTERVAL_MILLIS)
+                if (!reconnectRequested) return@launch
+                if (state.value.status != ConnectionStatus.Connected) continue
+
+                val now = SystemClock.elapsedRealtime()
+                if (ReconnectPolicy.isHeartbeatExpired(now, lastDesktopEventAtMillis)) {
+                    markDesktopHeartbeatTimedOut()
+                    client.disconnect()
+                    return@launch
+                }
+
+                val sent = client.sendCommand(GatewayEnvelope(type = "session.list"))
+                if (!sent) {
+                    markDesktopHeartbeatTimedOut()
+                    client.disconnect()
+                    return@launch
+                }
+            }
+        }
+    }
+
+    private fun stopHeartbeatMonitor() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
+
+    private fun markDesktopHeartbeatTimedOut() {
+        val message = getApplication<Application>().getString(R.string.error_desktop_heartbeat_timeout)
+        _state.update {
+            it.copy(
+                status = ConnectionStatus.Reconnecting,
+                errorMessage = message,
+                logLines = it.logLines.append(
+                    GatewayLogLine(
+                        "error",
+                        message,
+                    )
+                ),
+            )
+        }
+    }
+
     fun createSession(workspacePath: String): Boolean {
         val path = workspacePath.trim()
         if (path.isEmpty()) {
@@ -565,6 +682,66 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update { it.copy(attachments = it.attachments.filterNot { att -> att.uri == uri }) }
     }
 
+    fun updateApprovalMode(mode: ApprovalMode) {
+        _state.update { it.copy(approvalMode = mode) }
+    }
+
+    fun selectProvider(providerId: String) {
+        _state.update {
+            if (it.providerOptions.none { option -> option.id == providerId }) {
+                it
+            } else {
+                it.copy(selectedProviderId = providerId)
+            }
+        }
+    }
+
+    fun selectModel(modelId: String) {
+        _state.update {
+            if (it.modelOptions.none { option -> option.id == modelId }) {
+                it
+            } else {
+                it.copy(selectedModelId = modelId)
+            }
+        }
+    }
+
+    fun toggleSkill(skillId: String) {
+        _state.update {
+            if (it.skillOptions.none { option -> option.id == skillId }) return@update it
+            val next = if (skillId in it.selectedSkillIds) {
+                it.selectedSkillIds - skillId
+            } else {
+                it.selectedSkillIds + skillId
+            }
+            it.copy(selectedSkillIds = next)
+        }
+    }
+
+    fun toggleExpert(expertId: String) {
+        _state.update {
+            if (it.expertOptions.none { option -> option.id == expertId }) return@update it
+            val next = if (expertId in it.selectedExpertIds) {
+                it.selectedExpertIds - expertId
+            } else {
+                it.selectedExpertIds + expertId
+            }
+            it.copy(selectedExpertIds = next)
+        }
+    }
+
+    fun togglePlugin(pluginId: String) {
+        _state.update {
+            if (it.pluginOptions.none { option -> option.id == pluginId }) return@update it
+            val next = if (pluginId in it.selectedPluginIds) {
+                it.selectedPluginIds - pluginId
+            } else {
+                it.selectedPluginIds + pluginId
+            }
+            it.copy(selectedPluginIds = next)
+        }
+    }
+
     fun sendMessage() {
         val current = state.value
         val text = current.messageText.trim()
@@ -574,6 +751,18 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         val payload = JSONObject().put("text", text)
         val workspacePath = current.preferredWorkspacePath.trim().takeIf { it.isNotEmpty() }
         workspacePath?.let { payload.put("workspace_path", it) }
+        payload.put("approval_mode", current.approvalMode.gatewayValue())
+        current.selectedProviderId.trim().takeIf { it.isNotEmpty() }?.let { payload.put("provider_id", it) }
+        current.selectedModelId.trim().takeIf { it.isNotEmpty() }?.let { payload.put("model", it) }
+        if (current.selectedSkillIds.isNotEmpty()) {
+            payload.put("skills", JSONArray(current.selectedSkillIds.toList()))
+        }
+        if (current.selectedExpertIds.isNotEmpty()) {
+            payload.put("experts", JSONArray(current.selectedExpertIds.toList()))
+        }
+        if (current.selectedPluginIds.isNotEmpty()) {
+            payload.put("plugins", JSONArray(current.selectedPluginIds.toList()))
+        }
 
         if (attachments.isNotEmpty()) {
             val imagesArray = JSONArray()
@@ -733,6 +922,8 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             )
         )
         if (!sent) return
+        attentionNotifier.cancelToolApproval(approval.id)
+        notifiedToolApprovalIds.remove(approval.id)
         _state.update {
             it.copy(
                 pendingTools = it.pendingTools.filterNot { item -> item.id == approval.id },
@@ -762,6 +953,8 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             )
         )
         if (!sent) return
+        attentionNotifier.cancelPatchProposal(proposal.id)
+        notifiedPatchProposalIds.remove(proposal.id)
         _state.update {
             it.copy(
                 patchProposals = it.patchProposals.filterNot { item -> item.id == proposal.id },
@@ -948,6 +1141,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     override fun onCleared() {
+        stopHeartbeatMonitor()
         client.disconnect()
         super.onCleared()
     }
@@ -985,6 +1179,8 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun handleGatewayEvent(event: GatewayEvent) {
+        if (event.isDesktopHeartbeatEvent()) noteDesktopEventReceived()
+
         when (event) {
             GatewayEvent.Connected -> {
                 _state.update {
@@ -995,6 +1191,9 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         reconnectDelayMillis = 0,
                     )
                 }
+                startHeartbeatMonitor()
+                requestCapabilities()
+                registerRemotePushIfAvailable()
             }
             GatewayEvent.Disconnected -> {
                 _state.update {
@@ -1006,6 +1205,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.ConnectionClosed -> {
+                stopHeartbeatMonitor()
                 _state.update {
                     it.copy(
                         status = ConnectionStatus.Disconnected,
@@ -1020,6 +1220,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.ConnectionFailed -> {
+                stopHeartbeatMonitor()
                 _state.update {
                     it.copy(
                         errorMessage = event.message,
@@ -1033,10 +1234,17 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.Snapshot -> {
+                event.pendingTools.forEach(::notifyToolApproval)
+                event.patchProposals.forEach(::notifyPatchProposal)
+                val attentionSessionId = requestedAttentionSessionId
                 _state.update {
+                    val selectedSessionId = attentionSessionId
+                        ?: event.activeSessionId
+                        ?: it.selectedSessionId
+                        ?: event.sessions.firstOrNull()?.id
                     it.copy(
                         sessions = event.sessions,
-                        selectedSessionId = event.activeSessionId ?: it.selectedSessionId ?: event.sessions.firstOrNull()?.id,
+                        selectedSessionId = selectedSessionId,
                         pendingTools = event.pendingTools,
                         toolAnswers = it.toolAnswers.keepAnswersFor(event.pendingTools),
                         toolConfirmations = it.toolConfirmations.keepConfirmationsFor(event.pendingTools),
@@ -1047,12 +1255,17 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         jobs = event.jobs,
                         queuedMessages = event.queuedMessages,
                         conversationMessages = event.messages.filterForSession(
-                            event.activeSessionId ?: it.selectedSessionId,
+                            selectedSessionId,
                         ),
-                        worktree = event.worktrees.forSession(event.activeSessionId ?: it.selectedSessionId),
+                        worktree = event.worktrees.forSession(selectedSessionId),
                         status = ConnectionStatus.Connected,
                     )
                 }
+                attentionSessionId?.let { sessionId ->
+                    requestedAttentionSessionId = null
+                    send(GatewayEnvelope(type = "session.select", sessionId = sessionId))
+                }
+                flushPendingAttentionActions()
             }
             is GatewayEvent.SessionUpsert -> {
                 _state.update {
@@ -1078,6 +1291,18 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.Error -> {
+                if (event.isUnsupportedOptionalCommand()) {
+                    _state.update {
+                        it.copy(
+                            commandStatuses = it.commandStatuses.filterNot { status ->
+                                status.id == event.commandId ||
+                                    status.type == "capabilities.get" ||
+                                    status.type == "push.register"
+                            },
+                        )
+                    }
+                    return
+                }
                 _state.update {
                     it.copy(
                         status = ConnectionStatus.Error,
@@ -1140,6 +1365,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.ToolPending -> {
+                notifyToolApproval(event.approval)
                 _state.update {
                     it.copy(
                         pendingTools = (it.pendingTools.filterNot { item -> item.id == event.approval.id } + event.approval),
@@ -1156,21 +1382,28 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         logLines = it.logLines.append(GatewayLogLine("mac", event.approval.title)),
                     )
                 }
+                flushPendingAttentionActions()
             }
             is GatewayEvent.ToolUpdated -> {
+                attentionNotifier.cancelToolApproval(event.id)
+                notifiedToolApprovalIds.remove(event.id)
                 _state.update {
                     it.removeToolApproval(event.id)
                 }
             }
             is GatewayEvent.PatchUpsert -> {
+                notifyPatchProposal(event.proposal)
                 _state.update {
                     it.copy(
                         patchProposals = (it.patchProposals.filterNot { item -> item.id == event.proposal.id } + event.proposal),
                         logLines = it.logLines.append(GatewayLogLine("mac", event.proposal.title)),
                     )
                 }
+                flushPendingAttentionActions()
             }
             is GatewayEvent.PatchUpdated -> {
+                attentionNotifier.cancelPatchProposal(event.id)
+                notifiedPatchProposalIds.remove(event.id)
                 _state.update {
                     it.removePatchProposal(event.id)
                 }
@@ -1228,12 +1461,16 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     )
                 }
             }
+            is GatewayEvent.CapabilitiesUpdated -> {
+                _state.update { it.applyCapabilities(event.capabilities) }
+            }
             is GatewayEvent.Raw -> Unit
         }
     }
 
     private fun handleAuthenticationRejected() {
         reconnectRequested = false
+        stopHeartbeatMonitor()
         socketJob = null
         manuallyDisconnected = false
         client.disconnect()
@@ -1254,6 +1491,192 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             )
         }
     }
+
+    private fun notifyToolApproval(approval: PendingToolApproval) {
+        if (notifiedToolApprovalIds.add(approval.id)) {
+            attentionNotifier.showToolApproval(approval)
+        }
+    }
+
+    private fun notifyPatchProposal(proposal: PatchProposal) {
+        if (notifiedPatchProposalIds.add(proposal.id)) {
+            attentionNotifier.showPatchProposal(proposal)
+        }
+    }
+
+    private fun flushPendingAttentionActions() {
+        val current = state.value
+        if (pendingAttentionActions.isEmpty()) return
+        if (current.status != ConnectionStatus.Connected) {
+            if (current.isPaired) resumeConnectionIfAppropriate()
+            return
+        }
+
+        val remaining = mutableListOf<MobileAttentionActionRequest>()
+        pendingAttentionActions.forEach { request ->
+            val approved = request.decision == MobileAttentionDecision.Approve
+            when (request.targetType) {
+                MobileAttentionActions.TARGET_TOOL -> {
+                    val approval = current.pendingTools.firstOrNull { it.id == request.targetId }
+                    when {
+                        approval == null -> remaining += request
+                        request.decision == null -> Unit
+                        approved && approval.requiresConfirmation -> {
+                            _state.update {
+                                it.copy(errorMessage = getApplication<Application>().getString(R.string.error_confirmation_required))
+                            }
+                        }
+                        approved && approval.requiresAnswer -> {
+                            _state.update {
+                                it.copy(errorMessage = getApplication<Application>().getString(R.string.error_answer_required))
+                            }
+                        }
+                        else -> decideTool(approval, approved)
+                    }
+                }
+                MobileAttentionActions.TARGET_PATCH -> {
+                    val proposal = current.patchProposals.firstOrNull { it.id == request.targetId }
+                    when {
+                        proposal == null -> remaining += request
+                        request.decision == null -> Unit
+                        else -> decidePatch(proposal, approved)
+                    }
+                }
+                else -> Unit
+            }
+        }
+        pendingAttentionActions = remaining
+    }
+
+    private fun cancelAttentionNotification(request: MobileAttentionActionRequest) {
+        when (request.targetType) {
+            MobileAttentionActions.TARGET_TOOL -> {
+                attentionNotifier.cancelToolApproval(request.targetId)
+                notifiedToolApprovalIds.remove(request.targetId)
+            }
+            MobileAttentionActions.TARGET_PATCH -> {
+                attentionNotifier.cancelPatchProposal(request.targetId)
+                notifiedPatchProposalIds.remove(request.targetId)
+            }
+        }
+    }
+
+    private fun registerRemotePushIfAvailable() {
+        if (!MobilePushManager.isUmengConfigured()) return
+        val refreshedClientId = MobilePushManager.refreshStoredClientId(getApplication())
+        val token = MobilePushTokenStore(getApplication()).load()
+        val clientId = refreshedClientId ?: token?.clientId ?: return
+        if (clientId == lastRegisteredRemotePushClientId) return
+        val payload = JSONObject()
+            .put("provider", token?.provider ?: MobilePushManager.PROVIDER_UMENG)
+            .put("client_id", clientId)
+            .put("app_id", token?.appId ?: BuildConfig.UMENG_APPKEY)
+            .put("platform", "android")
+            .put("app_version", BuildConfig.VERSION_NAME)
+        if (send(GatewayEnvelope(type = "push.register", payload = payload))) {
+            lastRegisteredRemotePushClientId = clientId
+        }
+    }
+}
+
+private fun MobileAttentionActionRequest.sameAttentionTarget(
+    other: MobileAttentionActionRequest,
+): Boolean {
+    return targetType == other.targetType &&
+        targetId == other.targetId &&
+        sessionId == other.sessionId
+}
+
+private fun GatewayEvent.Error.isUnsupportedOptionalCommand(): Boolean {
+    return message.contains("Unsupported mobile command: capabilities.get", ignoreCase = true) ||
+        message.contains("Unsupported mobile command: push.register", ignoreCase = true)
+}
+
+private fun GatewayEvent.isDesktopHeartbeatEvent(): Boolean {
+    return when (this) {
+        is GatewayEvent.Snapshot,
+        is GatewayEvent.SessionUpsert,
+        is GatewayEvent.MessageAppend,
+        is GatewayEvent.MessageDelta,
+        is GatewayEvent.MessageDone,
+        is GatewayEvent.WorktreeUpdated,
+        is GatewayEvent.ToolPending,
+        is GatewayEvent.ToolUpdated,
+        is GatewayEvent.PatchUpsert,
+        is GatewayEvent.PatchUpdated,
+        is GatewayEvent.PatchDiffLoaded,
+        is GatewayEvent.JobUpdated,
+        is GatewayEvent.FileLoaded,
+        is GatewayEvent.WorkspacesUpdated,
+        is GatewayEvent.CapabilitiesUpdated -> true
+        GatewayEvent.Connected,
+        GatewayEvent.Disconnected,
+        is GatewayEvent.ConnectionClosed,
+        is GatewayEvent.ConnectionFailed,
+        is GatewayEvent.Ack,
+        is GatewayEvent.Error,
+        is GatewayEvent.Raw -> false
+    }
+}
+
+private fun MobileGatewayUiState.applyCapabilities(
+    capabilities: GatewayCapabilities,
+): MobileGatewayUiState {
+    val providers = capabilities.providers.toMobileOptions()
+    val models = capabilities.models.toMobileOptions()
+    val skills = capabilities.skills.toMobileOptions()
+    val experts = capabilities.experts.toMobileOptions()
+    val plugins = capabilities.plugins.toMobileOptions()
+
+    val activeProviderId = capabilities.activeProviderId?.takeIf { candidate ->
+        providers.any { it.id == candidate }
+    }
+    val activeModelId = capabilities.activeModelId?.takeIf { candidate ->
+        models.any { it.id == candidate }
+    }
+    val selectedProvider = activeProviderId
+        ?: selectedProviderId.takeIf { current -> providers.any { it.id == current } }
+        ?: providers.firstOrNull { it.isActive }?.id
+        ?: providers.firstOrNull()?.id
+        ?: ""
+    val selectedModel = activeModelId
+        ?: selectedModelId.takeIf { current -> models.any { it.id == current } }
+        ?: models.firstOrNull { it.isActive }?.id
+        ?: models.firstOrNull()?.id
+        ?: ""
+
+    return copy(
+        providerOptions = providers,
+        modelOptions = models,
+        skillOptions = skills,
+        expertOptions = experts,
+        pluginOptions = plugins,
+        selectedProviderId = selectedProvider,
+        selectedModelId = selectedModel,
+        selectedSkillIds = selectedSkillIds.reconcileSelection(skills),
+        selectedExpertIds = selectedExpertIds.reconcileSelection(experts),
+        selectedPluginIds = selectedPluginIds.reconcileSelection(plugins),
+    )
+}
+
+private fun List<GatewayCapabilityOption>.toMobileOptions(): List<MobileCapabilityOption> {
+    return map { option ->
+        MobileCapabilityOption(
+            id = option.id,
+            title = option.title,
+            subtitle = option.subtitle,
+            isActive = option.isActive,
+        )
+    }
+}
+
+private fun Set<String>.reconcileSelection(
+    options: List<MobileCapabilityOption>,
+): Set<String> {
+    val validIds = options.mapTo(mutableSetOf()) { it.id }
+    val retained = filterTo(mutableSetOf()) { it in validIds }
+    val active = options.filter { it.isActive }.mapTo(mutableSetOf()) { it.id }
+    return retained + active
 }
 
 private fun List<GatewayLogLine>.append(line: GatewayLogLine): List<GatewayLogLine> {
@@ -1410,6 +1833,12 @@ internal fun List<GatewayMessage>.markMessageDone(
             message
         }
     }.filterForSession(sessionId)
+}
+
+internal fun ApprovalMode.gatewayValue(): String = when (this) {
+    ApprovalMode.AskEveryTime -> "ask_every_time"
+    ApprovalMode.SmartApproval -> "smart_approval"
+    ApprovalMode.WorkspaceWritable -> "workspace_writable"
 }
 
 internal fun Map<String, String>.keepAnswersFor(approvals: List<PendingToolApproval>): Map<String, String> {

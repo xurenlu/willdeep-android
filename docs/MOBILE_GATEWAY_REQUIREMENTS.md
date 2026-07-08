@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-06-15 | Android version: v1.17.0-rc52 | Protocol: mobile-gateway.v1
+> Last updated: 2026-07-08 | Android version: v1.22.0-rc4 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -31,7 +31,7 @@ Implemented in v1.0.0-rc1:
 
 - Compose-first single-screen client.
 
-Implemented through v1.18.0-rc1:
+Implemented through v1.22.0-rc4:
 
 - QR pairing scan through CameraX and ML Kit barcode scanning.
 - Manual pairing payload paste as a fallback path.
@@ -42,6 +42,7 @@ Implemented through v1.18.0-rc1:
 - Missing pairing payload `protocol_version` values are rejected locally before Android calls `/mobile/health` or `/mobile/pair/claim`.
 - Gateway health probing through `GET /mobile/health` before pairing, from a saved paired Mac gateway, and through a manual Check Gateway action.
 - Live acceptance can pass `workspace_path` with `message.send`, allowing the Mac desktop peer to bind Android-originated coding requests to the intended Mac workspace. When this field is supplied, Android omits `session_id` so the Mac does not reuse a stale selected session.
+- Android requests and renders Mac-reported `capabilities.updated` data for providers, models, skills, experts, and plugins, then sends selected run context with `provider_id`, `model`, `skills`, `experts`, and `plugins`.
 - Pairing UI displays the Mac gateway server version and whether pairing is currently allowed.
 - Unsupported pairing payload protocol versions are rejected locally before Android calls `/mobile/health` or `/mobile/pair/claim`.
 - Expired pairing payloads are rejected locally before Android calls `/mobile/health` or `/mobile/pair/claim`.
@@ -50,6 +51,11 @@ Implemented through v1.18.0-rc1:
 - Encrypted token persistence through AndroidX Security.
 - WebSocket connection with `X-App-Version` populated from `BuildConfig.VERSION_NAME`.
 - Ask WillDeep composer and queued requests are positioned immediately after pairing so sending Mac Agent tasks is the primary mobile flow.
+- Home displays a compact workspace summary above the session list; tapping it expands a horizontally scrollable workspace picker, and each workspace group shows five sessions until expanded.
+- The session composer is a bottom mobile control console with a compact icon-only approval/provider/model/skills/experts/plugins toolbar and bottom-sheet pickers attached to a larger text input area.
+- Session details label hidden assistant thinking, tool activity, and waiting-for-visible-output messages instead of showing the generic empty content fallback.
+- Pending `ask_user` prompts, tool approvals, patch proposals, queued requests, and changed-file review cards render below the latest composer input so mobile review happens where the user is already typing.
+- `message.send` can carry optional mobile run context fields: `approval_mode`, `provider_id`, `model`, `skills`, `experts`, and `plugins`. These fields are forward-compatible and do not require a new WebSocket command type.
 - Android share-sheet `text/plain` content can be imported into Ask WillDeep, combining shared subject or title with body/URL content, and then sent to the Mac gateway.
 - Android selected text can be imported through `ACTION_PROCESS_TEXT` and then sent to the Mac gateway.
 - Session list refresh, session creation, session selection, message send, and turn stop commands.
@@ -108,7 +114,19 @@ Planned next:
 
 ## Pairing Payload
 
-The Mac-side gateway exposes a desktop-only pairing payload. Android expects the QR content to be JSON:
+The Mac-side gateway exposes a desktop-only pairing payload. The current QR content is a short H5 URL so browser scanners open the H5 page and Android scanners can still extract credentials:
+
+```text
+https://h5.example.com/?r=<relay-room>&t=<relay-token>
+```
+
+For LAN gateway pairing, the compact form is:
+
+```text
+https://h5.example.com/?b=<base-url>&k=<pairing-token>
+```
+
+Android also accepts `willdeep://mobile/pair?...` with the same compact parameters. Legacy raw JSON and `p` / `pair` / `payload` base64url JSON remain supported for compatibility and diagnostics:
 
 ```json
 {
@@ -261,4 +279,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - `ruby scripts/mobile_gateway_live_acceptance.rb` runs the same final acceptance gate with strict defaults and writes a concise wrapper report for the live device handoff.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.17.0-rc52` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.22.0-rc4` is visible in Gradle metadata and sent through gateway request headers.

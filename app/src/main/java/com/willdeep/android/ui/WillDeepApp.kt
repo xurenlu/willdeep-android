@@ -51,10 +51,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.willdeep.android.BuildConfig
+import com.willdeep.android.MobileAttentionActionRequest
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewayFile
 import com.willdeep.android.mobile.GatewayJob
 import com.willdeep.android.mobile.GatewayMessage
+import com.willdeep.android.mobile.GatewayMessageActivity
 import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorktree
@@ -69,6 +71,10 @@ fun WillDeepApp(
     viewModel: MobileGatewayViewModel = viewModel(),
     sharedMessageText: String = "",
     sharedMessageVersion: Int = 0,
+    attentionAction: MobileAttentionActionRequest? = null,
+    attentionActionVersion: Int = 0,
+    pairingPayloadText: String = "",
+    pairingPayloadVersion: Int = 0,
 ) {
     val state by viewModel.state.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -78,6 +84,19 @@ fun WillDeepApp(
         viewModel.importSharedMessage(sharedMessageText)
         if (sharedMessageVersion > 0 && sharedMessageText.isNotBlank()) {
             screen = "session"
+        }
+    }
+    LaunchedEffect(attentionActionVersion) {
+        val request = attentionAction ?: return@LaunchedEffect
+        viewModel.handleAttentionAction(request)
+        if (attentionActionVersion > 0) {
+            screen = "session"
+        }
+    }
+    LaunchedEffect(pairingPayloadVersion) {
+        if (pairingPayloadVersion > 0 && pairingPayloadText.isNotBlank()) {
+            viewModel.scanAndPair(pairingPayloadText)
+            screen = "home"
         }
     }
     DisposableEffect(lifecycleOwner, viewModel) {
@@ -293,8 +312,14 @@ private fun ConversationMessageRow(message: GatewayMessage) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else if (message.imageUrls.isEmpty()) {
+                val placeholder = when {
+                    message.activity == GatewayMessageActivity.Thinking -> R.string.message_thinking_content
+                    message.activity == GatewayMessageActivity.Tool -> R.string.message_tool_activity_content
+                    message.isStreaming -> R.string.message_waiting_visible_content
+                    else -> R.string.message_empty_content
+                }
                 Text(
-                    text = stringResource(R.string.message_empty_content),
+                    text = stringResource(placeholder),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                 )

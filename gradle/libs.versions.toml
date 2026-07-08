@@ -16,6 +16,9 @@ securityCrypto = "1.1.0"
 camerax = "1.4.2"
 mlkitBarcode = "17.3.0"
 coil = "2.7.0"
+umengCommon = "9.9.2"
+umengAsms = "1.8.7.2"
+umengPush = "6.7.6"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,6 +46,9 @@ androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycl
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+umeng-common = { group = "com.umeng.umsdk", name = "common", version.ref = "umengCommon" }
+umeng-asms = { group = "com.umeng.umsdk", name = "asms", version.ref = "umengAsms" }
+umeng-push = { group = "com.umeng.umsdk", name = "push", version.ref = "umengPush" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

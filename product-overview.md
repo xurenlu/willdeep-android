@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-06-18 | Current version: v1.18.0-rc1
+> Last updated: 2026-07-08 | Current version: v1.22.0-rc4
 
 ## Project Summary
 
@@ -8,7 +8,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 
 ## Core Features
 
-- Pair with the Mac Mobile Gateway by scanning the QR payload or pasting the short-lived JSON payload.
+- Pair with the Mac Mobile Gateway by scanning a short H5 QR URL such as `?r=<room>&t=<token>`, scanning the legacy JSON payload, or receiving a matching `willdeep://mobile/pair?...` deep link from the H5 page.
 - Preserve LAN-first pairing while accepting Tailscale fallback endpoints from `fallback_base_urls` or `base_url#tailscale=100.x.x.x` QR hints.
 - Show localized invalid-payload errors for malformed QR content or missing required pairing fields.
 - Require pairing payload desktop name and expiry fields before sending health or claim requests.
@@ -21,21 +21,35 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Store the long-lived device token securely on Android.
 - Connect to the Mac gateway over WebSocket.
 - Retry Mac gateway health checks, pairing claims, and WebSocket connections against saved fallback endpoints when the LAN endpoint is unreachable.
+- Browse sessions through a compact workspace summary above the session list. Tapping it expands a horizontally scrollable picker, and workspace groups show the first five sessions until expanded.
+- Show the paired Mac status and current workspace switcher in one compact row, with concise status dots/icons and optional details only when needed.
+- Keep the mobile app portrait-only and use a compact home title without the previous subtitle or session-count badge.
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
+- Use the redesigned mobile composer icon toolbar, plus-style attachment entry, and bottom-sheet pickers to choose approval mode, Mac-reported provider, model, skills, experts, and plugins before sending a request without crowding the text input.
+- Render user asks, tool approvals, patch proposals, queued requests, and changed-file review cards directly below the latest composer input.
 - Accept shared plain text from other Android apps, combining shared subject/title and body/URL content before loading it into Ask WillDeep for forwarding to the Mac.
 - Import highlighted Android text actions directly into Ask WillDeep for forwarding selected requirements or code snippets to the Mac.
 - Automatically resume the Mac gateway connection on app start and foreground return for paired devices.
 - Reconnect temporary WebSocket disconnects with bounded backoff and require pairing again when the Mac rejects a revoked token.
 - Preserve unsent task text and pending action cards when the WebSocket is unavailable.
+- Detect stale relay-only connections with WebSocket ping/pong and an Android heartbeat watchdog, then mark the Mac offline and reconnect when no Mac-originated event arrives for 5 seconds.
+- Notify the Android user when the Mac needs attention for tool approval, patch review, typed confirmation, or `ask_user` input.
+- Let safe approval and patch notifications send direct approve/reject decisions, while requests that need typed input open the matching session for continued conversation.
+- Request Android 13+ notification permission and use a high-priority WillDeep attention notification channel.
+- Integrate Umeng U-Push as the first real remote-push provider, gated by `UMENG_PUSH_ENABLED`, `UMENG_APPKEY`, and `UMENG_MESSAGE_SECRET` so builds stay safe before credentials and privacy consent are ready.
+- Store the Umeng device token locally and optionally register it with the Mac gateway through `push.register` for later server-side attention push delivery.
+- Convert Umeng custom attention payloads into the existing Android review/input notification flow.
 - Show recent mobile command status so the user can see whether the Mac gateway accepted or rejected a request.
 - Send phone-originated coding requests with an optional Mac workspace path in live acceptance so WillDeep edits the intended desktop repository, omitting any stale selected session id when the workspace path is supplied.
 - Use localized English and Simplified Chinese UI resources.
 - Display gateway status, paired desktop name, protocol version, sessions, selected session, and recent event log.
 - Display recent Mac-side conversation messages and follow streaming assistant deltas.
+- Label hidden assistant thinking, tool activity, and waiting-for-visible-output messages clearly instead of showing a generic empty-text fallback.
 - Show when the Mac is still streaming an assistant response and clear the indicator on `message.done`.
 - Display Mac-side changed files, repository root, and added/deleted line totals.
 - Read a changed file directly from the Changed Files panel through desktop-mediated `file.read`.
 - Send `session.list`, `session.create`, `session.select`, `message.send`, and `turn.stop` commands.
+- Attach selected mobile run context (`approval_mode`, `provider_id`, `model`, `skills`, `experts`, and `plugins`) to `message.send` payloads for Mac-side handling.
 - Restore pending tool and patch approvals from the initial Mac snapshot, then send `tool.decide` or `patch.decide` back to the Mac.
 - Require typed `confirm` input before approving danger-tier Mac tool calls that include `requires_confirmation`.
 - During strict live acceptance, automatically approve pending Mac tools only when they require neither an answer nor typed confirmation, preserving the existing safety gates.
@@ -55,6 +69,8 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Concurrency: Kotlin coroutines and Flow
 - Networking: OkHttp HTTP and WebSocket
 - QR scanning: CameraX preview + ML Kit barcode scanning
+- Notifications: Android notification channels with direct approval/rejection actions
+- Remote push: Umeng Android SDK (`common` + `asms` + `push`) with custom payload handling
 - Storage: AndroidX Security encrypted shared preferences
 - Build: Gradle Kotlin DSL, Android Gradle Plugin, Kotlin Compose compiler plugin
 - Integration verification: JVM local mock gateway tests, Android instrumented Compose pairing/WebSocket/message streaming/tool and patch approval smoke test, imported-task composer smoke test, optional live Mac gateway connected/message-dispatch/Agent-activity/code-activity/target-file smoke path, connected-device smoke runner with desktop-authenticated fresh pairing payload fetch, plus Ruby stdlib mock gateway script with JSON and Markdown reports
@@ -72,6 +88,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 | WS | `job.kill` | Ask the Mac to stop a running background job in the selected session. |
 | WS | `file.read` | Request a text file from the selected Mac session workspace. |
 | WS | `queue.update` | Add, remove, clear, or immediately send queued requests on the Mac. |
+| WS | `push.register` | Optionally register the Android Umeng device token with the Mac gateway for remote attention push delivery. |
 | WS | `message.append/delta/done` | Display Mac-side conversation updates. |
 | WS | `worktree.updated` | Display Mac-side changed-file summaries and provide one-tap file-read entry points. |
 

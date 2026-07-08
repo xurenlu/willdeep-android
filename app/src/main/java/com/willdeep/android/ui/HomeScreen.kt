@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +61,15 @@ import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorkspace
 
 private enum class SessionFilter { All, Working, NeedsInput, Completed }
+
+private const val ALL_WORKSPACES_KEY = "__all_workspaces__"
+
+private data class HomeWorkspaceTab(
+    val key: String,
+    val label: String,
+    val subtitle: String,
+    val count: Int,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,13 +130,8 @@ fun HomeScreen(
                 .padding(horizontal = 20.dp),
         ) {
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.home_title),
-                fontSize = 44.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Spacer(Modifier.height(16.dp))
+            HomeHero()
+            Spacer(Modifier.height(22.dp))
             if (!isPaired) {
                 NotPairedBody(
                     state = state,
@@ -459,10 +464,24 @@ private fun PairedBody(
     onSelectSession: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var filterKey by rememberSaveable { mutableStateOf(SessionFilter.All.name) }
-    val filter = remember(filterKey) { SessionFilter.valueOf(filterKey) }
-    val counts = remember(state.sessions) { sessionCounts(state.sessions) }
-    val visibleSessions = remember(state.sessions, filter) { filterSessions(state.sessions, filter) }
+    var workspaceKey by rememberSaveable { mutableStateOf(ALL_WORKSPACES_KEY) }
+    var expandedGroups by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val allWorkspacesLabel = stringResource(R.string.workspace_all)
+    val allWorkspacesSubtitle = stringResource(R.string.workspace_all_subtitle)
+    val workspaceTabs = remember(state.workspaces, state.sessions, allWorkspacesLabel, allWorkspacesSubtitle) {
+        workspaceTabs(
+            workspaces = state.workspaces,
+            sessions = state.sessions,
+            allLabel = allWorkspacesLabel,
+            allSubtitle = allWorkspacesSubtitle,
+        )
+    }
+    if (workspaceTabs.none { it.key == workspaceKey }) {
+        workspaceKey = ALL_WORKSPACES_KEY
+    }
+    val visibleSessions = remember(state.sessions, workspaceKey) {
+        state.sessions.filterByWorkspace(workspaceKey)
+    }
     val isConnected = state.status == ConnectionStatus.Connected ||
         state.status == ConnectionStatus.Reconnecting
     val unknownGroup = stringResource(R.string.workspace_unknown_group)
@@ -473,14 +492,15 @@ private fun PairedBody(
     }
 
     Column(modifier = modifier) {
-        ConnectionSummaryRow(
+        HomeStatusWorkspaceRow(
             state = state,
+            tabs = workspaceTabs,
+            selectedKey = workspaceKey,
+            onWorkspaceSelect = { workspaceKey = it },
             onConnect = onConnect,
             onDisconnect = onDisconnect,
             onForget = onForget,
         )
-        Spacer(Modifier.height(16.dp))
-        FilterChipsRow(filter, counts) { filterKey = it.name }
         Spacer(Modifier.height(12.dp))
         if (state.sessions.isEmpty()) {
             EmptySessionsForPaired(
@@ -508,7 +528,9 @@ private fun PairedBody(
                         item(key = "header-$group") {
                             WorkspaceHeader(name = group, count = sessions.size)
                         }
-                        items(sessions, key = { it.id }) { session ->
+                        val isExpanded = group in expandedGroups
+                        val visibleGroupSessions = if (isExpanded) sessions else sessions.take(5)
+                        items(visibleGroupSessions, key = { it.id }) { session ->
                             HomeSessionCard(
                                 session = session,
                                 selected = session.id == state.selectedSessionId,
@@ -516,12 +538,342 @@ private fun PairedBody(
                                 onClick = { onSelectSession(session.id) },
                             )
                         }
+                        if (sessions.size > 5) {
+                            item(key = "toggle-$group") {
+                                WorkspaceSessionToggle(
+                                    expanded = isExpanded,
+                                    hiddenCount = sessions.size - 5,
+                                    onClick = {
+                                        expandedGroups = if (isExpanded) {
+                                            expandedGroups - group
+                                        } else {
+                                            expandedGroups + group
+                                        }
+                                    },
+                                )
+                            }
+                        }
                         item(key = "spacer-$group") {
                             Spacer(Modifier.height(6.dp))
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeHero() {
+    Text(
+        text = stringResource(R.string.home_title),
+        fontSize = 38.sp,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.fillMaxWidth(),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun HomeStatusWorkspaceRow(
+    state: MobileGatewayUiState,
+    tabs: List<HomeWorkspaceTab>,
+    selectedKey: String,
+    onWorkspaceSelect: (String) -> Unit,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+    onForget: () -> Unit,
+) {
+    var connectionExpanded by rememberSaveable { mutableStateOf(false) }
+    var workspaceExpanded by rememberSaveable { mutableStateOf(false) }
+    val status = state.status
+    val isConnected = status == ConnectionStatus.Connected
+    val isReconnecting = status == ConnectionStatus.Reconnecting
+    val isConnecting = status == ConnectionStatus.Connecting
+    val selectedTab = tabs.firstOrNull { it.key == selectedKey } ?: tabs.firstOrNull()
+    val dotColor = when {
+        isConnected -> Color(0xFF1FBF75)
+        isReconnecting || isConnecting -> Color(0xFFFFB020)
+        status == ConnectionStatus.Error -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.outline
+    }
+    val connectionTitle = state.desktopName.ifBlank {
+        stringResource(R.string.connection_status_title)
+    }
+    val connectionSubtitle = when {
+        isConnected -> stringResource(R.string.status_connected)
+        isReconnecting -> stringResource(R.string.status_reconnecting_short)
+        isConnecting -> stringResource(R.string.status_connecting)
+        status == ConnectionStatus.Error -> state.errorMessage?.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.status_disconnected)
+        else -> stringResource(R.string.status_disconnected)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                onClick = { connectionExpanded = !connectionExpanded },
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp,
+                modifier = Modifier.weight(1.15f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(dotColor),
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = connectionTitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = connectionSubtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            Surface(
+                onClick = {
+                    workspaceExpanded = !workspaceExpanded
+                    connectionExpanded = false
+                },
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp,
+                modifier = Modifier.weight(0.85f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = (selectedTab?.label ?: stringResource(R.string.workspace_title)).take(1),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = selectedTab?.label ?: stringResource(R.string.workspace_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = if (workspaceExpanded) {
+                                stringResource(R.string.workspace_collapse)
+                            } else {
+                                stringResource(R.string.workspace_expand)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+        if (connectionExpanded) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (isConnected || isReconnecting) {
+                    TextButton(onClick = onDisconnect) {
+                        Text(stringResource(R.string.disconnect_button))
+                    }
+                } else {
+                    TextButton(onClick = onConnect) {
+                        Text(stringResource(R.string.connect_button))
+                    }
+                }
+                TextButton(onClick = onForget) {
+                    Text(stringResource(R.string.forget_button))
+                }
+            }
+        }
+        if (workspaceExpanded) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(end = 8.dp),
+            ) {
+                items(tabs, key = { it.key }) { tab ->
+                    WorkspacePill(
+                        tab = tab,
+                        selected = tab.key == selectedKey,
+                        onClick = {
+                            onWorkspaceSelect(tab.key)
+                            workspaceExpanded = false
+                            connectionExpanded = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceRail(
+    tabs: List<HomeWorkspaceTab>,
+    selectedKey: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val selectedTab = tabs.firstOrNull { it.key == selectedKey } ?: tabs.firstOrNull()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(
+            onClick = { expanded = !expanded },
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = (selectedTab?.label ?: stringResource(R.string.workspace_title)).take(1),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = selectedTab?.label ?: stringResource(R.string.workspace_title),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = selectedTab?.subtitle ?: stringResource(R.string.workspace_all_subtitle),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = if (expanded) {
+                        stringResource(R.string.workspace_collapse)
+                    } else {
+                        stringResource(R.string.workspace_expand)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        if (expanded) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(end = 8.dp),
+            ) {
+                items(tabs, key = { it.key }) { tab ->
+                    WorkspacePill(
+                        tab = tab,
+                        selected = tab.key == selectedKey,
+                        onClick = {
+                            onSelect(tab.key)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspacePill(
+    tab: HomeWorkspaceTab,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        tonalElevation = if (selected) 0.dp else 1.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(156.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = tab.label,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = tab.subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
+                } else {
+                    MaterialTheme.colorScheme.secondary
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.workspace_tab_sessions, tab.count),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+            )
         }
     }
 }
@@ -552,12 +904,33 @@ private fun WorkspaceHeader(name: String, count: Int) {
 }
 
 @Composable
+private fun WorkspaceSessionToggle(
+    expanded: Boolean,
+    hiddenCount: Int,
+    onClick: () -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = if (expanded) {
+                stringResource(R.string.workspace_sessions_collapse)
+            } else {
+                stringResource(R.string.workspace_sessions_expand, hiddenCount)
+            },
+        )
+    }
+}
+
+@Composable
 private fun ConnectionSummaryRow(
     state: MobileGatewayUiState,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onForget: () -> Unit,
 ) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val status = state.status
     val isConnected = status == ConnectionStatus.Connected
     val isReconnecting = status == ConnectionStatus.Reconnecting
@@ -568,43 +941,43 @@ private fun ConnectionSummaryRow(
         status == ConnectionStatus.Error -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.outline
     }
+    val title = if (state.desktopName.isNotBlank()) {
+        stringResource(R.string.paired_to, state.desktopName)
+    } else {
+        stringResource(R.string.connection_status_title)
+    }
+    val subtitle = when {
+        isConnected -> stringResource(R.string.status_connected)
+        isReconnecting -> stringResource(R.string.status_reconnecting_short)
+        isConnecting -> stringResource(R.string.status_connecting)
+        status == ConnectionStatus.Error -> stringResource(R.string.status_error, state.errorMessage.orEmpty())
+        else -> stringResource(R.string.status_disconnected)
+    }
     Surface(
+        onClick = { expanded = !expanded },
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(dotColor),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (state.desktopName.isNotBlank()) {
-                        stringResource(R.string.paired_to, state.desktopName)
-                    } else {
-                        stringResource(R.string.status_connected)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(dotColor),
                 )
-                val subtitle = when {
-                    isConnected -> stringResource(R.string.status_connected)
-                    isReconnecting -> stringResource(R.string.status_reconnecting_short)
-                    isConnecting -> stringResource(R.string.status_connecting)
-                    status == ConnectionStatus.Error ->
-                        stringResource(R.string.status_error, state.errorMessage.orEmpty())
-                    else -> stringResource(R.string.status_disconnected)
-                }
-                if (subtitle.isNotBlank()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
@@ -613,18 +986,36 @@ private fun ConnectionSummaryRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Text(
+                    text = if (expanded) {
+                        stringResource(R.string.connection_collapse)
+                    } else {
+                        stringResource(R.string.connection_expand)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
-            if (isConnected || isReconnecting) {
-                TextButton(onClick = onDisconnect) {
-                    Text(stringResource(R.string.disconnect_button))
+            if (expanded) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (isConnected || isReconnecting) {
+                        TextButton(onClick = onDisconnect) {
+                            Text(stringResource(R.string.disconnect_button))
+                        }
+                    } else {
+                        TextButton(onClick = onConnect) {
+                            Text(stringResource(R.string.connect_button))
+                        }
+                    }
+                    TextButton(onClick = onForget) {
+                        Text(stringResource(R.string.forget_button))
+                    }
                 }
-            } else {
-                TextButton(onClick = onConnect) {
-                    Text(stringResource(R.string.connect_button))
-                }
-            }
-            TextButton(onClick = onForget) {
-                Text(stringResource(R.string.forget_button))
             }
         }
     }
@@ -668,6 +1059,55 @@ private fun filterSessions(
     SessionFilter.Working -> sessions.filter { it.isResponding }
     SessionFilter.NeedsInput -> sessions.filter { it.isActive && !it.isResponding }
     SessionFilter.Completed -> sessions.filter { !it.isActive && !it.isResponding }
+}
+
+private fun List<GatewaySession>.filterByWorkspace(workspaceKey: String): List<GatewaySession> {
+    if (workspaceKey == ALL_WORKSPACES_KEY) return this
+    return filter { session -> session.workspaceName.trim() == workspaceKey }
+}
+
+private fun workspaceTabs(
+    workspaces: List<GatewayWorkspace>,
+    sessions: List<GatewaySession>,
+    allLabel: String,
+    allSubtitle: String,
+): List<HomeWorkspaceTab> {
+    val sessionCountsByWorkspace = sessions
+        .groupingBy { it.workspaceName.trim() }
+        .eachCount()
+    val tabs = mutableListOf(
+        HomeWorkspaceTab(
+            key = ALL_WORKSPACES_KEY,
+            label = allLabel,
+            subtitle = allSubtitle,
+            count = sessions.size,
+        )
+    )
+    workspaces.forEach { workspace ->
+        val label = workspace.name.ifBlank { workspace.path.substringAfterLast('/').ifBlank { workspace.path } }
+        if (label.isNotBlank() && tabs.none { it.key == label }) {
+            tabs += HomeWorkspaceTab(
+                key = label,
+                label = label,
+                subtitle = workspace.path,
+                count = sessionCountsByWorkspace[label] ?: workspace.sessionCount,
+            )
+        }
+    }
+    sessionCountsByWorkspace
+        .filterKeys { it.isNotBlank() }
+        .toSortedMap()
+        .forEach { (workspaceName, count) ->
+            if (tabs.none { it.key == workspaceName }) {
+                tabs += HomeWorkspaceTab(
+                    key = workspaceName,
+                    label = workspaceName,
+                    subtitle = workspaceName,
+                    count = count,
+                )
+            }
+        }
+    return tabs
 }
 
 private fun sessionCounts(sessions: List<GatewaySession>): Map<SessionFilter, Int> = mapOf(

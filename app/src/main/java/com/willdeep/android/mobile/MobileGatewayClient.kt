@@ -22,6 +22,7 @@ class MobileGatewayClient(
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
+        .pingInterval(5, TimeUnit.SECONDS)
         .build(),
 ) {
     private var webSocket: WebSocket? = null

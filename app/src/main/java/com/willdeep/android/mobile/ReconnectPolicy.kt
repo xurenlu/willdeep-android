@@ -2,6 +2,8 @@ package com.willdeep.android.mobile
 
 object ReconnectPolicy {
     const val MAX_ATTEMPTS = 6
+    const val HEARTBEAT_INTERVAL_MILLIS = 1_000L
+    const val HEARTBEAT_TIMEOUT_MILLIS = 5_000L
 
     fun delayMillisForAttempt(attempt: Int): Long {
         val clamped = attempt.coerceIn(1, MAX_ATTEMPTS)
@@ -13,6 +15,10 @@ object ReconnectPolicy {
             5 -> 20_000L
             else -> 30_000L
         }
+    }
+
+    fun isHeartbeatExpired(nowMillis: Long, lastEventMillis: Long): Boolean {
+        return nowMillis - lastEventMillis >= HEARTBEAT_TIMEOUT_MILLIS
     }
 
     fun shouldRetry(attempt: Int): Boolean {

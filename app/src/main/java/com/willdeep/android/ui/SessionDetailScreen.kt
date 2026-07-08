@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,11 +23,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +42,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,6 +52,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -130,13 +143,28 @@ fun SessionDetailScreen(
         },
         bottomBar = {
             MessageInputBar(
-                state = state,
+                state = scopedState,
                 isResponding = isResponding,
                 onMessageChange = viewModel::updateMessage,
                 onSend = viewModel::sendMessage,
                 onStop = viewModel::stopTurn,
                 onAddAttachment = viewModel::addAttachment,
                 onRemoveAttachment = viewModel::removeAttachment,
+                onApprovalModeChange = viewModel::updateApprovalMode,
+                onProviderSelected = viewModel::selectProvider,
+                onModelSelected = viewModel::selectModel,
+                onSkillToggle = viewModel::toggleSkill,
+                onExpertToggle = viewModel::toggleExpert,
+                onPluginToggle = viewModel::togglePlugin,
+                onToolDecision = viewModel::decideTool,
+                onToolAnswerChange = viewModel::updateToolAnswer,
+                onToolConfirmationChange = viewModel::updateToolConfirmation,
+                onPatchDiffRequest = viewModel::requestPatchDiff,
+                onPatchDecision = viewModel::decidePatch,
+                onSendQueuedNow = viewModel::sendQueuedNow,
+                onRemoveQueued = viewModel::removeQueuedMessage,
+                onClearQueue = viewModel::clearQueue,
+                onReadWorktreeFile = viewModel::requestWorktreeFileRead,
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -149,38 +177,8 @@ fun SessionDetailScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (scopedState.pendingTools.isNotEmpty() || scopedState.patchProposals.isNotEmpty()) {
-                item {
-                    ApprovalCard(
-                        state = scopedState,
-                        onToolDecision = viewModel::decideTool,
-                        onToolAnswerChange = viewModel::updateToolAnswer,
-                        onToolConfirmationChange = viewModel::updateToolConfirmation,
-                        onPatchDiffRequest = viewModel::requestPatchDiff,
-                        onPatchDecision = viewModel::decidePatch,
-                    )
-                }
-            }
             item {
                 ConversationCard(scopedState)
-            }
-            if (scopedState.queuedMessages.isNotEmpty()) {
-                item {
-                    QueueCard(
-                        state = scopedState,
-                        onSendNow = viewModel::sendQueuedNow,
-                        onRemove = viewModel::removeQueuedMessage,
-                        onClear = viewModel::clearQueue,
-                    )
-                }
-            }
-            if (scopedState.worktree != null) {
-                item {
-                    WorktreeCard(
-                        state = scopedState,
-                        onReadFile = viewModel::requestWorktreeFileRead,
-                    )
-                }
             }
         }
     }
@@ -195,6 +193,21 @@ private fun MessageInputBar(
     onStop: () -> Unit,
     onAddAttachment: (Uri) -> Unit,
     onRemoveAttachment: (Uri) -> Unit,
+    onApprovalModeChange: (ApprovalMode) -> Unit,
+    onProviderSelected: (String) -> Unit,
+    onModelSelected: (String) -> Unit,
+    onSkillToggle: (String) -> Unit,
+    onExpertToggle: (String) -> Unit,
+    onPluginToggle: (String) -> Unit,
+    onToolDecision: (com.willdeep.android.mobile.PendingToolApproval, Boolean) -> Unit,
+    onToolAnswerChange: (String, String) -> Unit,
+    onToolConfirmationChange: (String, String) -> Unit,
+    onPatchDiffRequest: (com.willdeep.android.mobile.PatchProposal) -> Unit,
+    onPatchDecision: (com.willdeep.android.mobile.PatchProposal, Boolean) -> Unit,
+    onSendQueuedNow: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
+    onRemoveQueued: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
+    onClearQueue: () -> Unit,
+    onReadWorktreeFile: (com.willdeep.android.mobile.GatewayWorktreeFile, String?) -> Unit,
 ) {
     val pickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 6)
@@ -207,15 +220,22 @@ private fun MessageInputBar(
         isResponding -> stringResource(R.string.composer_placeholder_queue)
         else -> stringResource(R.string.composer_placeholder)
     }
+    var activePicker by remember { mutableStateOf<CapabilityPickerKind?>(null) }
 
     Surface(
-        color = MaterialTheme.colorScheme.background,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
         modifier = Modifier
             .fillMaxWidth()
             .imePadding()
             .navigationBarsPadding(),
     ) {
-        Column {
+        Column(
+            modifier = Modifier
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             if (state.attachments.isNotEmpty()) {
                 Row(
@@ -285,10 +305,14 @@ private fun MessageInputBar(
                     }
                 }
             }
+            RunControlStrip(
+                state = state,
+                onOpenPicker = { activePicker = it },
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -302,7 +326,7 @@ private fun MessageInputBar(
                     modifier = Modifier.size(40.dp),
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_image),
+                        painter = painterResource(R.drawable.ic_add),
                         contentDescription = stringResource(R.string.composer_add_image),
                         tint = if (isConnected) {
                             MaterialTheme.colorScheme.onSurfaceVariant
@@ -318,7 +342,7 @@ private fun MessageInputBar(
                 ) {
                     Box(
                         modifier = Modifier
-                            .heightIn(min = 44.dp, max = 200.dp)
+                            .heightIn(min = 112.dp, max = 180.dp)
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
@@ -339,7 +363,7 @@ private fun MessageInputBar(
                             ),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                            maxLines = 8,
+                            maxLines = 5,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -368,6 +392,423 @@ private fun MessageInputBar(
                     )
                 }
             }
+            ComposerReviewDock(
+                state = state,
+                onToolDecision = onToolDecision,
+                onToolAnswerChange = onToolAnswerChange,
+                onToolConfirmationChange = onToolConfirmationChange,
+                onPatchDiffRequest = onPatchDiffRequest,
+                onPatchDecision = onPatchDecision,
+                onSendQueuedNow = onSendQueuedNow,
+                onRemoveQueued = onRemoveQueued,
+                onClearQueue = onClearQueue,
+                onReadWorktreeFile = onReadWorktreeFile,
+            )
         }
     }
+    CapabilityPickerSheet(
+        kind = activePicker,
+        state = state,
+        onDismiss = { activePicker = null },
+        onApprovalModeChange = onApprovalModeChange,
+        onProviderSelected = onProviderSelected,
+        onModelSelected = onModelSelected,
+        onSkillToggle = onSkillToggle,
+        onExpertToggle = onExpertToggle,
+        onPluginToggle = onPluginToggle,
+    )
+}
+
+private enum class CapabilityPickerKind {
+    Approval,
+    Provider,
+    Model,
+    Skills,
+    Experts,
+    Plugins,
+}
+
+@Composable
+private fun RunControlStrip(
+    state: MobileGatewayUiState,
+    onOpenPicker: (CapabilityPickerKind) -> Unit,
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        item {
+            ControlIconButton(
+                iconRes = R.drawable.ic_approval,
+                contentDescription = stringResource(state.approvalMode.labelRes()),
+                active = true,
+                onClick = { onOpenPicker(CapabilityPickerKind.Approval) },
+            )
+        }
+        item {
+            ControlIconButton(
+                iconRes = R.drawable.ic_provider,
+                contentDescription = stringResource(R.string.composer_provider_title),
+                active = state.selectedProviderId.isNotBlank(),
+                onClick = { onOpenPicker(CapabilityPickerKind.Provider) },
+            )
+        }
+        item {
+            ControlIconButton(
+                iconRes = R.drawable.ic_model,
+                contentDescription = stringResource(R.string.composer_model_title),
+                active = state.selectedModelId.isNotBlank(),
+                onClick = { onOpenPicker(CapabilityPickerKind.Model) },
+            )
+        }
+        item {
+            ControlIconButton(
+                iconRes = R.drawable.ic_skill,
+                contentDescription = stringResource(R.string.composer_skills_title),
+                active = state.selectedSkillIds.isNotEmpty(),
+                badgeText = state.selectedSkillIds.countBadge(),
+                onClick = { onOpenPicker(CapabilityPickerKind.Skills) },
+            )
+        }
+        item {
+            ControlIconButton(
+                iconRes = R.drawable.ic_expert,
+                contentDescription = stringResource(R.string.composer_expert_title),
+                active = state.selectedExpertIds.isNotEmpty(),
+                badgeText = state.selectedExpertIds.countBadge(),
+                onClick = { onOpenPicker(CapabilityPickerKind.Experts) },
+            )
+        }
+        item {
+            ControlIconButton(
+                iconRes = R.drawable.ic_plugin,
+                contentDescription = stringResource(R.string.composer_plugins_title),
+                active = state.selectedPluginIds.isNotEmpty(),
+                badgeText = state.selectedPluginIds.countBadge(),
+                onClick = { onOpenPicker(CapabilityPickerKind.Plugins) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ControlIconButton(
+    iconRes: Int,
+    contentDescription: String,
+    active: Boolean,
+    badgeText: String? = null,
+    onClick: () -> Unit,
+) {
+    Box(modifier = Modifier.size(40.dp)) {
+        Surface(
+            onClick = onClick,
+            shape = CircleShape,
+            color = if (active) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+            },
+            modifier = Modifier
+                .size(38.dp)
+                .align(Alignment.Center),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = contentDescription,
+                    tint = if (active) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        if (active) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .align(Alignment.BottomEnd)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
+        badgeText?.let { text ->
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.align(Alignment.TopEnd),
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CapabilityPickerSheet(
+    kind: CapabilityPickerKind?,
+    state: MobileGatewayUiState,
+    onDismiss: () -> Unit,
+    onApprovalModeChange: (ApprovalMode) -> Unit,
+    onProviderSelected: (String) -> Unit,
+    onModelSelected: (String) -> Unit,
+    onSkillToggle: (String) -> Unit,
+    onExpertToggle: (String) -> Unit,
+    onPluginToggle: (String) -> Unit,
+) {
+    if (kind == null) return
+    val approvalOptions = ApprovalMode.entries.map { mode ->
+        MobileCapabilityOption(id = mode.name, title = stringResource(mode.labelRes()))
+    }
+    val title = when (kind) {
+        CapabilityPickerKind.Approval -> stringResource(R.string.composer_controls_title)
+        CapabilityPickerKind.Provider -> stringResource(R.string.composer_provider_title)
+        CapabilityPickerKind.Model -> stringResource(R.string.composer_model_title)
+        CapabilityPickerKind.Skills -> stringResource(R.string.composer_skills_title)
+        CapabilityPickerKind.Experts -> stringResource(R.string.composer_expert_title)
+        CapabilityPickerKind.Plugins -> stringResource(R.string.composer_plugins_title)
+    }
+    val options = when (kind) {
+        CapabilityPickerKind.Approval -> approvalOptions
+        CapabilityPickerKind.Provider -> state.providerOptions
+        CapabilityPickerKind.Model -> state.modelOptions
+        CapabilityPickerKind.Skills -> state.skillOptions
+        CapabilityPickerKind.Experts -> state.expertOptions
+        CapabilityPickerKind.Plugins -> state.pluginOptions
+    }
+    val selectedIds = when (kind) {
+        CapabilityPickerKind.Approval -> setOf(state.approvalMode.name)
+        CapabilityPickerKind.Provider -> setOf(state.selectedProviderId)
+        CapabilityPickerKind.Model -> setOf(state.selectedModelId)
+        CapabilityPickerKind.Skills -> state.selectedSkillIds
+        CapabilityPickerKind.Experts -> state.selectedExpertIds
+        CapabilityPickerKind.Plugins -> state.selectedPluginIds
+    }
+    val multiSelect = kind == CapabilityPickerKind.Skills ||
+        kind == CapabilityPickerKind.Experts ||
+        kind == CapabilityPickerKind.Plugins
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        tonalElevation = 6.dp,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.done_button))
+                }
+            }
+            if (options.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.composer_capability_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 6.dp),
+                    modifier = Modifier.heightIn(max = 430.dp),
+                ) {
+                    items(options, key = { it.id }) { option ->
+                        CapabilityOptionRow(
+                            option = option,
+                            selected = option.id in selectedIds,
+                            multiSelect = multiSelect,
+                            onClick = {
+                                when (kind) {
+                                    CapabilityPickerKind.Approval -> {
+                                        ApprovalMode.entries.firstOrNull { it.name == option.id }
+                                            ?.let(onApprovalModeChange)
+                                        onDismiss()
+                                    }
+                                    CapabilityPickerKind.Provider -> {
+                                        onProviderSelected(option.id)
+                                        onDismiss()
+                                    }
+                                    CapabilityPickerKind.Model -> {
+                                        onModelSelected(option.id)
+                                        onDismiss()
+                                    }
+                                    CapabilityPickerKind.Skills -> onSkillToggle(option.id)
+                                    CapabilityPickerKind.Experts -> onExpertToggle(option.id)
+                                    CapabilityPickerKind.Plugins -> onPluginToggle(option.id)
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapabilityOptionRow(
+    option: MobileCapabilityOption,
+    selected: Boolean,
+    multiSelect: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = option.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                option.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.76f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (multiSelect) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = null,
+                )
+            } else {
+                RadioButton(
+                    selected = selected,
+                    onClick = null,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComposerReviewDock(
+    state: MobileGatewayUiState,
+    onToolDecision: (com.willdeep.android.mobile.PendingToolApproval, Boolean) -> Unit,
+    onToolAnswerChange: (String, String) -> Unit,
+    onToolConfirmationChange: (String, String) -> Unit,
+    onPatchDiffRequest: (com.willdeep.android.mobile.PatchProposal) -> Unit,
+    onPatchDecision: (com.willdeep.android.mobile.PatchProposal, Boolean) -> Unit,
+    onSendQueuedNow: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
+    onRemoveQueued: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
+    onClearQueue: () -> Unit,
+    onReadWorktreeFile: (com.willdeep.android.mobile.GatewayWorktreeFile, String?) -> Unit,
+) {
+    val hasApprovals = state.pendingTools.isNotEmpty() || state.patchProposals.isNotEmpty()
+    val hasQueue = state.queuedMessages.isNotEmpty()
+    val hasWorktree = state.worktree != null
+    if (!hasApprovals && !hasQueue && !hasWorktree) {
+        return
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.composer_review_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.secondary,
+        )
+        if (hasApprovals) {
+            ApprovalCard(
+                state = state,
+                onToolDecision = onToolDecision,
+                onToolAnswerChange = onToolAnswerChange,
+                onToolConfirmationChange = onToolConfirmationChange,
+                onPatchDiffRequest = onPatchDiffRequest,
+                onPatchDecision = onPatchDecision,
+            )
+        }
+        if (hasQueue) {
+            QueueCard(
+                state = state,
+                onSendNow = onSendQueuedNow,
+                onRemove = onRemoveQueued,
+                onClear = onClearQueue,
+            )
+        }
+        if (hasWorktree) {
+            WorktreeCard(
+                state = state,
+                onReadFile = onReadWorktreeFile,
+            )
+        }
+    }
+}
+
+private fun ApprovalMode.labelRes(): Int = when (this) {
+    ApprovalMode.AskEveryTime -> R.string.approval_mode_ask_every_time
+    ApprovalMode.SmartApproval -> R.string.approval_mode_smart
+    ApprovalMode.WorkspaceWritable -> R.string.approval_mode_workspace_writable
+}
+
+private fun Set<String>.countBadge(): String? {
+    return size.takeIf { it > 0 }?.coerceAtMost(9)?.toString()
 }
