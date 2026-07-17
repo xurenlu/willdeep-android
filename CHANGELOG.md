@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0-rc3] - 2026-07-18
+
+### Fixed
+
+- Added the required Compose experimental layout opt-in so the production Release variant compiles successfully under the stricter release compiler settings.
+- Bumped Android client version to `1.24.0-rc3` (`versionCode = 110`).
+
 ## [1.24.0-rc2] - 2026-07-18
 
 ### Fixed

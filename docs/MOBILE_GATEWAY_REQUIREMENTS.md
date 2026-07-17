@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-07-18 | Android version: v1.24.0-rc2 | Protocol: mobile-gateway.v1
+> Last updated: 2026-07-18 | Android version: v1.24.0-rc3 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -295,4 +295,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - `ruby scripts/mobile_gateway_live_acceptance.rb` runs the same final acceptance gate with strict defaults and writes a concise wrapper report for the live device handoff.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.24.0-rc2` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.24.0-rc3` is visible in Gradle metadata and sent through gateway request headers.
