@@ -193,6 +193,7 @@
     <string name="workspace_title">Workspace</string>
     <string name="workspace_all">All</string>
     <string name="workspace_all_subtitle">Every active workspace</string>
+    <string name="workspace_no_workspace">No workspace</string>
     <string name="workspace_tab_sessions">%1$d sessions</string>
     <string name="workspace_expand">Switch</string>
     <string name="workspace_collapse">Hide</string>

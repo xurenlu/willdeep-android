@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.24.0-rc2] - 2026-07-18
+
+### Fixed
+
+- Restored workspace-grouped home sessions, showing only the three newest gateway-ordered sessions per workspace until that group is expanded.
+- Restored the compact workspace switcher and removed the oversized home “Code” heading so remote Mac status starts the content hierarchy.
+- Bumped Android client version to `1.24.0-rc2` (`versionCode = 109`).
+
 ## [1.24.0-rc1] - 2026-07-18
 
 ### Added

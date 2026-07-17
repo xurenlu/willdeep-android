@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-07-18 | Current version: v1.24.0-rc1
+> Last updated: 2026-07-18 | Current version: v1.24.0-rc2
 
 ## Project Summary
 
@@ -22,8 +22,9 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Connect to the Mac gateway over WebSocket.
 - Retry Mac gateway health checks, pairing claims, and WebSocket connections against saved fallback endpoints when the LAN endpoint is unreachable.
 - Put the selected remote Mac at the top of the home hierarchy, with a bottom-sheet computer picker, per-device last-response information, and scan/remove controls.
-- Browse sessions through All, Working, Needs Confirmation, and Completed filters while retaining each session's workspace name in its metadata.
-- Keep the mobile app portrait-only and use a compact home title without the previous subtitle or session-count badge.
+- Browse sessions through All, Working, Needs Confirmation, and Completed filters, grouped by workspace with the newest three sessions shown by default and per-workspace expansion for older sessions.
+- Switch between all sessions and a single workspace from the compact workspace control above the filters.
+- Keep the mobile app portrait-only and lead the home hierarchy with remote Mac status instead of a decorative page title.
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
 - Use the redesigned mobile composer icon toolbar, plus-style attachment entry, top-aligned multi-line input, Mac-aligned send/stop action button, and bottom-sheet pickers to choose approval mode, Mac-reported provider, model, skills, experts, and plugins before sending a request without crowding the text input.
 - Render pending tool and patch confirmations directly inside their owning home-session card as well as in the session composer, while leaving changed-file details on the desktop.

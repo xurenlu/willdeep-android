@@ -1,14 +1,20 @@
 package com.willdeep.android
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
@@ -22,6 +28,7 @@ import com.willdeep.android.ui.MobileCommandState
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.MobileGatewayUiState
 import com.willdeep.android.ui.RemoteMacSummary
+import com.willdeep.android.ui.WORKSPACE_SWITCHER_TEST_TAG
 import com.willdeep.android.ui.WillDeepApp
 import com.willdeep.android.ui.agentActivitySignalAfter
 import com.willdeep.android.ui.codeActivitySignalAfter
@@ -29,17 +36,21 @@ import com.willdeep.android.ui.hasAgentActivityAfter
 import com.willdeep.android.ui.hasCodeActivityAfter
 import com.willdeep.android.ui.hasTargetFileActivityAfter
 import com.willdeep.android.ui.targetFileActivitySignalAfter
+import com.willdeep.android.ui.workspacePillTestTag
 import com.willdeep.android.ui.theme.WillDeepTheme
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.Assume.assumeTrue
 import org.junit.runner.RunWith
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.ServerSocket
 import java.net.Socket
@@ -251,6 +262,77 @@ class MobileGatewayComposeInstrumentedTest {
     }
 
     @Test
+    fun workspaceGroupsShowThreeSessionsUntilExpanded() {
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val alphaSessions = listOf("Alpha 5", "Alpha 4", "Alpha 3", "Alpha 2", "Alpha 1").map { title ->
+            gatewaySession(id = title.lowercase().replace(' ', '-'), title = title, workspace = "alpha")
+        }
+        val betaSessions = listOf("Beta 2", "Beta 1").map { title ->
+            gatewaySession(id = title.lowercase().replace(' ', '-'), title = title, workspace = "beta")
+        }
+        val state = MobileGatewayUiState(
+            desktopName = "Primary MacBook Pro",
+            isPaired = true,
+            pairedMacs = listOf(
+                RemoteMacSummary(id = "macbook", name = "Primary MacBook Pro", isSelected = true),
+            ),
+            selectedMacId = "macbook",
+            isTransportConnected = true,
+            desktopResponseAgeMillis = 1_000,
+            status = ConnectionStatus.Connected,
+            sessions = alphaSessions + betaSessions,
+            selectedSessionId = alphaSessions.first().id,
+        )
+
+        composeRule.setContent {
+            WillDeepTheme {
+                HomeScreen(
+                    state = state,
+                    versionName = "1.24.0-rc2",
+                    onScanClick = {},
+                    onCreateSession = {},
+                    onSelectSession = {},
+                    onConnect = {},
+                    onDisconnect = {},
+                    onForget = {},
+                    onRemoteMacSelected = {},
+                    onToolDecision = { _, _ -> },
+                    onToolAnswerChange = { _, _ -> },
+                    onToolConfirmationChange = { _, _ -> },
+                    onPatchDecision = { _, _ -> },
+                    onWorkspacePickerDismiss = {},
+                    onWorkspacePickerRetry = {},
+                    onWorkspaceSelected = {},
+                )
+            }
+        }
+
+        assertTrue(
+            composeRule.onAllNodesWithText(targetContext.getString(R.string.home_title))
+                .fetchSemanticsNodes()
+                .isEmpty()
+        )
+        composeRule.onNodeWithText("Alpha 5").assertIsDisplayed()
+        composeRule.onNodeWithText("Alpha 3").assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithText("Alpha 2").fetchSemanticsNodes().isEmpty())
+        saveRootScreenshot(targetContext, "workspace-grouped-home.png")
+
+        composeRule.onNodeWithText(
+            targetContext.getString(R.string.workspace_sessions_expand, 2)
+        ).performScrollTo().performClick()
+        composeRule.onNodeWithText("Alpha 1")
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule.onNodeWithTag(WORKSPACE_SWITCHER_TEST_TAG).performClick()
+        composeRule.onNodeWithTag(workspacePillTestTag("beta")).performClick()
+        assertTrue(composeRule.onAllNodesWithText("Alpha 5").fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithText("Beta 2")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
     fun liveMacGatewayPairingPayloadConnectsAndDisplaysConnectedState() {
         val arguments = InstrumentationRegistry.getArguments()
         val payload = arguments.getString("mobileGatewayPairingPayload").orEmpty()
@@ -396,6 +478,29 @@ class MobileGatewayComposeInstrumentedTest {
             Bundle().apply { putString(key, value) },
         )
         Log.i(LIVE_SMOKE_LOG_TAG, "$key=$value")
+    }
+
+    private fun saveRootScreenshot(context: android.content.Context, name: String) {
+        val directory = requireNotNull(context.getExternalFilesDir(null))
+        val screenshot = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        FileOutputStream(File(directory, name)).use { output ->
+            screenshot.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+    }
+
+    private fun gatewaySession(
+        id: String,
+        title: String,
+        workspace: String,
+    ): com.willdeep.android.mobile.GatewaySession {
+        return com.willdeep.android.mobile.GatewaySession(
+            id = id,
+            title = title,
+            workspaceName = workspace,
+            messageCount = 1,
+            isActive = false,
+            isResponding = false,
+        )
     }
 
     private fun String?.toBooleanFlag(): Boolean {

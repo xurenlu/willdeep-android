@@ -51,12 +51,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorkspace
@@ -65,7 +65,12 @@ import com.willdeep.android.mobile.PendingToolApproval
 
 private enum class SessionFilter { All, Working, NeedsInput, Completed }
 
-private const val ALL_WORKSPACES_KEY = "__all_workspaces__"
+internal const val ALL_WORKSPACES_KEY = "__all_workspaces__"
+internal const val NO_WORKSPACE_KEY = "__no_workspace__"
+internal const val WORKSPACE_SESSION_PREVIEW_LIMIT = 3
+internal const val WORKSPACE_SWITCHER_TEST_TAG = "workspace-switcher"
+
+internal fun workspacePillTestTag(key: String): String = "workspace-pill-$key"
 
 private data class HomeWorkspaceTab(
     val key: String,
@@ -73,6 +78,16 @@ private data class HomeWorkspaceTab(
     val subtitle: String,
     val count: Int,
 )
+
+internal data class HomeWorkspaceSessionGroup(
+    val key: String,
+    val label: String,
+    val sessions: List<GatewaySession>,
+) {
+    fun visibleSessions(expanded: Boolean): List<GatewaySession> {
+        return if (expanded) sessions else sessions.take(WORKSPACE_SESSION_PREVIEW_LIMIT)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,9 +152,7 @@ fun HomeScreen(
                 .padding(padding)
                 .padding(horizontal = 20.dp),
         ) {
-            Spacer(Modifier.height(4.dp))
-            HomeHero()
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(6.dp))
             if (!isPaired) {
                 NotPairedBody(
                     state = state,
@@ -483,13 +496,42 @@ private fun PairedBody(
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by rememberSaveable { mutableStateOf(SessionFilter.All) }
+    var selectedWorkspaceKey by rememberSaveable { mutableStateOf(ALL_WORKSPACES_KEY) }
+    var expandedWorkspaceKeys by remember { mutableStateOf(emptySet<String>()) }
     var remoteMacPickerVisible by rememberSaveable { mutableStateOf(false) }
+    val allWorkspacesLabel = stringResource(R.string.workspace_all)
+    val allWorkspacesSubtitle = stringResource(R.string.workspace_all_subtitle)
+    val noWorkspaceLabel = stringResource(R.string.workspace_no_workspace)
     val attentionSessionIds = remember(state.pendingTools, state.patchProposals) {
         (state.pendingTools.mapNotNull { it.sessionId } +
             state.patchProposals.mapNotNull { it.sessionId }).toSet()
     }
-    val visibleSessions = remember(state.sessions, selectedFilter, attentionSessionIds) {
+    val workspaceTabs = remember(
+        state.workspaces,
+        state.sessions,
+        allWorkspacesLabel,
+        allWorkspacesSubtitle,
+        noWorkspaceLabel,
+    ) {
+        workspaceTabs(
+            workspaces = state.workspaces,
+            sessions = state.sessions,
+            allLabel = allWorkspacesLabel,
+            allSubtitle = allWorkspacesSubtitle,
+            noWorkspaceLabel = noWorkspaceLabel,
+        )
+    }
+    val effectiveWorkspaceKey = selectedWorkspaceKey.takeIf { selected ->
+        workspaceTabs.any { it.key == selected }
+    } ?: ALL_WORKSPACES_KEY
+    val statusFilteredSessions = remember(state.sessions, selectedFilter, attentionSessionIds) {
         state.sessions.filterByStatus(selectedFilter, attentionSessionIds)
+    }
+    val visibleSessions = remember(statusFilteredSessions, effectiveWorkspaceKey) {
+        statusFilteredSessions.filterByWorkspace(effectiveWorkspaceKey)
+    }
+    val workspaceGroups = remember(visibleSessions, noWorkspaceLabel) {
+        groupSessionsByWorkspace(visibleSessions, noWorkspaceLabel)
     }
     val counts = remember(state.sessions, attentionSessionIds) {
         sessionCounts(state.sessions, attentionSessionIds)
@@ -508,7 +550,16 @@ private fun PairedBody(
             Spacer(Modifier.height(8.dp))
             MacReconnectNotice(state = state)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
+        WorkspaceRail(
+            tabs = workspaceTabs,
+            selectedKey = effectiveWorkspaceKey,
+            onSelect = { workspaceKey ->
+                selectedWorkspaceKey = workspaceKey
+                expandedWorkspaceKeys = emptySet()
+            },
+        )
+        Spacer(Modifier.height(8.dp))
         FilterChipsRow(
             selected = selectedFilter,
             counts = counts,
@@ -527,14 +578,6 @@ private fun PairedBody(
                 contentPadding = PaddingValues(bottom = 96.dp),
                 modifier = Modifier.weight(1f),
             ) {
-                item(key = "today-header") {
-                    Text(
-                        text = stringResource(R.string.home_today),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
-                    )
-                }
                 if (visibleSessions.isEmpty()) {
                     item(key = "empty-filter") {
                         Text(
@@ -545,22 +588,46 @@ private fun PairedBody(
                         )
                     }
                 } else {
-                    items(visibleSessions, key = { it.id }) { session ->
-                        val sessionState = state.copy(
-                            pendingTools = state.pendingTools.filter { it.sessionId == session.id },
-                            patchProposals = state.patchProposals.filter { it.sessionId == session.id },
-                        )
-                        HomeSessionCard(
-                            session = session,
-                            selected = session.id == state.selectedSessionId,
-                            isConnected = isConnected,
-                            reviewState = sessionState,
-                            onToolDecision = onToolDecision,
-                            onToolAnswerChange = onToolAnswerChange,
-                            onToolConfirmationChange = onToolConfirmationChange,
-                            onPatchDecision = onPatchDecision,
-                            onClick = { onSelectSession(session.id) },
-                        )
+                    workspaceGroups.forEach { group ->
+                        val expanded = group.key in expandedWorkspaceKeys
+                        item(key = "workspace-header-${group.key}") {
+                            WorkspaceHeader(name = group.label, count = group.sessions.size)
+                        }
+                        items(
+                            items = group.visibleSessions(expanded),
+                            key = { session -> "${group.key}:${session.id}" },
+                        ) { session ->
+                            val sessionState = state.copy(
+                                pendingTools = state.pendingTools.filter { it.sessionId == session.id },
+                                patchProposals = state.patchProposals.filter { it.sessionId == session.id },
+                            )
+                            HomeSessionCard(
+                                session = session,
+                                selected = session.id == state.selectedSessionId,
+                                isConnected = isConnected,
+                                reviewState = sessionState,
+                                onToolDecision = onToolDecision,
+                                onToolAnswerChange = onToolAnswerChange,
+                                onToolConfirmationChange = onToolConfirmationChange,
+                                onPatchDecision = onPatchDecision,
+                                onClick = { onSelectSession(session.id) },
+                            )
+                        }
+                        if (group.sessions.size > WORKSPACE_SESSION_PREVIEW_LIMIT) {
+                            item(key = "workspace-toggle-${group.key}") {
+                                WorkspaceSessionToggle(
+                                    expanded = expanded,
+                                    hiddenCount = group.sessions.size - WORKSPACE_SESSION_PREVIEW_LIMIT,
+                                    onClick = {
+                                        expandedWorkspaceKeys = if (expanded) {
+                                            expandedWorkspaceKeys - group.key
+                                        } else {
+                                            expandedWorkspaceKeys + group.key
+                                        }
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -593,19 +660,6 @@ private fun PairedBody(
             },
         )
     }
-}
-
-@Composable
-private fun HomeHero() {
-    Text(
-        text = stringResource(R.string.home_title),
-        fontSize = 38.sp,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.fillMaxWidth(),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
 }
 
 @Composable
@@ -1037,52 +1091,36 @@ private fun WorkspaceRail(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Surface(
             onClick = { expanded = !expanded },
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            modifier = Modifier.testTag(WORKSPACE_SWITCHER_TEST_TAG),
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(22.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = (selectedTab?.label ?: stringResource(R.string.workspace_title)).take(1),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = selectedTab?.label ?: stringResource(R.string.workspace_title),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = selectedTab?.subtitle ?: stringResource(R.string.workspace_all_subtitle),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
                 Text(
-                    text = if (expanded) {
-                        stringResource(R.string.workspace_collapse)
-                    } else {
-                        stringResource(R.string.workspace_expand)
-                    },
+                    text = stringResource(R.string.workspace_title),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+                Text(
+                    text = selectedTab?.label ?: stringResource(R.string.workspace_all),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "·",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                Text(
+                    text = stringResource(
+                        if (expanded) R.string.workspace_collapse else R.string.workspace_expand
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -1116,37 +1154,26 @@ private fun WorkspacePill(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(14.dp),
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         tonalElevation = if (selected) 0.dp else 1.dp,
+        modifier = Modifier.testTag(workspacePillTestTag(tab.key)),
     ) {
-        Column(
-            modifier = Modifier
-                .width(156.dp)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 text = tab.label,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = tab.subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
-                } else {
-                    MaterialTheme.colorScheme.secondary
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(R.string.workspace_tab_sessions, tab.count),
+                text = tab.count.toString(),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (selected) {
                     MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
@@ -1343,7 +1370,7 @@ private fun List<GatewaySession>.filterByStatus(
 
 private fun List<GatewaySession>.filterByWorkspace(workspaceKey: String): List<GatewaySession> {
     if (workspaceKey == ALL_WORKSPACES_KEY) return this
-    return filter { session -> session.workspaceName.trim() == workspaceKey }
+    return filter { session -> session.workspaceKey() == workspaceKey }
 }
 
 private fun workspaceTabs(
@@ -1351,9 +1378,10 @@ private fun workspaceTabs(
     sessions: List<GatewaySession>,
     allLabel: String,
     allSubtitle: String,
+    noWorkspaceLabel: String,
 ): List<HomeWorkspaceTab> {
     val sessionCountsByWorkspace = sessions
-        .groupingBy { it.workspaceName.trim() }
+        .groupingBy(GatewaySession::workspaceKey)
         .eachCount()
     val tabs = mutableListOf(
         HomeWorkspaceTab(
@@ -1375,7 +1403,7 @@ private fun workspaceTabs(
         }
     }
     sessionCountsByWorkspace
-        .filterKeys { it.isNotBlank() }
+        .filterKeys { it != NO_WORKSPACE_KEY }
         .toSortedMap()
         .forEach { (workspaceName, count) ->
             if (tabs.none { it.key == workspaceName }) {
@@ -1387,7 +1415,39 @@ private fun workspaceTabs(
                 )
             }
         }
+    sessionCountsByWorkspace[NO_WORKSPACE_KEY]
+        ?.takeIf { count -> count > 0 }
+        ?.let { count ->
+            tabs += HomeWorkspaceTab(
+                key = NO_WORKSPACE_KEY,
+                label = noWorkspaceLabel,
+                subtitle = noWorkspaceLabel,
+                count = count,
+            )
+        }
     return tabs
+}
+
+internal fun groupSessionsByWorkspace(
+    sessions: List<GatewaySession>,
+    noWorkspaceLabel: String,
+): List<HomeWorkspaceSessionGroup> {
+    val groups = linkedMapOf<String, MutableList<GatewaySession>>()
+    sessions.forEach { session ->
+        groups.getOrPut(session.workspaceKey()) { mutableListOf() } += session
+    }
+    return groups.map { (key, groupedSessions) ->
+        HomeWorkspaceSessionGroup(
+            key = key,
+            label = if (key == NO_WORKSPACE_KEY) noWorkspaceLabel else key,
+            // The gateway session list is already ordered newest-first; keep that order here.
+            sessions = groupedSessions,
+        )
+    }
+}
+
+private fun GatewaySession.workspaceKey(): String {
+    return workspaceName.trim().ifBlank { NO_WORKSPACE_KEY }
 }
 
 private fun sessionCounts(

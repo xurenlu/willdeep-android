@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-07-18 | Android version: v1.24.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-07-18 | Android version: v1.24.0-rc2 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -117,6 +117,11 @@ Implemented in v1.24.0-rc1:
 - Home session filters whose Needs Confirmation count is derived from session-scoped pending tool and patch items.
 - Pending tool and patch controls embedded in their owning session card, with the existing typed-answer and danger-confirmation safety gates preserved.
 - One fixed light WillDeep visual theme matching the approved ivory, burnt-orange, green, and amber design direction.
+
+Adjusted in v1.24.0-rc2:
+
+- Restored workspace-grouped session browsing with the gateway's newest-first order preserved, three sessions visible per workspace by default, and independent expand/collapse controls.
+- Restored the compact workspace switcher above session filters and removed the decorative home title.
 
 Planned next:
 
@@ -290,4 +295,4 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 - `ruby scripts/mobile_gateway_live_acceptance.rb` runs the same final acceptance gate with strict defaults and writes a concise wrapper report for the live device handoff.
 - `./gradlew :app:testDebugUnitTest --tests com.willdeep.android.mobile.MobileGatewayClientIntegrationTest` verifies the real Android gateway client against a JVM local mock gateway.
 - `./gradlew :app:assembleDebugAndroidTest` verifies the instrumented Compose pairing, WebSocket snapshot, message streaming, tool approval, and patch approval smoke test compiles for device execution.
-- Version `1.24.0-rc1` is visible in Gradle metadata and sent through gateway request headers.
+- Version `1.24.0-rc2` is visible in Gradle metadata and sent through gateway request headers.
