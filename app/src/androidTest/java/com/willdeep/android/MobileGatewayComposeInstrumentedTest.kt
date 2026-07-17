@@ -4,8 +4,10 @@ import android.app.Application
 import android.os.Bundle
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -15,8 +17,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.willdeep.android.mobile.DeviceTokenStore
 import com.willdeep.android.ui.AgentActivityBaseline
 import com.willdeep.android.ui.ConnectionStatus
+import com.willdeep.android.ui.HomeScreen
 import com.willdeep.android.ui.MobileCommandState
 import com.willdeep.android.ui.MobileGatewayViewModel
+import com.willdeep.android.ui.MobileGatewayUiState
+import com.willdeep.android.ui.RemoteMacSummary
 import com.willdeep.android.ui.WillDeepApp
 import com.willdeep.android.ui.agentActivitySignalAfter
 import com.willdeep.android.ui.codeActivitySignalAfter
@@ -40,6 +45,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -56,7 +62,7 @@ class MobileGatewayComposeInstrumentedTest {
     private val appContext: Application
         get() = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
 
-    private lateinit var gateway: InstrumentedGatewayMock
+    private var gateway: InstrumentedGatewayMock? = null
 
     @Before
     fun setUp() {
@@ -66,100 +72,81 @@ class MobileGatewayComposeInstrumentedTest {
 
     @After
     fun tearDown() {
-        gateway.close()
+        gateway?.close()
+        gateway = null
         DeviceTokenStore(appContext).clear()
     }
 
     @Test
     fun pairingFlowConnectsWebSocketAndDisplaysSnapshot() {
+        val gateway = requireNotNull(gateway)
         val viewModel = MobileGatewayViewModel(appContext)
-        composeRule.setContent {
-            WillDeepTheme {
-                WillDeepApp(viewModel)
-            }
-        }
-
         val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
         val payload = JSONObject()
             .put("base_url", gateway.baseUrl)
             .put("pairing_token", gateway.pairingToken)
             .put("protocol_version", "mobile-gateway.v1")
             .put("desktop_name", gateway.desktopName)
-            .put("expires_at", "2026-06-14T12:02:00Z")
+            .put("expires_at", Instant.now().plusSeconds(120).toString())
             .toString()
 
-        composeRule.onNodeWithText(targetContext.getString(R.string.screen_title))
-            .assertIsDisplayed()
-        composeRule.onNodeWithText(targetContext.getString(R.string.pairing_payload_label))
-            .performTextReplacement(payload)
-        composeRule.onNodeWithText(targetContext.getString(R.string.device_name_label))
-            .performTextReplacement("Pixel Instrumented")
-
-        composeRule.onNodeWithText(targetContext.getString(R.string.check_gateway_button))
-            .performScrollTo()
-            .performClick()
+        composeRule.setContent {
+            WillDeepTheme {
+                WillDeepApp(
+                    viewModel = viewModel,
+                    pairingPayloadText = payload,
+                    pairingPayloadVersion = 1,
+                )
+            }
+        }
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.seenPaths.contains("/mobile/health")
         }
-        composeRule.onNodeWithText(targetContext.getString(R.string.gateway_server_version, gateway.serverVersion))
-            .assertIsDisplayed()
-
-        composeRule.onNodeWithText(targetContext.getString(R.string.pair_button))
-            .performScrollTo()
-            .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.seenPaths.contains("/mobile/pair/claim")
         }
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.seenPaths.contains("/mobile/ws")
         }
-        composeRule.onNodeWithText(targetContext.getString(R.string.paired_to, gateway.desktopName))
-            .assertIsDisplayed()
-        composeRule.onNodeWithText(targetContext.getString(R.string.status_connected))
+        composeRule.onNodeWithText(gateway.desktopName)
             .assertIsDisplayed()
         composeRule.onNodeWithText(gateway.sessionTitle)
             .performScrollTo()
             .assertIsDisplayed()
+            .performClick()
 
         val taskText = "Update the Android gateway UI"
-        composeRule.onNodeWithText(targetContext.getString(R.string.message_label))
-            .performScrollTo()
+        composeRule.onNode(hasSetTextAction())
             .performTextReplacement(taskText)
-        composeRule.onNodeWithText(targetContext.getString(R.string.send_button))
-            .performScrollTo()
+        composeRule.onNodeWithContentDescription(targetContext.getString(R.string.send_button))
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.seenCommands.contains("message.send")
         }
-        composeRule.onNodeWithText(gateway.assistantDelta)
-            .performScrollTo()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.conversationMessages.any { message ->
+                message.content.contains(gateway.assistantDelta)
+            }
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.pendingTools.any { it.id == gateway.toolApprovalId }
+        }
+        composeRule.onNodeWithContentDescription(targetContext.getString(R.string.back_button))
+            .performClick()
+        composeRule.onNodeWithText(gateway.sessionTitle)
             .assertIsDisplayed()
         composeRule.onNodeWithText(targetContext.getString(R.string.tool_approval_title, gateway.toolApprovalTitle))
-            .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText(targetContext.getString(R.string.tool_confirmation_label))
-            .performScrollTo()
             .performTextReplacement("confirm")
         composeRule.onNodeWithText(targetContext.getString(R.string.approve_button))
-            .performScrollTo()
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.approvedToolIds.contains(gateway.toolApprovalId)
         }
         composeRule.onNodeWithText(targetContext.getString(R.string.patch_proposal_title, gateway.patchTitle))
-            .performScrollTo()
-            .assertIsDisplayed()
-        composeRule.onNodeWithText(targetContext.getString(R.string.view_diff_button))
-            .performScrollTo()
-            .performClick()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            gateway.seenCommands.contains("diff.get")
-        }
-        composeRule.onNodeWithText(gateway.patchDiff)
-            .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText(targetContext.getString(R.string.approve_button))
-            .performScrollTo()
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             gateway.approvedPatchIds.contains(gateway.patchId)
@@ -203,6 +190,67 @@ class MobileGatewayComposeInstrumentedTest {
     }
 
     @Test
+    fun remoteMacSelectorShowsAllComputersAndStaleResponseNotice() {
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val state = MobileGatewayUiState(
+            desktopName = "Primary MacBook Pro",
+            isPaired = true,
+            pairedMacs = listOf(
+                RemoteMacSummary(
+                    id = "macbook",
+                    name = "Primary MacBook Pro",
+                    lastDesktopResponseAtEpochMillis = System.currentTimeMillis() - 20_000,
+                    isSelected = true,
+                ),
+                RemoteMacSummary(
+                    id = "studio-mini",
+                    name = "Studio Mac mini",
+                    lastDesktopResponseAtEpochMillis = System.currentTimeMillis() - 120_000,
+                ),
+            ),
+            selectedMacId = "macbook",
+            isTransportConnected = true,
+            desktopResponseAgeMillis = 20_000,
+            status = ConnectionStatus.Reconnecting,
+        )
+
+        composeRule.setContent {
+            WillDeepTheme {
+                HomeScreen(
+                    state = state,
+                    versionName = "test",
+                    onScanClick = {},
+                    onCreateSession = {},
+                    onSelectSession = {},
+                    onConnect = {},
+                    onDisconnect = {},
+                    onForget = {},
+                    onRemoteMacSelected = {},
+                    onToolDecision = { _, _ -> },
+                    onToolAnswerChange = { _, _ -> },
+                    onToolConfirmationChange = { _, _ -> },
+                    onPatchDecision = { _, _ -> },
+                    onWorkspacePickerDismiss = {},
+                    onWorkspacePickerRetry = {},
+                    onWorkspaceSelected = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(targetContext.getString(R.string.remote_mac_reconnect_title))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Primary MacBook Pro")
+            .assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            targetContext.getString(R.string.remote_mac_selector_title)
+        ).performClick()
+        composeRule.onNodeWithText("Studio Mac mini")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetContext.getString(R.string.remote_mac_selected_mark))
+            .assertIsDisplayed()
+    }
+
+    @Test
     fun liveMacGatewayPairingPayloadConnectsAndDisplaysConnectedState() {
         val arguments = InstrumentationRegistry.getArguments()
         val payload = arguments.getString("mobileGatewayPairingPayload").orEmpty()
@@ -210,9 +258,6 @@ class MobileGatewayComposeInstrumentedTest {
             "Set mobileGatewayPairingPayload to run live Mac gateway smoke.",
             payload.isNotBlank(),
         )
-        val deviceName = arguments.getString("mobileGatewayDeviceName")
-            ?.takeIf { it.isNotBlank() }
-            ?: "Android Live Smoke"
         val liveMessage = arguments.getString("mobileGatewayLiveMessage").orEmpty()
         val expectAgentActivity = arguments.getString("mobileGatewayExpectAgentActivity")
             .toBooleanFlag()
@@ -233,47 +278,39 @@ class MobileGatewayComposeInstrumentedTest {
 
         composeRule.setContent {
             WillDeepTheme {
-                WillDeepApp(viewModel)
+                WillDeepApp(
+                    viewModel = viewModel,
+                    pairingPayloadText = payload,
+                    pairingPayloadVersion = 1,
+                )
             }
         }
-
-        composeRule.onNodeWithText(targetContext.getString(R.string.screen_title))
-            .assertIsDisplayed()
-        composeRule.onNodeWithText(targetContext.getString(R.string.pairing_payload_label))
-            .performTextReplacement(payload)
-        composeRule.onNodeWithText(targetContext.getString(R.string.device_name_label))
-            .performTextReplacement(deviceName)
-
-        composeRule.onNodeWithText(targetContext.getString(R.string.check_gateway_button))
-            .performScrollTo()
-            .performClick()
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            viewModel.state.value.pairingAllowed != null || viewModel.state.value.errorMessage != null
-        }
-        composeRule.onNodeWithText(targetContext.getString(R.string.gateway_pairing_allowed))
-            .assertIsDisplayed()
-
-        composeRule.onNodeWithText(targetContext.getString(R.string.pair_button))
-            .performScrollTo()
-            .performClick()
         composeRule.waitUntil(timeoutMillis = 15_000) {
             viewModel.state.value.status == ConnectionStatus.Connected ||
                 viewModel.state.value.status == ConnectionStatus.Error
         }
 
         assertEquals(ConnectionStatus.Connected, viewModel.state.value.status)
-        composeRule.onNodeWithText(targetContext.getString(R.string.paired_to, desktopName))
-            .assertIsDisplayed()
-        composeRule.onNodeWithText(targetContext.getString(R.string.status_connected))
+        composeRule.onNodeWithText(desktopName)
             .assertIsDisplayed()
 
         if (liveMessage.isNotBlank()) {
-            composeRule.onNodeWithText(targetContext.getString(R.string.message_label))
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                viewModel.state.value.sessions.any { it.id == viewModel.state.value.selectedSessionId }
+            }
+            val activeSession = viewModel.state.value.sessions.first {
+                it.id == viewModel.state.value.selectedSessionId
+            }
+            val activeSessionTitle = activeSession.title.ifBlank {
+                activeSession.workspaceName.ifBlank { activeSession.id.take(8) }
+            }
+            composeRule.onNodeWithText(activeSessionTitle)
                 .performScrollTo()
+                .performClick()
+            composeRule.onNode(hasSetTextAction())
                 .performTextReplacement(liveMessage)
             val baseline = AgentActivityBaseline.capture(viewModel.state.value)
-            composeRule.onNodeWithText(targetContext.getString(R.string.send_button))
-                .performScrollTo()
+            composeRule.onNodeWithContentDescription(targetContext.getString(R.string.send_button))
                 .performClick()
             composeRule.waitUntil(timeoutMillis = 15_000) {
                 viewModel.state.value.commandStatuses.any { command ->

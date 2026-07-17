@@ -32,6 +32,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -59,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorkspace
+import com.willdeep.android.mobile.PatchProposal
+import com.willdeep.android.mobile.PendingToolApproval
 
 private enum class SessionFilter { All, Working, NeedsInput, Completed }
 
@@ -82,6 +85,11 @@ fun HomeScreen(
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onForget: () -> Unit,
+    onRemoteMacSelected: (String) -> Unit,
+    onToolDecision: (PendingToolApproval, Boolean) -> Unit,
+    onToolAnswerChange: (String, String) -> Unit,
+    onToolConfirmationChange: (String, String) -> Unit,
+    onPatchDecision: (PatchProposal, Boolean) -> Unit,
     onWorkspacePickerDismiss: () -> Unit,
     onWorkspacePickerRetry: () -> Unit,
     onWorkspaceSelected: (String) -> Unit,
@@ -145,6 +153,11 @@ fun HomeScreen(
                     onConnect = onConnect,
                     onDisconnect = onDisconnect,
                     onForget = onForget,
+                    onRemoteMacSelected = onRemoteMacSelected,
+                    onToolDecision = onToolDecision,
+                    onToolAnswerChange = onToolAnswerChange,
+                    onToolConfirmationChange = onToolConfirmationChange,
+                    onPatchDecision = onPatchDecision,
                     onSelectSession = onSelectSession,
                     modifier = Modifier.weight(1f),
                 )
@@ -461,45 +474,45 @@ private fun PairedBody(
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onForget: () -> Unit,
+    onRemoteMacSelected: (String) -> Unit,
+    onToolDecision: (PendingToolApproval, Boolean) -> Unit,
+    onToolAnswerChange: (String, String) -> Unit,
+    onToolConfirmationChange: (String, String) -> Unit,
+    onPatchDecision: (PatchProposal, Boolean) -> Unit,
     onSelectSession: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var workspaceKey by rememberSaveable { mutableStateOf(ALL_WORKSPACES_KEY) }
-    var expandedGroups by rememberSaveable { mutableStateOf(emptyList<String>()) }
-    val allWorkspacesLabel = stringResource(R.string.workspace_all)
-    val allWorkspacesSubtitle = stringResource(R.string.workspace_all_subtitle)
-    val workspaceTabs = remember(state.workspaces, state.sessions, allWorkspacesLabel, allWorkspacesSubtitle) {
-        workspaceTabs(
-            workspaces = state.workspaces,
-            sessions = state.sessions,
-            allLabel = allWorkspacesLabel,
-            allSubtitle = allWorkspacesSubtitle,
-        )
+    var selectedFilter by rememberSaveable { mutableStateOf(SessionFilter.All) }
+    var remoteMacPickerVisible by rememberSaveable { mutableStateOf(false) }
+    val attentionSessionIds = remember(state.pendingTools, state.patchProposals) {
+        (state.pendingTools.mapNotNull { it.sessionId } +
+            state.patchProposals.mapNotNull { it.sessionId }).toSet()
     }
-    if (workspaceTabs.none { it.key == workspaceKey }) {
-        workspaceKey = ALL_WORKSPACES_KEY
+    val visibleSessions = remember(state.sessions, selectedFilter, attentionSessionIds) {
+        state.sessions.filterByStatus(selectedFilter, attentionSessionIds)
     }
-    val visibleSessions = remember(state.sessions, workspaceKey) {
-        state.sessions.filterByWorkspace(workspaceKey)
+    val counts = remember(state.sessions, attentionSessionIds) {
+        sessionCounts(state.sessions, attentionSessionIds)
     }
-    val isConnected = state.status == ConnectionStatus.Connected ||
-        state.status == ConnectionStatus.Reconnecting
-    val unknownGroup = stringResource(R.string.workspace_unknown_group)
-    val grouped = remember(visibleSessions, unknownGroup) {
-        visibleSessions
-            .groupBy { it.workspaceName.trim().ifBlank { unknownGroup } }
-            .toSortedMap()
-    }
+    val isConnected = state.status == ConnectionStatus.Connected
 
     Column(modifier = modifier) {
-        HomeStatusWorkspaceRow(
+        RemoteMacSelector(
             state = state,
-            tabs = workspaceTabs,
-            selectedKey = workspaceKey,
-            onWorkspaceSelect = { workspaceKey = it },
-            onConnect = onConnect,
-            onDisconnect = onDisconnect,
-            onForget = onForget,
+            onClick = { remoteMacPickerVisible = true },
+        )
+        if (
+            state.status == ConnectionStatus.Reconnecting &&
+            state.desktopResponseAgeMillis >= com.willdeep.android.mobile.ReconnectPolicy.HEARTBEAT_TIMEOUT_MILLIS
+        ) {
+            Spacer(Modifier.height(8.dp))
+            MacReconnectNotice(state = state)
+        }
+        Spacer(Modifier.height(10.dp))
+        FilterChipsRow(
+            selected = selectedFilter,
+            counts = counts,
+            onSelect = { selectedFilter = it },
         )
         Spacer(Modifier.height(12.dp))
         if (state.sessions.isEmpty()) {
@@ -510,56 +523,75 @@ private fun PairedBody(
             )
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(bottom = 96.dp),
                 modifier = Modifier.weight(1f),
             ) {
+                item(key = "today-header") {
+                    Text(
+                        text = stringResource(R.string.home_today),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+                    )
+                }
                 if (visibleSessions.isEmpty()) {
-                    item {
+                    item(key = "empty-filter") {
                         Text(
-                            text = stringResource(R.string.session_empty),
+                            text = stringResource(R.string.home_filter_empty),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(top = 24.dp),
+                            modifier = Modifier.padding(top = 18.dp),
                         )
                     }
                 } else {
-                    grouped.forEach { (group, sessions) ->
-                        item(key = "header-$group") {
-                            WorkspaceHeader(name = group, count = sessions.size)
-                        }
-                        val isExpanded = group in expandedGroups
-                        val visibleGroupSessions = if (isExpanded) sessions else sessions.take(5)
-                        items(visibleGroupSessions, key = { it.id }) { session ->
-                            HomeSessionCard(
-                                session = session,
-                                selected = session.id == state.selectedSessionId,
-                                isConnected = isConnected,
-                                onClick = { onSelectSession(session.id) },
-                            )
-                        }
-                        if (sessions.size > 5) {
-                            item(key = "toggle-$group") {
-                                WorkspaceSessionToggle(
-                                    expanded = isExpanded,
-                                    hiddenCount = sessions.size - 5,
-                                    onClick = {
-                                        expandedGroups = if (isExpanded) {
-                                            expandedGroups - group
-                                        } else {
-                                            expandedGroups + group
-                                        }
-                                    },
-                                )
-                            }
-                        }
-                        item(key = "spacer-$group") {
-                            Spacer(Modifier.height(6.dp))
-                        }
+                    items(visibleSessions, key = { it.id }) { session ->
+                        val sessionState = state.copy(
+                            pendingTools = state.pendingTools.filter { it.sessionId == session.id },
+                            patchProposals = state.patchProposals.filter { it.sessionId == session.id },
+                        )
+                        HomeSessionCard(
+                            session = session,
+                            selected = session.id == state.selectedSessionId,
+                            isConnected = isConnected,
+                            reviewState = sessionState,
+                            onToolDecision = onToolDecision,
+                            onToolAnswerChange = onToolAnswerChange,
+                            onToolConfirmationChange = onToolConfirmationChange,
+                            onPatchDecision = onPatchDecision,
+                            onClick = { onSelectSession(session.id) },
+                        )
                     }
                 }
             }
         }
+    }
+
+    if (remoteMacPickerVisible) {
+        RemoteMacPickerSheet(
+            state = state,
+            onDismiss = { remoteMacPickerVisible = false },
+            onSelect = { id ->
+                remoteMacPickerVisible = false
+                onRemoteMacSelected(id)
+            },
+            onAddComputer = {
+                remoteMacPickerVisible = false
+                onScanClick()
+            },
+            onRemoveSelected = {
+                remoteMacPickerVisible = false
+                onForget()
+            },
+            onConnect = {
+                remoteMacPickerVisible = false
+                onConnect()
+            },
+            onDisconnect = {
+                remoteMacPickerVisible = false
+                onDisconnect()
+            },
+        )
     }
 }
 
@@ -574,6 +606,254 @@ private fun HomeHero() {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+}
+
+@Composable
+private fun RemoteMacSelector(
+    state: MobileGatewayUiState,
+    onClick: () -> Unit,
+) {
+    val selectedMac = state.pairedMacs.firstOrNull { it.id == state.selectedMacId }
+    val statusColor = when (state.status) {
+        ConnectionStatus.Connected -> Color(0xFF2F9E44)
+        ConnectionStatus.Reconnecting -> Color(0xFFD89B2B)
+        ConnectionStatus.Error -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.outline
+    }
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(statusColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_computer),
+                    contentDescription = null,
+                    tint = statusColor,
+                    modifier = Modifier.size(21.dp),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .align(Alignment.TopEnd)
+                        .clip(CircleShape)
+                        .background(statusColor),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = selectedMac?.name ?: state.desktopName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = selectedMacStatusText(state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = statusColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                painter = painterResource(R.drawable.ic_chevron_right),
+                contentDescription = stringResource(R.string.remote_mac_selector_title),
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun selectedMacStatusText(state: MobileGatewayUiState): String {
+    val responseSeconds = (state.desktopResponseAgeMillis / 1_000L).coerceAtLeast(0L)
+    return when (state.status) {
+        ConnectionStatus.Connected -> stringResource(
+            R.string.remote_mac_responded_seconds,
+            responseSeconds,
+        )
+        ConnectionStatus.AwaitingDesktop -> stringResource(R.string.remote_mac_waiting_response)
+        ConnectionStatus.Reconnecting -> stringResource(
+            R.string.remote_mac_reconnecting_seconds,
+            responseSeconds,
+        )
+        ConnectionStatus.Connecting,
+        ConnectionStatus.Pairing -> stringResource(R.string.remote_mac_opening_channel)
+        ConnectionStatus.Error -> state.errorMessage?.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.status_disconnected)
+        ConnectionStatus.Idle,
+        ConnectionStatus.Disconnected -> lastResponseText(state.lastDesktopResponseAtEpochMillis)
+    }
+}
+
+@Composable
+private fun MacReconnectNotice(state: MobileGatewayUiState) {
+    val seconds = (state.desktopResponseAgeMillis / 1_000L).coerceAtLeast(20L)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFFFF7E7),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.remote_mac_reconnect_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF8B5E00),
+            )
+            Text(
+                text = stringResource(R.string.remote_mac_no_response_seconds, seconds),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            Text(
+                text = if (state.isTransportConnected) {
+                    stringResource(R.string.remote_mac_transport_waiting)
+                } else {
+                    stringResource(R.string.remote_mac_transport_reconnecting)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(0xFF8B5E00),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RemoteMacPickerSheet(
+    state: MobileGatewayUiState,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+    onAddComputer: () -> Unit,
+    onRemoveSelected: () -> Unit,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.remote_mac_selector_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            state.pairedMacs.forEach { mac ->
+                val selected = mac.id == state.selectedMacId
+                Surface(
+                    onClick = { onSelect(mac.id) },
+                    shape = RoundedCornerShape(15.dp),
+                    color = if (selected) Color(0xFFF1F8F0) else MaterialTheme.colorScheme.surface,
+                    tonalElevation = if (selected) 1.dp else 0.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(11.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_computer),
+                            contentDescription = null,
+                            tint = if (selected && state.status == ConnectionStatus.Connected) {
+                                Color(0xFF2F9E44)
+                            } else {
+                                MaterialTheme.colorScheme.outline
+                            },
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = mac.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = if (selected) {
+                                    selectedMacStatusText(state)
+                                } else {
+                                    lastResponseText(mac.lastDesktopResponseAtEpochMillis)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                        if (selected) {
+                            Text(
+                                text = stringResource(R.string.remote_mac_selected_mark),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFF2F9E44),
+                            )
+                        }
+                    }
+                }
+            }
+            OutlinedButton(
+                onClick = onAddComputer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.remote_mac_add_computer))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onRemoveSelected) {
+                    Text(stringResource(R.string.remote_mac_remove_selected))
+                }
+                TextButton(
+                    onClick = if (state.isTransportConnected) onDisconnect else onConnect,
+                ) {
+                    Text(
+                        if (state.isTransportConnected) {
+                            stringResource(R.string.disconnect_button)
+                        } else {
+                            stringResource(R.string.connect_button)
+                        }
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun lastResponseText(epochMillis: Long): String {
+    if (epochMillis <= 0L) return stringResource(R.string.remote_mac_never_responded)
+    val ageMillis = (System.currentTimeMillis() - epochMillis).coerceAtLeast(0L)
+    val seconds = ageMillis / 1_000L
+    return when {
+        seconds < 60L -> stringResource(R.string.remote_mac_last_seen_seconds, seconds)
+        seconds < 3_600L -> stringResource(R.string.remote_mac_last_seen_minutes, seconds / 60L)
+        seconds < 86_400L -> stringResource(R.string.remote_mac_last_seen_hours, seconds / 3_600L)
+        else -> stringResource(R.string.remote_mac_last_seen_days, seconds / 86_400L)
+    }
 }
 
 @Composable
@@ -1051,14 +1331,14 @@ private fun EmptySessionsForPaired(
     }
 }
 
-private fun filterSessions(
-    sessions: List<GatewaySession>,
+private fun List<GatewaySession>.filterByStatus(
     filter: SessionFilter,
+    attentionSessionIds: Set<String>,
 ): List<GatewaySession> = when (filter) {
-    SessionFilter.All -> sessions
-    SessionFilter.Working -> sessions.filter { it.isResponding }
-    SessionFilter.NeedsInput -> sessions.filter { it.isActive && !it.isResponding }
-    SessionFilter.Completed -> sessions.filter { !it.isActive && !it.isResponding }
+    SessionFilter.All -> this
+    SessionFilter.Working -> filter { it.isResponding }
+    SessionFilter.NeedsInput -> filter { it.id in attentionSessionIds }
+    SessionFilter.Completed -> filter { !it.isActive && !it.isResponding && it.id !in attentionSessionIds }
 }
 
 private fun List<GatewaySession>.filterByWorkspace(workspaceKey: String): List<GatewaySession> {
@@ -1110,11 +1390,16 @@ private fun workspaceTabs(
     return tabs
 }
 
-private fun sessionCounts(sessions: List<GatewaySession>): Map<SessionFilter, Int> = mapOf(
+private fun sessionCounts(
+    sessions: List<GatewaySession>,
+    attentionSessionIds: Set<String>,
+): Map<SessionFilter, Int> = mapOf(
     SessionFilter.All to sessions.size,
     SessionFilter.Working to sessions.count { it.isResponding },
-    SessionFilter.NeedsInput to sessions.count { it.isActive && !it.isResponding },
-    SessionFilter.Completed to sessions.count { !it.isActive && !it.isResponding },
+    SessionFilter.NeedsInput to sessions.count { it.id in attentionSessionIds },
+    SessionFilter.Completed to sessions.count {
+        !it.isActive && !it.isResponding && it.id !in attentionSessionIds
+    },
 )
 
 @Composable
@@ -1123,17 +1408,18 @@ private fun FilterChipsRow(
     counts: Map<SessionFilter, Int>,
     onSelect: (SessionFilter) -> Unit,
 ) {
-    val items = listOf(
+    val filterItems = listOf(
         SessionFilter.All to stringResource(R.string.home_filter_all),
         SessionFilter.Working to stringResource(R.string.home_filter_working),
         SessionFilter.NeedsInput to stringResource(R.string.home_filter_needs_input),
         SessionFilter.Completed to stringResource(R.string.home_filter_completed),
     )
-    Row(
+    LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(end = 8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        items.forEach { (key, label) ->
+        items(filterItems, key = { it.first.name }) { (key, label) ->
             val count = counts[key] ?: 0
             FilterChip(
                 selected = key == selected,
@@ -1167,10 +1453,15 @@ private fun HomeSessionCard(
     session: GatewaySession,
     selected: Boolean,
     isConnected: Boolean,
+    reviewState: MobileGatewayUiState,
+    onToolDecision: (PendingToolApproval, Boolean) -> Unit,
+    onToolAnswerChange: (String, String) -> Unit,
+    onToolConfirmationChange: (String, String) -> Unit,
+    onPatchDecision: (PatchProposal, Boolean) -> Unit,
     onClick: () -> Unit,
 ) {
+    val hasReview = reviewState.pendingTools.isNotEmpty() || reviewState.patchProposals.isNotEmpty()
     Card(
-        onClick = onClick,
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
@@ -1182,88 +1473,120 @@ private fun HomeSessionCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
+        Column {
+            Surface(
+                onClick = onClick,
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    text = session.title.trim().firstOrNull()?.uppercase()
-                        ?: session.workspaceName.trim().firstOrNull()?.uppercase()
-                        ?: "·",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (session.isResponding) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    Text(
-                        text = session.title.ifBlank {
-                            session.workspaceName.ifBlank { session.id.take(8) }
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = if (session.messageCount > 0) {
-                            stringResource(R.string.message_count, session.messageCount)
-                        } else {
-                            "—"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Box(
-                        Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isConnected) Color(0xFF1FBF75)
-                                else MaterialTheme.colorScheme.outline
-                            ),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = if (isConnected) {
-                            stringResource(R.string.home_session_connected)
-                        } else {
-                            stringResource(R.string.home_session_disconnected)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                    )
-                    if (session.workspaceName.isNotBlank()) {
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Text(
-                            text = "  ·  ${session.workspaceName}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            text = session.title.trim().firstOrNull()?.uppercase()
+                                ?: session.workspaceName.trim().firstOrNull()?.uppercase()
+                                ?: "·",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.outline,
                         )
+                        if (hasReview) {
+                            Box(
+                                Modifier
+                                    .size(9.dp)
+                                    .align(Alignment.TopEnd)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                            )
+                        }
                     }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (session.isResponding) {
+                                Box(
+                                    Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Text(
+                                text = session.title.ifBlank {
+                                    session.workspaceName.ifBlank { session.id.take(8) }
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = if (session.messageCount > 0) {
+                                    stringResource(R.string.message_count, session.messageCount)
+                                } else {
+                                    "—"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isConnected) Color(0xFF2F9E44)
+                                        else MaterialTheme.colorScheme.outline
+                                    ),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = when {
+                                    hasReview -> stringResource(R.string.home_session_needs_confirmation)
+                                    session.isResponding -> stringResource(R.string.responding)
+                                    isConnected -> stringResource(R.string.home_session_connected)
+                                    else -> stringResource(R.string.home_session_disconnected)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                            if (session.workspaceName.isNotBlank()) {
+                                Text(
+                                    text = "  ·  ${session.workspaceName}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            if (hasReview) {
+                Column(
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                ) {
+                    ApprovalCard(
+                        state = reviewState,
+                        onToolDecision = onToolDecision,
+                        onToolAnswerChange = onToolAnswerChange,
+                        onToolConfirmationChange = onToolConfirmationChange,
+                        onPatchDecision = onPatchDecision,
+                        showSectionTitle = false,
+                    )
                 }
             }
         }

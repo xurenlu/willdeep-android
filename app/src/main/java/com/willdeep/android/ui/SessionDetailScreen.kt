@@ -248,6 +248,9 @@ private fun MessageInputBar(
     val isConnected = state.status == ConnectionStatus.Connected
     val canSend = isConnected && (state.messageText.isNotBlank() || state.attachments.isNotEmpty())
     val placeholder = when {
+        state.status == ConnectionStatus.AwaitingDesktop -> {
+            stringResource(R.string.composer_placeholder_waiting_mac)
+        }
         !isConnected -> stringResource(R.string.composer_placeholder_offline)
         isResponding -> stringResource(R.string.composer_placeholder_queue)
         else -> stringResource(R.string.composer_placeholder)

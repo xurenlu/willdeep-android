@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.24.0-rc1] - 2026-07-18
+
+### Added
+
+- Added encrypted multi-Mac credential storage with legacy single-Mac migration, remote computer selection, remembered last-response timestamps, and per-device reconnect switching.
+- Added the approved editorial Android home design with a top-level remote Mac selector, truthful device status, session filters, and tool/patch confirmations embedded directly in their owning session cards.
+
+### Changed
+
+- Split WebSocket transport connectivity from Mac App responsiveness: Android now shows online only after a real Mac-originated snapshot, acknowledgement, session, message, approval, workspace, capability, job, or worktree event.
+- Changed Mac polling to five seconds and the stale-response threshold to twenty seconds; the session list remains visible while the server channel waits for the Mac App.
+- Standardized the app on the single light ivory/orange/green WillDeep visual theme selected in the approved UI direction.
+- Bumped Android client version to `1.24.0-rc1` (`versionCode = 108`).
+
+### Fixed
+
+- Recovered safely from stale encrypted pairing preferences whose Android Keystore authentication no longer matches the current installation, resetting only recoverable pairing data instead of crashing at startup.
+
 ## [1.23.0-rc1] - 2026-07-08
 
 ### Added

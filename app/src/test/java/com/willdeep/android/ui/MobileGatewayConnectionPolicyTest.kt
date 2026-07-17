@@ -32,6 +32,7 @@ class MobileGatewayConnectionPolicyTest {
         listOf(
             ConnectionStatus.Pairing,
             ConnectionStatus.Connecting,
+            ConnectionStatus.AwaitingDesktop,
             ConnectionStatus.Reconnecting,
             ConnectionStatus.Connected,
         ).forEach { status ->

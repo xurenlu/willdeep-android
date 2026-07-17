@@ -48,15 +48,25 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
+private const val LAST_RESPONSE_PERSIST_INTERVAL_MILLIS = 60_000L
+
 enum class ConnectionStatus {
     Idle,
     Pairing,
     Connecting,
+    AwaitingDesktop,
     Reconnecting,
     Connected,
     Disconnected,
     Error,
 }
+
+data class RemoteMacSummary(
+    val id: String,
+    val name: String,
+    val lastDesktopResponseAtEpochMillis: Long = 0L,
+    val isSelected: Boolean = false,
+)
 
 data class GatewayLogLine(
     val kind: String,
@@ -106,6 +116,11 @@ data class MobileGatewayUiState(
     val pairingAllowed: Boolean? = null,
     val isCheckingGateway: Boolean = false,
     val isPaired: Boolean = false,
+    val pairedMacs: List<RemoteMacSummary> = emptyList(),
+    val selectedMacId: String? = null,
+    val isTransportConnected: Boolean = false,
+    val lastDesktopResponseAtEpochMillis: Long = 0L,
+    val desktopResponseAgeMillis: Long = 0L,
     val status: ConnectionStatus = ConnectionStatus.Idle,
     val errorMessage: String? = null,
     val reconnectAttempt: Int = 0,
@@ -167,6 +182,8 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     private var reconnectRequested = false
     private var heartbeatJob: Job? = null
     private var lastDesktopEventAtMillis: Long = 0L
+    private var transportConnectedAtMillis: Long = 0L
+    private var lastPersistedDesktopResponseAtEpochMillis: Long = 0L
     private var manuallyDisconnected = false
     private var pendingAttentionActions: List<MobileAttentionActionRequest> = emptyList()
     private var requestedAttentionSessionId: String? = null
@@ -178,6 +195,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     val state: StateFlow<MobileGatewayUiState> = _state.asStateFlow()
 
     init {
+        val credentials = tokenStore.loadAll()
         tokenStore.load()?.let { credential ->
             _state.update {
                 it.copy(
@@ -186,6 +204,9 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     desktopName = credential.desktopName,
                     protocolVersion = credential.protocolVersion,
                     isPaired = true,
+                    pairedMacs = credentials.toRemoteMacSummaries(credential.id),
+                    selectedMacId = credential.id,
+                    lastDesktopResponseAtEpochMillis = credential.lastDesktopResponseAtEpochMillis,
                     status = ConnectionStatus.Disconnected,
                 )
             }
@@ -322,6 +343,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 tokenStore.save(credential)
                 credential
             }.onSuccess { credential ->
+                val credentials = tokenStore.loadAll()
                 _state.update {
                     it.copy(
                         baseUrl = credential.baseUrl,
@@ -329,6 +351,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         desktopName = credential.desktopName,
                         protocolVersion = credential.protocolVersion,
                         isPaired = true,
+                        pairedMacs = credentials.toRemoteMacSummaries(credential.id),
+                        selectedMacId = credential.id,
+                        lastDesktopResponseAtEpochMillis = credential.lastDesktopResponseAtEpochMillis,
+                        desktopResponseAgeMillis = 0L,
                         status = ConnectionStatus.Disconnected,
                         pairingPayloadText = "",
                     )
@@ -393,6 +419,8 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         reconnectRequested = true
         stopHeartbeatMonitor()
         socketJob?.cancel()
+        lastDesktopEventAtMillis = 0L
+        transportConnectedAtMillis = 0L
         _state.update {
             it.copy(
                 status = ConnectionStatus.Connecting,
@@ -402,6 +430,11 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 desktopName = credential.desktopName,
                 protocolVersion = credential.protocolVersion,
                 isPaired = true,
+                pairedMacs = tokenStore.loadAll().toRemoteMacSummaries(credential.id),
+                selectedMacId = credential.id,
+                isTransportConnected = false,
+                lastDesktopResponseAtEpochMillis = credential.lastDesktopResponseAtEpochMillis,
+                desktopResponseAgeMillis = 0L,
                 reconnectAttempt = 0,
                 reconnectDelayMillis = 0,
             )
@@ -429,6 +462,8 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         desktopName = credential.desktopName,
                         protocolVersion = credential.protocolVersion,
                         isPaired = true,
+                        selectedMacId = credential.id,
+                        isTransportConnected = false,
                         reconnectAttempt = attempt,
                         reconnectDelayMillis = if (attempt == 0) 0 else ReconnectPolicy.delayMillisForAttempt(attempt),
                     )
@@ -472,6 +507,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update {
                     it.copy(
                         status = ConnectionStatus.Disconnected,
+                        isTransportConnected = false,
                         errorMessage = getApplication<Application>().getString(R.string.error_reconnect_exhausted),
                         reconnectAttempt = attempt,
                         reconnectDelayMillis = 0,
@@ -483,8 +519,9 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
             val delayMillis = ReconnectPolicy.delayMillisForAttempt(attempt)
             _state.update {
                 it.copy(
-                    status = ConnectionStatus.Reconnecting,
-                    errorMessage = terminalMessage,
+                status = ConnectionStatus.Reconnecting,
+                isTransportConnected = false,
+                errorMessage = terminalMessage,
                     reconnectAttempt = attempt,
                     reconnectDelayMillis = delayMillis,
                 )
@@ -494,6 +531,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun disconnect() {
+        persistSelectedMacLastResponse()
         manuallyDisconnected = true
         reconnectRequested = false
         stopHeartbeatMonitor()
@@ -503,6 +541,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update {
             it.copy(
                 status = ConnectionStatus.Disconnected,
+                isTransportConnected = false,
                 reconnectAttempt = 0,
                 reconnectDelayMillis = 0,
             )
@@ -510,15 +549,40 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun forgetToken() {
+        val selectedId = state.value.selectedMacId
         manuallyDisconnected = true
-        disconnect()
-        tokenStore.clear()
-        _state.update {
-            MobileGatewayUiState(
-                deviceName = it.deviceName,
-                pairingPayloadText = it.pairingPayloadText,
-            )
+        reconnectRequested = false
+        stopHeartbeatMonitor()
+        socketJob?.cancel()
+        socketJob = null
+        client.disconnect()
+        val nextCredential = selectedId?.let(tokenStore::remove)
+        if (nextCredential == null) {
+            _state.update {
+                MobileGatewayUiState(
+                    deviceName = it.deviceName,
+                    pairingPayloadText = it.pairingPayloadText,
+                )
+            }
+            return
         }
+        manuallyDisconnected = false
+        applySelectedCredential(nextCredential)
+        connect()
+    }
+
+    fun selectRemoteMac(credentialId: String) {
+        if (credentialId == state.value.selectedMacId) return
+        val credential = tokenStore.select(credentialId) ?: return
+        persistSelectedMacLastResponse()
+        reconnectRequested = false
+        stopHeartbeatMonitor()
+        socketJob?.cancel()
+        socketJob = null
+        client.disconnect()
+        manuallyDisconnected = false
+        applySelectedCredential(credential)
+        connect()
     }
 
     fun refreshSessions() {
@@ -579,23 +643,56 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private fun noteDesktopEventReceived() {
-        lastDesktopEventAtMillis = SystemClock.elapsedRealtime()
+        val elapsedRealtime = SystemClock.elapsedRealtime()
+        val epochMillis = System.currentTimeMillis()
+        lastDesktopEventAtMillis = elapsedRealtime
+        val selectedId = state.value.selectedMacId
+        _state.update { current ->
+            current.copy(
+                status = ConnectionStatus.Connected,
+                isTransportConnected = true,
+                lastDesktopResponseAtEpochMillis = epochMillis,
+                desktopResponseAgeMillis = 0L,
+                errorMessage = null,
+                reconnectAttempt = 0,
+                reconnectDelayMillis = 0,
+                pairedMacs = current.pairedMacs.map { mac ->
+                    if (mac.id == selectedId) {
+                        mac.copy(lastDesktopResponseAtEpochMillis = epochMillis)
+                    } else {
+                        mac
+                    }
+                },
+            )
+        }
+        if (
+            selectedId != null &&
+            epochMillis - lastPersistedDesktopResponseAtEpochMillis >= LAST_RESPONSE_PERSIST_INTERVAL_MILLIS
+        ) {
+            tokenStore.updateLastDesktopResponse(selectedId, epochMillis)
+            lastPersistedDesktopResponseAtEpochMillis = epochMillis
+        }
     }
 
     private fun startHeartbeatMonitor() {
         stopHeartbeatMonitor()
-        noteDesktopEventReceived()
+        transportConnectedAtMillis = SystemClock.elapsedRealtime()
+        lastDesktopEventAtMillis = 0L
         heartbeatJob = viewModelScope.launch {
             while (reconnectRequested) {
                 delay(ReconnectPolicy.HEARTBEAT_INTERVAL_MILLIS)
                 if (!reconnectRequested) return@launch
-                if (state.value.status != ConnectionStatus.Connected) continue
+                if (!state.value.isTransportConnected) continue
 
                 val now = SystemClock.elapsedRealtime()
-                if (ReconnectPolicy.isHeartbeatExpired(now, lastDesktopEventAtMillis)) {
-                    markDesktopHeartbeatTimedOut()
-                    client.disconnect()
-                    return@launch
+                val responseReference = lastDesktopEventAtMillis.takeIf { it > 0L }
+                    ?: transportConnectedAtMillis
+                val responseAgeMillis = (now - responseReference).coerceAtLeast(0L)
+                _state.update { it.copy(desktopResponseAgeMillis = responseAgeMillis) }
+                if (ReconnectPolicy.isHeartbeatExpired(now, responseReference)) {
+                    if (state.value.status != ConnectionStatus.Reconnecting) {
+                        markDesktopHeartbeatTimedOut()
+                    }
                 }
 
                 val sent = client.sendCommand(GatewayEnvelope(type = "session.list"))
@@ -618,6 +715,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         _state.update {
             it.copy(
                 status = ConnectionStatus.Reconnecting,
+                isTransportConnected = true,
                 errorMessage = message,
                 logLines = it.logLines.append(
                     GatewayLogLine(
@@ -625,6 +723,51 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                         message,
                     )
                 ),
+            )
+        }
+    }
+
+    private fun persistSelectedMacLastResponse() {
+        val selectedId = state.value.selectedMacId ?: return
+        val responseAt = state.value.lastDesktopResponseAtEpochMillis
+        if (responseAt <= 0L) return
+        tokenStore.updateLastDesktopResponse(selectedId, responseAt)
+        lastPersistedDesktopResponseAtEpochMillis = responseAt
+    }
+
+    private fun applySelectedCredential(credential: StoredGatewayCredential) {
+        val credentials = tokenStore.loadAll()
+        lastDesktopEventAtMillis = 0L
+        transportConnectedAtMillis = 0L
+        lastPersistedDesktopResponseAtEpochMillis = credential.lastDesktopResponseAtEpochMillis
+        _state.update { current ->
+            current.copy(
+                baseUrl = credential.baseUrl,
+                fallbackBaseUrls = credential.fallbackBaseUrls,
+                desktopName = credential.desktopName,
+                protocolVersion = credential.protocolVersion,
+                isPaired = true,
+                pairedMacs = credentials.toRemoteMacSummaries(credential.id),
+                selectedMacId = credential.id,
+                isTransportConnected = false,
+                lastDesktopResponseAtEpochMillis = credential.lastDesktopResponseAtEpochMillis,
+                desktopResponseAgeMillis = 0L,
+                status = ConnectionStatus.Disconnected,
+                errorMessage = null,
+                sessions = emptyList(),
+                selectedSessionId = null,
+                workspaces = emptyList(),
+                pendingTools = emptyList(),
+                toolAnswers = emptyMap(),
+                toolConfirmations = emptyMap(),
+                patchProposals = emptyList(),
+                patchDiffs = emptyMap(),
+                jobs = emptyList(),
+                queuedMessages = emptyList(),
+                conversationMessages = emptyList(),
+                worktree = null,
+                commandStatuses = emptyList(),
+                attachments = emptyList(),
             )
         }
     }
@@ -1183,9 +1326,13 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
 
         when (event) {
             GatewayEvent.Connected -> {
+                transportConnectedAtMillis = SystemClock.elapsedRealtime()
+                lastDesktopEventAtMillis = 0L
                 _state.update {
                     it.copy(
-                        status = ConnectionStatus.Connected,
+                        status = ConnectionStatus.AwaitingDesktop,
+                        isTransportConnected = true,
+                        desktopResponseAgeMillis = 0L,
                         errorMessage = null,
                         reconnectAttempt = 0,
                         reconnectDelayMillis = 0,
@@ -1200,7 +1347,10 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                     if (it.status == ConnectionStatus.Error) {
                         it
                     } else {
-                        it.copy(status = ConnectionStatus.Disconnected)
+                        it.copy(
+                            status = ConnectionStatus.Disconnected,
+                            isTransportConnected = false,
+                        )
                     }
                 }
             }
@@ -1209,6 +1359,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 _state.update {
                     it.copy(
                         status = ConnectionStatus.Disconnected,
+                        isTransportConnected = false,
                         errorMessage = event.reason.ifBlank { null },
                         logLines = it.logLines.append(
                             GatewayLogLine(
@@ -1223,6 +1374,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 stopHeartbeatMonitor()
                 _state.update {
                     it.copy(
+                        isTransportConnected = false,
                         errorMessage = event.message,
                         logLines = it.logLines.append(
                             GatewayLogLine(
@@ -1579,6 +1731,23 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
     }
 }
 
+private fun List<StoredGatewayCredential>.toRemoteMacSummaries(
+    selectedId: String?,
+): List<RemoteMacSummary> {
+    return map { credential ->
+        RemoteMacSummary(
+            id = credential.id,
+            name = credential.desktopName,
+            lastDesktopResponseAtEpochMillis = credential.lastDesktopResponseAtEpochMillis,
+            isSelected = credential.id == selectedId,
+        )
+    }.sortedWith(
+        compareByDescending<RemoteMacSummary> { it.isSelected }
+            .thenByDescending { it.lastDesktopResponseAtEpochMillis }
+            .thenBy { it.name.lowercase() },
+    )
+}
+
 private fun MobileAttentionActionRequest.sameAttentionTarget(
     other: MobileAttentionActionRequest,
 ): Boolean {
@@ -1592,7 +1761,7 @@ private fun GatewayEvent.Error.isUnsupportedOptionalCommand(): Boolean {
         message.contains("Unsupported mobile command: push.register", ignoreCase = true)
 }
 
-private fun GatewayEvent.isDesktopHeartbeatEvent(): Boolean {
+internal fun GatewayEvent.isDesktopHeartbeatEvent(): Boolean {
     return when (this) {
         is GatewayEvent.Snapshot,
         is GatewayEvent.SessionUpsert,
@@ -1608,13 +1777,13 @@ private fun GatewayEvent.isDesktopHeartbeatEvent(): Boolean {
         is GatewayEvent.JobUpdated,
         is GatewayEvent.FileLoaded,
         is GatewayEvent.WorkspacesUpdated,
-        is GatewayEvent.CapabilitiesUpdated -> true
+        is GatewayEvent.CapabilitiesUpdated,
+        is GatewayEvent.Ack,
+        is GatewayEvent.Error -> true
         GatewayEvent.Connected,
         GatewayEvent.Disconnected,
         is GatewayEvent.ConnectionClosed,
         is GatewayEvent.ConnectionFailed,
-        is GatewayEvent.Ack,
-        is GatewayEvent.Error,
         is GatewayEvent.Raw -> false
     }
 }

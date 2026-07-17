@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-07-08 | Current version: v1.23.0-rc1
+> Last updated: 2026-07-18 | Current version: v1.24.0-rc1
 
 ## Project Summary
 
@@ -18,21 +18,21 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Reject expired Mac pairing payloads locally before sending health or claim requests.
 - Reject malformed Mac pairing payload expiry timestamps locally before sending health or claim requests.
 - Check Mac gateway health from either a pairing payload or the saved paired Mac, then display server version plus pairing availability without blocking paired-device diagnostics when new pairing is disabled.
-- Store the long-lived device token securely on Android.
+- Store long-lived device tokens securely on Android, migrate the legacy single-Mac credential automatically, recover safely from stale Keystore-encrypted pairing data, and switch between multiple paired remote Macs without rescanning.
 - Connect to the Mac gateway over WebSocket.
 - Retry Mac gateway health checks, pairing claims, and WebSocket connections against saved fallback endpoints when the LAN endpoint is unreachable.
-- Browse sessions through a compact workspace summary above the session list. Tapping it expands a horizontally scrollable picker, and workspace groups show the first five sessions until expanded.
-- Show the paired Mac status and current workspace switcher in one compact row, with concise status dots/icons and optional details only when needed.
+- Put the selected remote Mac at the top of the home hierarchy, with a bottom-sheet computer picker, per-device last-response information, and scan/remove controls.
+- Browse sessions through All, Working, Needs Confirmation, and Completed filters while retaining each session's workspace name in its metadata.
 - Keep the mobile app portrait-only and use a compact home title without the previous subtitle or session-count badge.
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
 - Use the redesigned mobile composer icon toolbar, plus-style attachment entry, top-aligned multi-line input, Mac-aligned send/stop action button, and bottom-sheet pickers to choose approval mode, Mac-reported provider, model, skills, experts, and plugins before sending a request without crowding the text input.
-- Render user asks, compact tool approvals, patch proposals, and queued requests directly below the latest composer input, while leaving changed-file details on the desktop.
+- Render pending tool and patch confirmations directly inside their owning home-session card as well as in the session composer, while leaving changed-file details on the desktop.
 - Accept shared plain text from other Android apps, combining shared subject/title and body/URL content before loading it into Ask WillDeep for forwarding to the Mac.
 - Import highlighted Android text actions directly into Ask WillDeep for forwarding selected requirements or code snippets to the Mac.
 - Automatically resume the Mac gateway connection on app start and foreground return for paired devices.
 - Reconnect temporary WebSocket disconnects with bounded backoff and require pairing again when the Mac rejects a revoked token.
 - Preserve unsent task text and pending action cards when the WebSocket is unavailable.
-- Detect stale relay-only connections with WebSocket ping/pong and an Android heartbeat watchdog, then mark the Mac offline and reconnect when no Mac-originated event arrives for 5 seconds.
+- Treat WebSocket/relay connectivity as transport only, mark a Mac online only after a real Mac App event, poll every five seconds, and wait twenty seconds before showing the Mac reconnecting state.
 - Notify the Android user when the Mac needs attention for tool approval, patch review, typed confirmation, or `ask_user` input.
 - Let safe approval and patch notifications send direct approve/reject decisions, while requests that need typed input open the matching session for continued conversation.
 - Request Android 13+ notification permission and use a high-priority WillDeep attention notification channel.

@@ -15,6 +15,7 @@ object MobileGatewayConnectionPolicy {
             ConnectionStatus.Error -> true
             ConnectionStatus.Pairing,
             ConnectionStatus.Connecting,
+            ConnectionStatus.AwaitingDesktop,
             ConnectionStatus.Reconnecting,
             ConnectionStatus.Connected -> false
         }

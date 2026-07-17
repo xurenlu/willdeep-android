@@ -139,6 +139,11 @@ fun WillDeepApp(
             onConnect = viewModel::connect,
             onDisconnect = viewModel::disconnect,
             onForget = viewModel::forgetToken,
+            onRemoteMacSelected = viewModel::selectRemoteMac,
+            onToolDecision = viewModel::decideTool,
+            onToolAnswerChange = viewModel::updateToolAnswer,
+            onToolConfirmationChange = viewModel::updateToolConfirmation,
+            onPatchDecision = viewModel::decidePatch,
             onWorkspacePickerDismiss = viewModel::closeWorkspacePicker,
             onWorkspacePickerRetry = viewModel::requestWorkspaces,
             onWorkspaceSelected = { path ->
@@ -538,6 +543,7 @@ internal fun ApprovalCard(
     onToolAnswerChange: (String, String) -> Unit,
     onToolConfirmationChange: (String, String) -> Unit,
     onPatchDecision: (PatchProposal, Boolean) -> Unit,
+    showSectionTitle: Boolean = true,
 ) {
     if (state.pendingTools.isEmpty() && state.patchProposals.isEmpty()) {
         return
@@ -548,7 +554,16 @@ internal fun ApprovalCard(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SectionTitle(stringResource(R.string.section_approvals))
+            if (showSectionTitle) {
+                SectionTitle(stringResource(R.string.section_approvals))
+            } else {
+                Text(
+                    text = stringResource(R.string.composer_review_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             state.pendingTools.forEach { approval ->
                 ToolApprovalRow(
                     approval = approval,
@@ -1073,6 +1088,7 @@ internal fun StatusLine(state: MobileGatewayUiState) {
         ConnectionStatus.Idle -> stringResource(R.string.status_idle)
         ConnectionStatus.Pairing -> stringResource(R.string.status_pairing)
         ConnectionStatus.Connecting -> stringResource(R.string.status_connecting)
+        ConnectionStatus.AwaitingDesktop -> stringResource(R.string.status_awaiting_desktop)
         ConnectionStatus.Reconnecting -> stringResource(
             R.string.status_reconnecting,
             state.reconnectAttempt,
