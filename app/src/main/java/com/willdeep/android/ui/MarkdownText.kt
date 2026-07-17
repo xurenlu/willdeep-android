@@ -1,10 +1,15 @@
 package com.willdeep.android.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -12,7 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -22,6 +29,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 
 internal sealed interface MdBlock {
     data class Paragraph(val text: String) : MdBlock
@@ -29,6 +37,8 @@ internal sealed interface MdBlock {
     data class CodeBlock(val lang: String?, val code: String) : MdBlock
     data class BulletList(val items: List<String>) : MdBlock
     data class Quote(val text: String) : MdBlock
+    data class Image(val alt: String, val url: String) : MdBlock
+    data class Table(val headers: List<String>, val rows: List<List<String>>) : MdBlock
 }
 
 @Composable
@@ -45,6 +55,8 @@ internal fun MarkdownText(
         blocks.forEach { block ->
             when (block) {
                 is MdBlock.CodeBlock -> CodeBlockView(block.lang, block.code)
+                is MdBlock.Image -> MarkdownImage(block.alt, block.url)
+                is MdBlock.Table -> MarkdownTable(block, codeBg, linkColor, style, color)
                 is MdBlock.Heading -> Text(
                     text = parseInline(block.text, codeBg, linkColor),
                     style = when (block.level) {
@@ -91,6 +103,19 @@ internal fun MarkdownText(
 }
 
 @Composable
+private fun MarkdownImage(alt: String, url: String) {
+    AsyncImage(
+        model = url,
+        contentDescription = alt.ifBlank { null },
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 260.dp)
+            .clip(MaterialTheme.shapes.small),
+    )
+}
+
+@Composable
 private fun CodeBlockView(lang: String?, code: String) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -110,6 +135,74 @@ private fun CodeBlockView(lang: String?, code: String) {
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.onSurface,
             )
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTable(
+    table: MdBlock.Table,
+    codeBg: Color,
+    linkColor: Color,
+    style: TextStyle,
+    color: Color,
+) {
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    Surface(
+        color = Color.Transparent,
+        shape = MaterialTheme.shapes.extraSmall,
+        border = BorderStroke(1.dp, borderColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+    ) {
+        Column {
+            TableRow(
+                cells = table.headers,
+                codeBg = codeBg,
+                linkColor = linkColor,
+                style = style,
+                color = color,
+                fontWeight = FontWeight.SemiBold,
+            )
+            table.rows.forEach { row ->
+                TableRow(
+                    cells = row,
+                    codeBg = codeBg,
+                    linkColor = linkColor,
+                    style = style,
+                    color = color,
+                    fontWeight = FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableRow(
+    cells: List<String>,
+    codeBg: Color,
+    linkColor: Color,
+    style: TextStyle,
+    color: Color,
+    fontWeight: FontWeight,
+) {
+    Row {
+        cells.forEach { cell ->
+            Surface(
+                color = Color.Transparent,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Text(
+                    text = parseInline(cell, codeBg, linkColor),
+                    style = style.copy(fontWeight = fontWeight),
+                    color = color,
+                    modifier = Modifier
+                        .widthIn(min = 96.dp, max = 220.dp)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
         }
     }
 }
@@ -136,9 +229,12 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
 
     val headingRegex = Regex("""^#{1,6}\s+""")
     val listRegex = Regex("""^[-*+]\s+""")
+    val imageRegex = Regex("""^!\[([^]]*)]\((\S+?)(?:\s+"[^"]*")?\)$""")
 
     while (i < lines.size) {
         val line = lines[i]
+        val trimmedLine = line.trim()
+        val imageMatch = imageRegex.matchEntire(trimmedLine)
         when {
             line.trimStart().startsWith("```") -> {
                 flushPara(); flushList()
@@ -152,6 +248,27 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
                 }
                 blocks.add(MdBlock.CodeBlock(lang, codeLines.joinToString("\n")))
                 if (i < lines.size) i++
+            }
+            imageMatch != null -> {
+                flushPara(); flushList()
+                blocks.add(
+                    MdBlock.Image(
+                        alt = imageMatch.groupValues[1].trim(),
+                        url = imageMatch.groupValues[2].trim(),
+                    ),
+                )
+                i++
+            }
+            isTableHeaderAt(lines, i) -> {
+                flushPara(); flushList()
+                val headers = splitTableRow(lines[i])
+                val rows = mutableListOf<List<String>>()
+                i += 2
+                while (i < lines.size && isTableRow(lines[i])) {
+                    rows.add(normalizeTableRow(splitTableRow(lines[i]), headers.size))
+                    i++
+                }
+                blocks.add(MdBlock.Table(headers, rows))
             }
             headingRegex.containsMatchIn(line) -> {
                 flushPara(); flushList()
@@ -183,6 +300,40 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
     }
     flushPara(); flushList()
     return blocks
+}
+
+private fun isTableHeaderAt(lines: List<String>, index: Int): Boolean {
+    return index + 1 < lines.size &&
+        isTableRow(lines[index]) &&
+        isTableSeparator(lines[index + 1])
+}
+
+private fun isTableRow(line: String): Boolean {
+    return splitTableRow(line).size >= 2
+}
+
+private fun isTableSeparator(line: String): Boolean {
+    val cells = splitTableRow(line)
+    return cells.size >= 2 && cells.all { cell ->
+        cell.matches(Regex(""":?-{3,}:?"""))
+    }
+}
+
+private fun splitTableRow(line: String): List<String> {
+    val trimmed = line.trim()
+    if (!trimmed.contains("|")) return emptyList()
+    val body = trimmed
+        .removePrefix("|")
+        .removeSuffix("|")
+    return body.split("|").map { it.trim() }
+}
+
+private fun normalizeTableRow(row: List<String>, columnCount: Int): List<String> {
+    return when {
+        row.size < columnCount -> row + List(columnCount - row.size) { "" }
+        row.size > columnCount -> row.take(columnCount)
+        else -> row
+    }
 }
 
 internal fun parseInline(text: String, codeBg: Color, linkColor: Color): AnnotatedString {

@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.23.0-rc1] - 2026-07-08
+
+### Added
+
+- Added Android AI message Markdown rendering for fenced code blocks, standalone Markdown images, and simple pipe tables.
+- Bumped Android client version to `1.23.0-rc1` (`versionCode = 107`).
+
+## [1.22.0-rc10] - 2026-07-08
+
+### Fixed
+
+- Aligned the Android composer placeholder and typed text to the top of the input area instead of vertically centering them.
+- Bumped Android client version to `1.22.0-rc10` (`versionCode = 106`).
+
+## [1.22.0-rc9] - 2026-07-08
+
+### Fixed
+
+- Reworked the Android composer action button to match the Mac composer: idle shows a cleaner upward send arrow, while responding turns the same button into a red stop control.
+- Removed the separate inline Stop turn text action from the composer responding state.
+- Bumped Android client version to `1.22.0-rc9` (`versionCode = 105`).
+
+## [1.22.0-rc8] - 2026-07-08
+
+### Fixed
+
+- Removed the Changed Files review card from the Android session composer so worktree and diff details stay on the desktop.
+- Reworked Android tool approval previews to show human-readable fields for JSON payloads instead of raw JSON.
+- Made Approve the larger primary action and Reject the smaller secondary action in mobile review cards.
+- Bumped Android client version to `1.22.0-rc8` (`versionCode = 104`).
+
+## [1.22.0-rc7] - 2026-07-08
+
+### Fixed
+
+- Hid empty Android conversation rows when a gateway message has no visible text, images, or raw message body preview.
+- Bumped Android client version to `1.22.0-rc7` (`versionCode = 103`).
+
+## [1.22.0-rc6] - 2026-07-08
+
+### Fixed
+
+- Preserved a redacted raw message body preview for assistant messages with no visible text so Android can show the underlying payload for verification instead of only the empty-content fallback.
+- Added parser coverage for reasoning/tool-only raw previews and sensitive-field redaction.
+- Bumped Android client version to `1.22.0-rc6` (`versionCode = 102`).
+
+## [1.22.0-rc5] - 2026-07-08
+
+### Fixed
+
+- Made Android session details scroll to the actual bottom of the chat when opening a session and while new assistant content streams in.
+- Removed inline diff viewing from the Android patch review card so diffs stay on the desktop, and tightened review card spacing for denser mobile use.
+- Bumped Android client version to `1.22.0-rc5` (`versionCode = 101`).
+
 ## [1.22.0-rc4] - 2026-07-08
 
 ### Fixed

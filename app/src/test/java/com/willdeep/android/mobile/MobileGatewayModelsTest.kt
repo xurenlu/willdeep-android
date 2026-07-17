@@ -564,6 +564,7 @@ class MobileGatewayModelsTest {
         val append = event as GatewayEvent.MessageAppend
         assertEquals("", append.message.content)
         assertEquals(GatewayMessageActivity.Thinking, append.message.activity)
+        assertTrue(append.message.rawContentPreview.contains("Internal reasoning is hidden."))
         assertTrue(append.message.isStreaming)
     }
 
@@ -596,6 +597,38 @@ class MobileGatewayModelsTest {
         val append = event as GatewayEvent.MessageAppend
         assertEquals("", append.message.content)
         assertEquals(GatewayMessageActivity.Tool, append.message.activity)
+        assertTrue(append.message.rawContentPreview.contains("git status --short"))
+    }
+
+    @Test
+    fun messageAppendRedactsSensitiveRawPreview() {
+        val event = parseGatewayEvent(
+            """
+            {
+              "type": "message.append",
+              "session_id": "s1",
+              "payload": {
+                "id": "m_sensitive_tool",
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "input": {
+                      "api_key": "sk-test",
+                      "command": "curl example.test"
+                    }
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertTrue(event is GatewayEvent.MessageAppend)
+        val append = event as GatewayEvent.MessageAppend
+        assertTrue(append.message.rawContentPreview.contains("curl example.test"))
+        assertTrue(append.message.rawContentPreview.contains("[redacted]"))
+        assertFalse(append.message.rawContentPreview.contains("sk-test"))
     }
 
     @Test

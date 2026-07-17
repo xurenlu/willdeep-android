@@ -51,9 +51,9 @@
     <string name="message_label">Message</string>
     <string name="message_placeholder">Tell the Mac WillDeep what to build or change</string>
     <string name="composer_placeholder">Message WillDeep…</string>
-    <string name="composer_placeholder_queue">Queue a follow-up while it works…</string>
+    <string name="composer_placeholder_queue">Draft the next message while WillDeep is working…</string>
     <string name="composer_placeholder_offline">Reconnecting — message will send once back online</string>
-    <string name="composer_responding_hint">Agent is working · sending will queue</string>
+    <string name="composer_responding_hint">Agent is responding</string>
     <string name="composer_queue_button">Queue message</string>
     <string name="shared_message_loaded_log">Shared text loaded into Ask WillDeep.</string>
     <string name="conversation_empty">No conversation messages yet.</string>
@@ -66,6 +66,7 @@
     <string name="message_tool_activity_content">Tool activity update. Details may appear in approvals, jobs, or changed files.</string>
     <string name="message_waiting_visible_content">Preparing visible output…</string>
     <string name="message_empty_content">No displayable message content.</string>
+    <string name="message_raw_body_label">Raw message body</string>
     <string name="worktree_file_count">%1$d files</string>
     <string name="worktree_added_lines">+%1$d</string>
     <string name="worktree_deleted_lines">-%1$d</string>
@@ -114,6 +115,12 @@
     <string name="message_count">%1$d messages</string>
     <string name="tool_approval_title">Tool: %1$s</string>
     <string name="approval_preview">Preview: %1$s</string>
+    <string name="approval_detail_model">Model</string>
+    <string name="approval_detail_prompt">Prompt</string>
+    <string name="approval_detail_count">Count</string>
+    <string name="approval_detail_size">Size</string>
+    <string name="approval_detail_quality">Quality</string>
+    <string name="approval_detail_endpoint">Endpoint</string>
     <string name="tool_answer_label">Answer</string>
     <string name="tool_answer_placeholder">Type the answer to send back to the Mac</string>
     <string name="tool_confirmation_hint">This tool needs typed confirmation before the Mac can run it.</string>

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -93,10 +92,19 @@ fun SessionDetailScreen(
     )
     val isResponding = activeSession?.isResponding == true
     val listState = rememberLazyListState()
+    val conversationMessages = scopedState.conversationMessages.filter { it.hasDisplayableBody() }
+    val visibleConversationMessages = conversationMessages.takeLast(24)
+    val lastMessage = conversationMessages.lastOrNull()
+    val bottomAnchorIndex = if (visibleConversationMessages.isEmpty()) 2 else visibleConversationMessages.size + 1
 
-    LaunchedEffect(scopedState.conversationMessages.size, scopedState.queuedMessages.size) {
-        val target = listState.layoutInfo.totalItemsCount - 1
-        if (target >= 0) listState.animateScrollToItem(target)
+    LaunchedEffect(
+        sessionId,
+        conversationMessages.size,
+        lastMessage?.id,
+        lastMessage?.content?.length,
+        lastMessage?.isStreaming,
+    ) {
+        listState.animateScrollToItem(bottomAnchorIndex)
     }
 
     Scaffold(
@@ -159,12 +167,10 @@ fun SessionDetailScreen(
                 onToolDecision = viewModel::decideTool,
                 onToolAnswerChange = viewModel::updateToolAnswer,
                 onToolConfirmationChange = viewModel::updateToolConfirmation,
-                onPatchDiffRequest = viewModel::requestPatchDiff,
                 onPatchDecision = viewModel::decidePatch,
                 onSendQueuedNow = viewModel::sendQueuedNow,
                 onRemoveQueued = viewModel::removeQueuedMessage,
                 onClearQueue = viewModel::clearQueue,
-                onReadWorktreeFile = viewModel::requestWorktreeFileRead,
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -178,7 +184,35 @@ fun SessionDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                ConversationCard(scopedState)
+                Text(
+                    text = stringResource(R.string.section_conversation),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            if (conversationMessages.isEmpty()) {
+                item {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.conversation_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                }
+            } else {
+                items(visibleConversationMessages, key = { it.id }) { message ->
+                    ConversationMessageRow(message)
+                }
+            }
+            item {
+                Spacer(Modifier.height(1.dp))
             }
         }
     }
@@ -202,12 +236,10 @@ private fun MessageInputBar(
     onToolDecision: (com.willdeep.android.mobile.PendingToolApproval, Boolean) -> Unit,
     onToolAnswerChange: (String, String) -> Unit,
     onToolConfirmationChange: (String, String) -> Unit,
-    onPatchDiffRequest: (com.willdeep.android.mobile.PatchProposal) -> Unit,
     onPatchDecision: (com.willdeep.android.mobile.PatchProposal, Boolean) -> Unit,
     onSendQueuedNow: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
     onRemoveQueued: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
     onClearQueue: () -> Unit,
-    onReadWorktreeFile: (com.willdeep.android.mobile.GatewayWorktreeFile, String?) -> Unit,
 ) {
     val pickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 6)
@@ -293,16 +325,6 @@ private fun MessageInputBar(
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(
-                        onClick = onStop,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.stop_turn_button),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
                 }
             }
             RunControlStrip(
@@ -344,13 +366,14 @@ private fun MessageInputBar(
                         modifier = Modifier
                             .heightIn(min = 112.dp, max = 180.dp)
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.CenterStart,
+                        contentAlignment = Alignment.TopStart,
                     ) {
                         if (state.messageText.isEmpty()) {
                             Text(
                                 text = placeholder,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.align(Alignment.TopStart),
                             )
                         }
                         BasicTextField(
@@ -364,31 +387,43 @@ private fun MessageInputBar(
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                             maxLines = 5,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .fillMaxWidth(),
                         )
                     }
                 }
                 FilledIconButton(
-                    onClick = onSend,
-                    enabled = canSend,
+                    onClick = {
+                        if (isResponding) onStop() else onSend()
+                    },
+                    enabled = isResponding || canSend,
                     shape = CircleShape,
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(46.dp),
                     colors = if (isResponding) {
                         IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary,
+                            containerColor = Color(0xFFD94335),
+                            contentColor = Color.White,
                         )
                     } else {
-                        IconButtonDefaults.filledIconButtonColors()
+                        IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            disabledContentColor = MaterialTheme.colorScheme.outline,
+                        )
                     },
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_send),
+                        painter = painterResource(
+                            if (isResponding) R.drawable.ic_stop_square else R.drawable.ic_send
+                        ),
                         contentDescription = if (isResponding) {
-                            stringResource(R.string.composer_queue_button)
+                            stringResource(R.string.stop_turn_button)
                         } else {
                             stringResource(R.string.send_button)
                         },
+                        modifier = Modifier.size(if (isResponding) 18.dp else 22.dp),
                     )
                 }
             }
@@ -397,12 +432,10 @@ private fun MessageInputBar(
                 onToolDecision = onToolDecision,
                 onToolAnswerChange = onToolAnswerChange,
                 onToolConfirmationChange = onToolConfirmationChange,
-                onPatchDiffRequest = onPatchDiffRequest,
                 onPatchDecision = onPatchDecision,
                 onSendQueuedNow = onSendQueuedNow,
                 onRemoveQueued = onRemoveQueued,
                 onClearQueue = onClearQueue,
-                onReadWorktreeFile = onReadWorktreeFile,
             )
         }
     }
@@ -752,17 +785,14 @@ private fun ComposerReviewDock(
     onToolDecision: (com.willdeep.android.mobile.PendingToolApproval, Boolean) -> Unit,
     onToolAnswerChange: (String, String) -> Unit,
     onToolConfirmationChange: (String, String) -> Unit,
-    onPatchDiffRequest: (com.willdeep.android.mobile.PatchProposal) -> Unit,
     onPatchDecision: (com.willdeep.android.mobile.PatchProposal, Boolean) -> Unit,
     onSendQueuedNow: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
     onRemoveQueued: (com.willdeep.android.mobile.GatewayQueuedMessage) -> Unit,
     onClearQueue: () -> Unit,
-    onReadWorktreeFile: (com.willdeep.android.mobile.GatewayWorktreeFile, String?) -> Unit,
 ) {
     val hasApprovals = state.pendingTools.isNotEmpty() || state.patchProposals.isNotEmpty()
     val hasQueue = state.queuedMessages.isNotEmpty()
-    val hasWorktree = state.worktree != null
-    if (!hasApprovals && !hasQueue && !hasWorktree) {
+    if (!hasApprovals && !hasQueue) {
         return
     }
     Column(
@@ -782,7 +812,6 @@ private fun ComposerReviewDock(
                 onToolDecision = onToolDecision,
                 onToolAnswerChange = onToolAnswerChange,
                 onToolConfirmationChange = onToolConfirmationChange,
-                onPatchDiffRequest = onPatchDiffRequest,
                 onPatchDecision = onPatchDecision,
             )
         }
@@ -792,12 +821,6 @@ private fun ComposerReviewDock(
                 onSendNow = onSendQueuedNow,
                 onRemove = onRemoveQueued,
                 onClear = onClearQueue,
-            )
-        }
-        if (hasWorktree) {
-            WorktreeCard(
-                state = state,
-                onReadFile = onReadWorktreeFile,
             )
         }
     }

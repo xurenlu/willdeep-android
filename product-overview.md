@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-07-08 | Current version: v1.22.0-rc4
+> Last updated: 2026-07-08 | Current version: v1.23.0-rc1
 
 ## Project Summary
 
@@ -25,8 +25,8 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Show the paired Mac status and current workspace switcher in one compact row, with concise status dots/icons and optional details only when needed.
 - Keep the mobile app portrait-only and use a compact home title without the previous subtitle or session-count badge.
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
-- Use the redesigned mobile composer icon toolbar, plus-style attachment entry, and bottom-sheet pickers to choose approval mode, Mac-reported provider, model, skills, experts, and plugins before sending a request without crowding the text input.
-- Render user asks, tool approvals, patch proposals, queued requests, and changed-file review cards directly below the latest composer input.
+- Use the redesigned mobile composer icon toolbar, plus-style attachment entry, top-aligned multi-line input, Mac-aligned send/stop action button, and bottom-sheet pickers to choose approval mode, Mac-reported provider, model, skills, experts, and plugins before sending a request without crowding the text input.
+- Render user asks, compact tool approvals, patch proposals, and queued requests directly below the latest composer input, while leaving changed-file details on the desktop.
 - Accept shared plain text from other Android apps, combining shared subject/title and body/URL content before loading it into Ask WillDeep for forwarding to the Mac.
 - Import highlighted Android text actions directly into Ask WillDeep for forwarding selected requirements or code snippets to the Mac.
 - Automatically resume the Mac gateway connection on app start and foreground return for paired devices.
@@ -43,11 +43,10 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Send phone-originated coding requests with an optional Mac workspace path in live acceptance so WillDeep edits the intended desktop repository, omitting any stale selected session id when the workspace path is supplied.
 - Use localized English and Simplified Chinese UI resources.
 - Display gateway status, paired desktop name, protocol version, sessions, selected session, and recent event log.
-- Display recent Mac-side conversation messages and follow streaming assistant deltas.
-- Label hidden assistant thinking, tool activity, and waiting-for-visible-output messages clearly instead of showing a generic empty-text fallback.
+- Display recent Mac-side conversation messages with lightweight Markdown support for fenced code blocks, images, and simple tables, follow streaming assistant deltas, and auto-scroll session details to the bottom of the chat.
+- Label hidden assistant thinking, tool activity, and waiting-for-visible-output messages clearly when a raw payload exists, and hide fully empty message rows.
 - Show when the Mac is still streaming an assistant response and clear the indicator on `message.done`.
-- Display Mac-side changed files, repository root, and added/deleted line totals.
-- Read a changed file directly from the Changed Files panel through desktop-mediated `file.read`.
+- Track Mac-side changed-file activity for acceptance evidence without rendering changed-file review cards on Android.
 - Send `session.list`, `session.create`, `session.select`, `message.send`, and `turn.stop` commands.
 - Attach selected mobile run context (`approval_mode`, `provider_id`, `model`, `skills`, `experts`, and `plugins`) to `message.send` payloads for Mac-side handling.
 - Restore pending tool and patch approvals from the initial Mac snapshot, then send `tool.decide` or `patch.decide` back to the Mac.
@@ -57,7 +56,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Remove completed Mac tool approvals from the approval panel when `tool.updated` reports a non-pending state.
 - Remove completed Mac patch proposals from the approval panel when `patch.upsert` reports a non-pending state.
 - Answer Mac-side `ask_user` prompts from the Android approval panel.
-- Request and view pending patch diffs before approving or rejecting them.
+- Approve or reject pending patch proposals from Android while leaving detailed diff review on the desktop.
 - Display Mac background jobs and kill running jobs through the gateway.
 - Read text files from the selected Mac session workspace through desktop-mediated `file.read`.
 - Display queued Mac requests and control the selected session queue through `queue.update`.
@@ -90,7 +89,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 | WS | `queue.update` | Add, remove, clear, or immediately send queued requests on the Mac. |
 | WS | `push.register` | Optionally register the Android Umeng device token with the Mac gateway for remote attention push delivery. |
 | WS | `message.append/delta/done` | Display Mac-side conversation updates. |
-| WS | `worktree.updated` | Display Mac-side changed-file summaries and provide one-tap file-read entry points. |
+| WS | `worktree.updated` | Track Mac-side changed-file activity for acceptance and diagnostics without rendering a mobile review panel. |
 
 ## Run
 

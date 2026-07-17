@@ -39,10 +39,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.annotation.StringRes
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,9 +63,9 @@ import com.willdeep.android.mobile.GatewayQueuedMessage
 import com.willdeep.android.mobile.GatewaySession
 import com.willdeep.android.mobile.GatewayWorktree
 import com.willdeep.android.mobile.GatewayWorktreeFile
-import com.willdeep.android.mobile.PatchDiff
 import com.willdeep.android.mobile.PatchProposal
 import com.willdeep.android.mobile.PendingToolApproval
+import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -238,20 +240,21 @@ private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -
 
 @Composable
 internal fun ConversationCard(state: MobileGatewayUiState) {
+    val displayMessages = state.conversationMessages.filter { it.hasDisplayableBody() }
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SectionTitle(stringResource(R.string.section_conversation))
-            if (state.conversationMessages.isEmpty()) {
+            if (displayMessages.isEmpty()) {
                 Text(
                     text = stringResource(R.string.conversation_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
             } else {
-                state.conversationMessages.takeLast(12).forEach { message ->
+                displayMessages.takeLast(12).forEach { message ->
                     ConversationMessageRow(message)
                 }
             }
@@ -259,8 +262,12 @@ internal fun ConversationCard(state: MobileGatewayUiState) {
     }
 }
 
+internal fun GatewayMessage.hasDisplayableBody(): Boolean {
+    return content.isNotBlank() || imageUrls.isNotEmpty() || rawContentPreview.isNotBlank()
+}
+
 @Composable
-private fun ConversationMessageRow(message: GatewayMessage) {
+internal fun ConversationMessageRow(message: GatewayMessage) {
     val roleLabel = when (message.role) {
         "user" -> stringResource(R.string.message_role_user)
         "assistant" -> stringResource(R.string.message_role_assistant)
@@ -323,6 +330,29 @@ private fun ConversationMessageRow(message: GatewayMessage) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                 )
+                if (message.rawContentPreview.isNotBlank()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                        shape = MaterialTheme.shapes.extraSmall,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.message_raw_body_label),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            Text(
+                                text = message.rawContentPreview,
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -507,7 +537,6 @@ internal fun ApprovalCard(
     onToolDecision: (PendingToolApproval, Boolean) -> Unit,
     onToolAnswerChange: (String, String) -> Unit,
     onToolConfirmationChange: (String, String) -> Unit,
-    onPatchDiffRequest: (PatchProposal) -> Unit,
     onPatchDecision: (PatchProposal, Boolean) -> Unit,
 ) {
     if (state.pendingTools.isEmpty() && state.patchProposals.isEmpty()) {
@@ -516,8 +545,8 @@ internal fun ApprovalCard(
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SectionTitle(stringResource(R.string.section_approvals))
             state.pendingTools.forEach { approval ->
@@ -534,8 +563,6 @@ internal fun ApprovalCard(
             state.patchProposals.forEach { proposal ->
                 PatchProposalRow(
                     proposal = proposal,
-                    diff = state.patchDiffs[proposal.id],
-                    onViewDiff = { onPatchDiffRequest(proposal) },
                     onApprove = { onPatchDecision(proposal, true) },
                     onReject = { onPatchDecision(proposal, false) },
                 )
@@ -560,22 +587,38 @@ private fun ToolApprovalRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 text = stringResource(R.string.tool_approval_title, approval.title),
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             if (approval.summary.isNotBlank()) {
-                Text(text = approval.summary, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = approval.summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            if (approval.inputPreview.isNotBlank()) {
+            val previewLines = approval.humanPreviewLines()
+            if (previewLines.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    previewLines.forEach { line ->
+                        ApprovalPreviewItemRow(line)
+                    }
+                }
+            } else if (approval.inputPreview.isNotBlank() && !approval.inputPreview.isJsonLike()) {
                 Text(
                     text = stringResource(R.string.approval_preview, approval.inputPreview),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             if (approval.requiresAnswer) {
@@ -584,7 +627,8 @@ private fun ToolApprovalRow(
                     onValueChange = onAnswerChange,
                     label = { Text(stringResource(R.string.tool_answer_label)) },
                     placeholder = { Text(stringResource(R.string.tool_answer_placeholder)) },
-                    minLines = 2,
+                    minLines = 1,
+                    maxLines = 3,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -614,10 +658,83 @@ private fun ToolApprovalRow(
 }
 
 @Composable
+private fun ApprovalPreviewItemRow(line: ApprovalPreviewItem) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(line.labelRes),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.secondary,
+        )
+        Text(
+            text = line.value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+private data class ApprovalPreviewItem(
+    @StringRes val labelRes: Int,
+    val value: String,
+)
+
+private fun PendingToolApproval.humanPreviewLines(): List<ApprovalPreviewItem> {
+    val outer = inputPreview.parseJsonObject() ?: return emptyList()
+    val payload = outer.optString("input_json").parseJsonObject()
+        ?: outer.optJSONObject("input")
+        ?: outer
+    val lines = mutableListOf<ApprovalPreviewItem>()
+    payload.firstString("model").takeIf { it.isNotBlank() }?.let {
+        lines += ApprovalPreviewItem(R.string.approval_detail_model, it)
+    }
+    payload.firstString("prompt", "input", "text").takeIf { it.isNotBlank() }?.let {
+        lines += ApprovalPreviewItem(R.string.approval_detail_prompt, it)
+    }
+    payload.firstString("n", "count", "quantity").takeIf { it.isNotBlank() }?.let {
+        lines += ApprovalPreviewItem(R.string.approval_detail_count, it)
+    }
+    payload.firstString("size", "resolution").takeIf { it.isNotBlank() }?.let {
+        lines += ApprovalPreviewItem(R.string.approval_detail_size, it)
+    }
+    payload.firstString("quality").takeIf { it.isNotBlank() }?.let {
+        lines += ApprovalPreviewItem(R.string.approval_detail_quality, it)
+    }
+    outer.firstString("endpoint_suffix", "endpoint").takeIf { it.isNotBlank() }?.let {
+        lines += ApprovalPreviewItem(R.string.approval_detail_endpoint, it)
+    }
+    return lines
+}
+
+private fun String.parseJsonObject(): JSONObject? {
+    val trimmed = trim()
+    if (!trimmed.startsWith("{")) return null
+    return runCatching { JSONObject(trimmed) }.getOrNull()
+}
+
+private fun String.isJsonLike(): Boolean {
+    val trimmed = trim()
+    return trimmed.startsWith("{") || trimmed.startsWith("[")
+}
+
+private fun JSONObject.firstString(vararg keys: String): String {
+    return keys.firstNotNullOfOrNull { key ->
+        when {
+            !has(key) -> null
+            opt(key) == JSONObject.NULL -> null
+            else -> opt(key)?.toString()?.trim()?.takeIf(String::isNotBlank)
+        }
+    }.orEmpty()
+}
+
+@Composable
 private fun PatchProposalRow(
     proposal: PatchProposal,
-    diff: PatchDiff?,
-    onViewDiff: () -> Unit,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
@@ -627,25 +744,32 @@ private fun PatchProposalRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 text = stringResource(R.string.patch_proposal_title, proposal.title),
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             if (proposal.path.isNotBlank()) {
                 Text(
                     text = proposal.path,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             if (proposal.summary.isNotBlank()) {
-                Text(text = proposal.summary, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = proposal.summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             if (proposal.stats.isNotBlank()) {
                 Text(
@@ -653,22 +777,6 @@ private fun PatchProposalRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
-            }
-            OutlinedButton(onClick = onViewDiff) {
-                Text(stringResource(R.string.view_diff_button))
-            }
-            if (diff != null) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = MaterialTheme.shapes.extraSmall,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = diff.diff,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(10.dp),
-                    )
-                }
             }
             DecisionButtons(onApprove = onApprove, onReject = onReject)
         }
@@ -681,11 +789,26 @@ private fun DecisionButtons(
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = onApprove, enabled = approveEnabled) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Button(
+            onClick = onApprove,
+            enabled = approveEnabled,
+            modifier = Modifier
+                .weight(1f)
+                .height(52.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+        ) {
             Text(stringResource(R.string.approve_button))
         }
-        OutlinedButton(onClick = onReject) {
+        OutlinedButton(
+            onClick = onReject,
+            modifier = Modifier.height(42.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+        ) {
             Text(stringResource(R.string.reject_button))
         }
     }

@@ -341,6 +341,7 @@ data class GatewayMessage(
     val isStreaming: Boolean = false,
     val imageUrls: List<String> = emptyList(),
     val activity: GatewayMessageActivity = GatewayMessageActivity.None,
+    val rawContentPreview: String = "",
 )
 
 data class GatewayWorktreeFile(
@@ -685,6 +686,7 @@ private fun JSONObject.toMessage(sessionId: String?): GatewayMessage {
         isStreaming = optBoolean("is_streaming", false),
         imageUrls = content.images,
         activity = content.activity,
+        rawContentPreview = content.rawPreview,
     )
 }
 
@@ -692,6 +694,7 @@ private data class ExtractedMessageContent(
     val text: String,
     val images: List<String>,
     val activity: GatewayMessageActivity,
+    val rawPreview: String,
 )
 
 private val THINKING_CONTENT_TYPES = setOf(
@@ -716,6 +719,7 @@ private val TOOL_CONTENT_TYPES = setOf(
 private fun extractMessageContent(json: JSONObject, role: String): ExtractedMessageContent {
     val texts = mutableListOf<String>()
     val images = mutableListOf<String>()
+    val rawCandidates = mutableListOf<String>()
     var activity = when (role.lowercase()) {
         "tool", "function" -> GatewayMessageActivity.Tool
         else -> GatewayMessageActivity.None
@@ -800,7 +804,11 @@ private fun extractMessageContent(json: JSONObject, role: String): ExtractedMess
     }
 
     listOf("content", "text", "delta", "body", "message", "parts", "segments").forEach { key ->
-        if (json.has(key)) visit(json.opt(key))
+        if (json.has(key)) {
+            val value = json.opt(key)
+            rawCandidates.add(rawMessageBodyPreview(value))
+            visit(value)
+        }
     }
 
     val combined = texts.joinToString("\n").trim()
@@ -808,7 +816,56 @@ private fun extractMessageContent(json: JSONObject, role: String): ExtractedMess
         text = combined,
         images = images.distinct(),
         activity = activity,
+        rawPreview = rawCandidates.firstOrNull { it.isNotBlank() }.orEmpty(),
     )
+}
+
+private fun rawMessageBodyPreview(value: Any?): String {
+    val redacted = redactSensitiveJsonValue(value)
+    val text = when (redacted) {
+        null, JSONObject.NULL -> ""
+        is JSONObject, is JSONArray -> redacted.toString()
+        else -> redacted.toString()
+    }.trim()
+    return text.take(2_000)
+}
+
+private fun redactSensitiveJsonValue(value: Any?): Any? {
+    return when (value) {
+        null, JSONObject.NULL -> value
+        is JSONArray -> JSONArray().also { array ->
+            for (index in 0 until value.length()) {
+                array.put(redactSensitiveJsonValue(value.opt(index)))
+            }
+        }
+        is JSONObject -> JSONObject().also { obj ->
+            val keys = value.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                obj.put(
+                    key,
+                    if (key.isSensitiveJsonKey()) {
+                        "[redacted]"
+                    } else {
+                        redactSensitiveJsonValue(value.opt(key))
+                    },
+                )
+            }
+        }
+        else -> value
+    }
+}
+
+private fun String.isSensitiveJsonKey(): Boolean {
+    val lower = lowercase()
+    return lower.contains("token") ||
+        lower.contains("secret") ||
+        lower.contains("password") ||
+        lower.contains("passwd") ||
+        lower.contains("credential") ||
+        lower.contains("authorization") ||
+        lower == "api_key" ||
+        lower == "apikey"
 }
 
 private fun JSONObject.toWorktree(sessionId: String?): GatewayWorktree {
