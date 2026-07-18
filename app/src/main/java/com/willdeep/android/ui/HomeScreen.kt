@@ -54,6 +54,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -108,6 +110,8 @@ fun HomeScreen(
     onWorkspacePickerDismiss: () -> Unit,
     onWorkspacePickerRetry: () -> Unit,
     onWorkspaceSelected: (String) -> Unit,
+    onOpenAttention: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
 ) {
     val isPaired = state.isPaired
     val isConnected = state.status == ConnectionStatus.Connected
@@ -172,6 +176,8 @@ fun HomeScreen(
                     onToolConfirmationChange = onToolConfirmationChange,
                     onPatchDecision = onPatchDecision,
                     onSelectSession = onSelectSession,
+                    onOpenAttention = onOpenAttention,
+                    onOpenDiagnostics = onOpenDiagnostics,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -493,6 +499,8 @@ private fun PairedBody(
     onToolConfirmationChange: (String, String) -> Unit,
     onPatchDecision: (PatchProposal, Boolean) -> Unit,
     onSelectSession: (String) -> Unit,
+    onOpenAttention: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by rememberSaveable { mutableStateOf(SessionFilter.All) }
@@ -542,6 +550,7 @@ private fun PairedBody(
         RemoteMacSelector(
             state = state,
             onClick = { remoteMacPickerVisible = true },
+            onDiagnosticsClick = onOpenDiagnostics,
         )
         if (
             state.status == ConnectionStatus.Reconnecting &&
@@ -549,6 +558,15 @@ private fun PairedBody(
         ) {
             Spacer(Modifier.height(8.dp))
             MacReconnectNotice(state = state)
+        }
+        val attentionCount = state.pendingTools.size + state.patchProposals.size
+        if (attentionCount > 0) {
+            Spacer(Modifier.height(8.dp))
+            AttentionSummaryCard(
+                approvalCount = state.pendingTools.count { !it.requiresAnswer } + state.patchProposals.size,
+                questionCount = state.pendingTools.count { it.requiresAnswer },
+                onClick = onOpenAttention,
+            )
         }
         Spacer(Modifier.height(8.dp))
         WorkspaceRail(
@@ -666,7 +684,9 @@ private fun PairedBody(
 private fun RemoteMacSelector(
     state: MobileGatewayUiState,
     onClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit,
 ) {
+    val selectorDescription = stringResource(R.string.remote_mac_selector_title)
     val selectedMac = state.pairedMacs.firstOrNull { it.id == state.selectedMacId }
     val statusColor = when (state.status) {
         ConnectionStatus.Connected -> Color(0xFF2F9E44)
@@ -679,7 +699,9 @@ private fun RemoteMacSelector(
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = selectorDescription },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -723,9 +745,64 @@ private fun RemoteMacSelector(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            IconButton(onClick = onDiagnosticsClick, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_chevron_right),
+                    contentDescription = stringResource(R.string.diagnostics_open),
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttentionSummaryCard(
+    approvalCount: Int,
+    questionCount: Int,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFFFF4DE),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_approval),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.attention_summary_title, approvalCount + questionCount),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.attention_summary_detail, approvalCount, questionCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
             Icon(
                 painter = painterResource(R.drawable.ic_chevron_right),
-                contentDescription = stringResource(R.string.remote_mac_selector_title),
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.size(18.dp),
             )
@@ -1540,21 +1617,21 @@ private fun HomeSessionCard(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(11.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = session.title.trim().firstOrNull()?.uppercase()
                                 ?: session.workspaceName.trim().firstOrNull()?.uppercase()
-                                ?: "·",
+                                ?: stringResource(R.string.home_session_initial_fallback),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.outline,
                         )
@@ -1594,7 +1671,7 @@ private fun HomeSessionCard(
                                 text = if (session.messageCount > 0) {
                                     stringResource(R.string.message_count, session.messageCount)
                                 } else {
-                                    "—"
+                                    stringResource(R.string.home_session_no_message_count)
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.outline,
@@ -1614,9 +1691,9 @@ private fun HomeSessionCard(
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 text = when {
-                                    hasReview -> stringResource(R.string.home_session_needs_confirmation)
-                                    session.isResponding -> stringResource(R.string.responding)
-                                    isConnected -> stringResource(R.string.home_session_connected)
+                                    hasReview -> stringResource(R.string.home_session_waiting_input)
+                                    session.isResponding -> stringResource(R.string.home_session_running)
+                                    isConnected -> stringResource(R.string.home_session_completed)
                                     else -> stringResource(R.string.home_session_disconnected)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
@@ -1624,7 +1701,10 @@ private fun HomeSessionCard(
                             )
                             if (session.workspaceName.isNotBlank()) {
                                 Text(
-                                    text = "  ·  ${session.workspaceName}",
+                                    text = stringResource(
+                                        R.string.home_session_workspace_suffix,
+                                        session.workspaceName,
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.secondary,
                                     maxLines = 1,

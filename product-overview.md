@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-07-18 | Current version: v1.24.0-rc3
+> Last updated: 2026-07-18 | Current version: v1.25.0-rc1
 
 ## Project Summary
 
@@ -28,6 +28,9 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
 - Use the redesigned mobile composer icon toolbar, plus-style attachment entry, top-aligned multi-line input, Mac-aligned send/stop action button, and bottom-sheet pickers to choose approval mode, Mac-reported provider, model, skills, experts, and plugins before sending a request without crowding the text input.
 - Render pending tool and patch confirmations directly inside their owning home-session card as well as in the session composer, while leaving changed-file details on the desktop.
+- Collect approvals, typed questions, patch reviews, and failed phone commands in a dedicated attention center without removing inline approval controls from their owning home session.
+- Provide connection diagnostics for the selected remote Mac, including truthful Mac App response state, measured gateway latency, LAN/Tailscale route classification, multi-Mac switching, the five-second/twenty-second recovery policy, and redacted sharing.
+- Split session detail into Conversation, Actions, and Changes tabs while preserving the full composer on the Conversation tab.
 - Accept shared plain text from other Android apps, combining shared subject/title and body/URL content before loading it into Ask WillDeep for forwarding to the Mac.
 - Import highlighted Android text actions directly into Ask WillDeep for forwarding selected requirements or code snippets to the Mac.
 - Automatically resume the Mac gateway connection on app start and foreground return for paired devices.

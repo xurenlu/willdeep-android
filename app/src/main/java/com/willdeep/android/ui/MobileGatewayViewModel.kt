@@ -115,6 +115,7 @@ data class MobileGatewayUiState(
     val gatewayServerVersion: String = "",
     val pairingAllowed: Boolean? = null,
     val isCheckingGateway: Boolean = false,
+    val gatewayLatencyMillis: Long? = null,
     val isPaired: Boolean = false,
     val pairedMacs: List<RemoteMacSummary> = emptyList(),
     val selectedMacId: String? = null,
@@ -375,6 +376,7 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             runCatching {
                 _state.update { it.copy(isCheckingGateway = true, errorMessage = null) }
+                val startedAtMillis = SystemClock.elapsedRealtime()
                 state.value.pairingPayloadText
                     .takeIf { it.isNotBlank() }
                     ?.let { ensurePairingPayloadUsable(parsePairingPayload(it)) }
@@ -385,11 +387,12 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 val health = checkFirstReachableHealth(target.baseUrl, target.fallbackBaseUrls).health
                 updateGatewayHealth(target, health)
                 ensureCompatibleGateway(health, requiresPairingAllowed = target.requiresPairingAllowed)
-                health
-            }.onSuccess { health ->
+                health to (SystemClock.elapsedRealtime() - startedAtMillis)
+            }.onSuccess { (health, latencyMillis) ->
                 _state.update {
                     it.copy(
                         isCheckingGateway = false,
+                        gatewayLatencyMillis = latencyMillis,
                         logLines = it.logLines.append(
                             GatewayLogLine(
                                 "ack",

@@ -1,44 +1,29 @@
 # Design QA
 
-## 验收范围
+## Reference and implementation
 
-- 页面：Android 首页会话列表
-- 参考图：`/var/folders/np/rjc0y5w52x324x21pv6g33440000gp/T/codex-clipboard-bf407755-deab-4611-917b-2b987256ba24.jpg`
-- 真机截图：`build/design-qa/workspace-grouped-home.png`
-- 完整对照图：`build/design-qa/reference-vs-workspace-grouped-home.png`
-- 聚焦对照图：`build/design-qa/reference-vs-workspace-grouped-home-focus.png`
-- 视口：1280 × 2772 px（USB Android 真机）
-- 状态：Mac 已响应；全部工作区；alpha 5 个会话、beta 2 个会话；工作区默认收起
+- Reference: `/Users/rocky/.codex/visualizations/2026/07/17/019f7094-7f1c-7372-a67c-7e262014acac/willdeep-android-remote-agent-console-v1.png`
+- USB device viewport: `1280 × 2772`
+- Combined comparison: `build/design-qa/remote-console-design-comparison.png`
+- Implementation captures: `build/design-qa/remote-console-home.png`, `remote-console-attention.png`, `remote-console-session.png`, and `remote-console-diagnostics.png` from the physical Android device.
 
-## 视觉对照
+## Fidelity review
 
-| 检查项 | 结果 | 说明 |
-| --- | --- | --- |
-| 信息层级 | 通过 | 移除顶部“代码”标题后，远端 Mac、工作区切换、状态筛选、工作区分组依次呈现。 |
-| 字体与字重 | 通过 | 延续现有页面的标题、正文、辅助信息层级。 |
-| 间距与圆角 | 通过 | 远端 Mac 卡片、筛选器、会话卡片沿用既有间距和圆角体系。 |
-| 色彩 | 通过 | 沿用浅色背景、白色卡片、绿色连接状态和橙色操作色。 |
-| 图标与图像 | 通过 | 继续使用项目现有的 Mac、展开和新增会话图标，无占位资产。 |
-| 文案 | 通过 | 工作区切换、展开/收起及无工作区文案均通过本地化资源提供。 |
-| 全屏比较 | 通过 | 对照图确认整体密度、卡片宽度和底部悬浮按钮与参考界面一致。 |
-| 聚焦比较 | 通过 | 对照图确认每个工作区仅展示最新 3 个会话，剩余会话由组内按钮展开。 |
+- Layout and hierarchy: the four screens preserve the approved order, workspace grouping, three-session preview behavior, inline approvals, tab structure, diagnostic rows, recovery policy, and primary actions.
+- Typography and spacing: headings, supporting text, compact controls, and card spacing remain readable at the physical device viewport. Long dynamic titles use truncation and scrollable surfaces where appropriate.
+- Color and surfaces: the existing WillDeep ivory, orange, green, and soft-neutral tokens are retained; status colors remain semantic and accessible.
+- Icons and assets: only existing project vector assets are used. No text-symbol, custom SVG, or placeholder-image substitutes are present in the implemented interface.
+- States and interactions: remote-Mac selection, attention filters, inline decisions, session tabs, health checks, diagnostics sharing, composer actions, and workspace/session navigation are connected to real callbacks.
+- Connectivity truthfulness: Connected is shown only for a real Mac App response; transport-only state remains distinct, with 5-second checks and a 20-second stale threshold.
+- Accessibility and resilience: controls use semantic labels, practical mobile tap targets, localized resources, scrollable long surfaces, and no fixed text containers that clip the tested Chinese content.
 
-## 交互验收
+## Verification
 
-- 工作区分组保持网关返回的会话新旧顺序。
-- 每个工作区默认只展示最新 3 个会话，展开后显示该组全部会话。
-- 不同工作区的展开状态彼此独立。
-- 小型“工作区 · 全部 · 切换”入口可展开工作区选项并切换列表。
-- 切换到 beta 后，alpha 会话从列表中消失，仅显示 beta 会话。
-- 状态筛选、会话点击、远端 Mac 选择与连接提示逻辑保持可用。
-- 原生界面不适用浏览器控制台检查；Gradle 单元测试、APK 构建及 USB 真机仪器测试均通过。
+- JVM unit tests and Debug/AndroidTest builds completed successfully.
+- Six Compose instrumentation tests passed on USB device `JBRKKBQKHEM7ZPV4`.
+- Installed build reports `versionCode=111` and `versionName=1.25.0-rc1`.
+- No blocking or high-severity visual mismatch remains after the combined comparison pass.
 
-## 差异与问题
-
-- 参考图中的顶部“代码”标题按本轮明确要求移除，属于预期差异。
-- 工作区分组、组内展开和紧凑切换入口为本轮明确要求，属于预期新增。
-- 未发现 P0、P1 或 P2 视觉/交互问题。
-
-## 最终结果
+## Final result
 
 passed

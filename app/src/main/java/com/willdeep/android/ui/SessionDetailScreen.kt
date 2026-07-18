@@ -47,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -69,6 +70,8 @@ import coil.compose.AsyncImage
 import com.willdeep.android.R
 import com.willdeep.android.mobile.GatewaySession
 
+private enum class SessionDetailTab { Conversation, Actions, Changes }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionDetailScreen(
@@ -86,16 +89,22 @@ fun SessionDetailScreen(
     val scopedState = state.copy(
         pendingTools = state.pendingTools.filter { it.sessionId == sessionId },
         patchProposals = state.patchProposals.filter { it.sessionId == sessionId },
+        jobs = state.jobs.filter { it.sessionId == sessionId },
         queuedMessages = state.queuedMessages.filter { it.sessionId == sessionId },
         conversationMessages = state.conversationMessages.filter { it.sessionId == sessionId },
         worktree = state.worktree?.takeIf { it.sessionId == null || it.sessionId == sessionId },
     )
     val isResponding = activeSession?.isResponding == true
+    var selectedTab by remember { mutableStateOf(SessionDetailTab.Conversation) }
     val listState = rememberLazyListState()
     val conversationMessages = scopedState.conversationMessages.filter { it.hasDisplayableBody() }
     val visibleConversationMessages = conversationMessages.takeLast(24)
     val lastMessage = conversationMessages.lastOrNull()
-    val bottomAnchorIndex = if (visibleConversationMessages.isEmpty()) 2 else visibleConversationMessages.size + 1
+    val activityItemCount = if (
+        isResponding || scopedState.pendingTools.isNotEmpty() || scopedState.jobs.any { it.isAlive }
+    ) 1 else 0
+    val messageItemCount = visibleConversationMessages.size.coerceAtLeast(1)
+    val bottomAnchorIndex = activityItemCount + messageItemCount
 
     LaunchedEffect(
         sessionId,
@@ -103,8 +112,11 @@ fun SessionDetailScreen(
         lastMessage?.id,
         lastMessage?.content?.length,
         lastMessage?.isStreaming,
+        selectedTab,
     ) {
-        listState.animateScrollToItem(bottomAnchorIndex)
+        if (selectedTab == SessionDetailTab.Conversation) {
+            listState.animateScrollToItem(bottomAnchorIndex)
+        }
     }
 
     Scaffold(
@@ -127,7 +139,15 @@ fun SessionDetailScreen(
                         )
                         if (subtitleText != null) {
                             Text(
-                                text = subtitleText,
+                                text = if (state.status == ConnectionStatus.Connected) {
+                                    stringResource(
+                                        R.string.session_detail_mac_received,
+                                        state.desktopResponseAgeMillis.coerceAtLeast(0L) / 1_000L,
+                                        subtitleText,
+                                    )
+                                } else {
+                                    subtitleText
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.secondary,
                                 maxLines = 1,
@@ -150,7 +170,8 @@ fun SessionDetailScreen(
             )
         },
         bottomBar = {
-            MessageInputBar(
+            if (selectedTab == SessionDetailTab.Conversation) {
+                MessageInputBar(
                 state = scopedState,
                 isResponding = isResponding,
                 onMessageChange = viewModel::updateMessage,
@@ -171,51 +192,172 @@ fun SessionDetailScreen(
                 onSendQueuedNow = viewModel::sendQueuedNow,
                 onRemoveQueued = viewModel::removeQueuedMessage,
                 onClearQueue = viewModel::clearQueue,
-            )
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
-        LazyColumn(
-            state = listState,
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Text(
-                    text = stringResource(R.string.section_conversation),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            if (conversationMessages.isEmpty()) {
-                item {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth(),
+            SessionDetailTabs(
+                selected = selectedTab,
+                onSelected = { selectedTab = it },
+            )
+            when (selectedTab) {
+                SessionDetailTab.Conversation -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (isResponding || scopedState.pendingTools.isNotEmpty() || scopedState.jobs.any { it.isAlive }) {
+                        item(key = "activity") {
+                            SessionActivitySummary(
+                                responding = isResponding,
+                                actionCount = scopedState.pendingTools.size + scopedState.patchProposals.size,
+                            )
+                        }
+                    }
+                    if (conversationMessages.isEmpty()) {
+                        item {
+                            EmptyDetailState(R.string.conversation_empty)
+                        }
+                    } else {
+                        items(visibleConversationMessages, key = { it.id }) { message ->
+                            ConversationMessageRow(message)
+                        }
+                    }
+                    item { Spacer(Modifier.height(1.dp)) }
+                }
+                SessionDetailTab.Actions -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (
+                        scopedState.pendingTools.isEmpty() &&
+                        scopedState.patchProposals.isEmpty() &&
+                        scopedState.jobs.isEmpty() &&
+                        scopedState.queuedMessages.isEmpty()
                     ) {
-                        Text(
-                            text = stringResource(R.string.conversation_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(12.dp),
-                        )
+                        item { EmptyDetailState(R.string.session_detail_actions_empty) }
+                    } else {
+                        item {
+                            ApprovalCard(
+                                state = scopedState,
+                                onToolDecision = viewModel::decideTool,
+                                onToolAnswerChange = viewModel::updateToolAnswer,
+                                onToolConfirmationChange = viewModel::updateToolConfirmation,
+                                onPatchDecision = viewModel::decidePatch,
+                            )
+                        }
+                        item { JobsCard(scopedState, viewModel::killJob) }
+                        item {
+                            QueueCard(
+                                state = scopedState,
+                                onSendNow = viewModel::sendQueuedNow,
+                                onRemove = viewModel::removeQueuedMessage,
+                                onClear = viewModel::clearQueue,
+                            )
+                        }
                     }
                 }
-            } else {
-                items(visibleConversationMessages, key = { it.id }) { message ->
-                    ConversationMessageRow(message)
+                SessionDetailTab.Changes -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (scopedState.worktree == null || scopedState.worktree.fileCount == 0) {
+                        item { EmptyDetailState(R.string.session_detail_changes_empty) }
+                    } else {
+                        item {
+                            WorktreeCard(
+                                state = scopedState,
+                                onReadFile = viewModel::requestWorktreeFileRead,
+                            )
+                        }
+                    }
                 }
-            }
-            item {
-                Spacer(Modifier.height(1.dp))
             }
         }
     }
+}
+
+@Composable
+private fun SessionDetailTabs(
+    selected: SessionDetailTab,
+    onSelected: (SessionDetailTab) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SessionDetailTab.entries.forEach { tab ->
+            FilterChip(
+                selected = selected == tab,
+                onClick = { onSelected(tab) },
+                label = { Text(stringResource(tab.labelResource())) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionActivitySummary(responding: Boolean, actionCount: Int) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFFF3F6EF),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(if (responding) Color(0xFF2F9E44) else MaterialTheme.colorScheme.primary),
+            )
+            Text(
+                text = if (responding) {
+                    stringResource(R.string.session_detail_activity_running)
+                } else {
+                    stringResource(R.string.session_detail_activity_actions, actionCount)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyDetailState(textResource: Int) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = stringResource(textResource),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.padding(14.dp),
+        )
+    }
+}
+
+private fun SessionDetailTab.labelResource(): Int = when (this) {
+    SessionDetailTab.Conversation -> R.string.session_detail_tab_conversation
+    SessionDetailTab.Actions -> R.string.session_detail_tab_actions
+    SessionDetailTab.Changes -> R.string.session_detail_tab_changes
 }
 
 @Composable

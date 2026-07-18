@@ -129,6 +129,24 @@ fun WillDeepApp(
             onBack = { screen = "home" },
             onScan = { screen = "scanner" },
         )
+        "attention" -> AttentionScreen(
+            state = state,
+            onBack = { screen = "home" },
+            onOpenSession = { sessionId ->
+                viewModel.selectSession(sessionId)
+                screen = "session"
+            },
+            onToolDecision = viewModel::decideTool,
+            onToolAnswerChange = viewModel::updateToolAnswer,
+            onToolConfirmationChange = viewModel::updateToolConfirmation,
+            onPatchDecision = viewModel::decidePatch,
+        )
+        "diagnostics" -> ConnectionDiagnosticsScreen(
+            state = state,
+            onBack = { screen = "home" },
+            onCheckNow = viewModel::checkGatewayHealth,
+            onRemoteMacSelected = viewModel::selectRemoteMac,
+        )
         else -> HomeScreen(
             state = state,
             versionName = BuildConfig.VERSION_NAME,
@@ -153,6 +171,8 @@ fun WillDeepApp(
                     screen = "session"
                 }
             },
+            onOpenAttention = { screen = "attention" },
+            onOpenDiagnostics = { screen = "diagnostics" },
         )
     }
 }
@@ -832,7 +852,7 @@ private fun DecisionButtons(
 }
 
 @Composable
-private fun JobsCard(
+internal fun JobsCard(
     state: MobileGatewayUiState,
     onKillJob: (GatewayJob) -> Unit,
 ) {

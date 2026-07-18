@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.25.0-rc1] - 2026-07-18
+
+### Added
+
+- Added a dedicated attention center for tool approvals, typed questions, patch reviews, and failed mobile commands, while retaining inline session approvals on the workspace-grouped home screen.
+- Added a connection diagnostics screen with multi-Mac switching, truthful Mac App response health, measured gateway latency, LAN/Tailscale route visibility, the five-second poll and twenty-second stale policy, and redacted diagnostic sharing.
+- Added Conversation, Actions, and Changes tabs to session details so live messages, approvals/jobs/queue, and Mac-reported file changes have clear dedicated surfaces.
+
+### Changed
+
+- Tightened home session cards and replaced repeated transport-oriented “Connected” labels with task-oriented Working, Waiting for input, and Completed states.
+- Bumped Android client version to `1.25.0-rc1` (`versionCode = 111`).
+
 ## [1.24.0-rc3] - 2026-07-18
 
 ### Fixed

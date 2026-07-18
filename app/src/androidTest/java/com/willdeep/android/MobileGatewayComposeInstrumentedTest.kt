@@ -21,13 +21,22 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.willdeep.android.mobile.DeviceTokenStore
+import com.willdeep.android.mobile.GatewayMessage
+import com.willdeep.android.mobile.GatewayWorktree
+import com.willdeep.android.mobile.GatewayWorktreeFile
+import com.willdeep.android.mobile.GatewayWorkspace
+import com.willdeep.android.mobile.PatchProposal
+import com.willdeep.android.mobile.PendingToolApproval
 import com.willdeep.android.ui.AgentActivityBaseline
+import com.willdeep.android.ui.AttentionScreen
 import com.willdeep.android.ui.ConnectionStatus
+import com.willdeep.android.ui.ConnectionDiagnosticsScreen
 import com.willdeep.android.ui.HomeScreen
 import com.willdeep.android.ui.MobileCommandState
 import com.willdeep.android.ui.MobileGatewayViewModel
 import com.willdeep.android.ui.MobileGatewayUiState
 import com.willdeep.android.ui.RemoteMacSummary
+import com.willdeep.android.ui.SessionDetailScreen
 import com.willdeep.android.ui.WORKSPACE_SWITCHER_TEST_TAG
 import com.willdeep.android.ui.WillDeepApp
 import com.willdeep.android.ui.agentActivitySignalAfter
@@ -288,7 +297,7 @@ class MobileGatewayComposeInstrumentedTest {
             WillDeepTheme {
                 HomeScreen(
                     state = state,
-                    versionName = "1.24.0-rc2",
+                    versionName = "1.25.0-rc1",
                     onScanClick = {},
                     onCreateSession = {},
                     onSelectSession = {},
@@ -330,6 +339,158 @@ class MobileGatewayComposeInstrumentedTest {
         composeRule.onNodeWithText("Beta 2")
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun approvedRemoteConsoleScreensRenderForVisualQa() {
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val visualScreen = mutableStateOf(0)
+        val session = gatewaySession(
+            id = "session-muchtoken",
+            title = "优化结算接口并补齐测试",
+            workspace = "muchtoken",
+        ).copy(messageCount = 18, isActive = true, isResponding = true)
+        val completedSession = gatewaySession(
+            id = "session-xedit",
+            title = "修复 Mac 端消息确认状态",
+            workspace = "Xedit",
+        ).copy(messageCount = 9)
+        val approval = PendingToolApproval(
+            id = "approval-build",
+            title = "运行构建并检查编译错误",
+            summary = "将执行 Android 调试构建",
+            toolName = "shell",
+            inputPreview = "./gradlew :app:assembleDebug",
+            requiresAnswer = false,
+            sessionId = session.id,
+        )
+        val question = PendingToolApproval(
+            id = "question-style",
+            title = "需要确认发布方式",
+            summary = "是否在完成后推送当前分支？",
+            toolName = "ask_user",
+            inputPreview = "",
+            requiresAnswer = true,
+            sessionId = completedSession.id,
+        )
+        val visualState = MobileGatewayUiState(
+            desktopName = "WillDeep MacBook Pro",
+            baseUrl = "http://192.168.1.20:8877",
+            fallbackBaseUrls = listOf("http://100.64.0.2:8877"),
+            protocolVersion = "mobile-gateway.v1",
+            gatewayServerVersion = "1.25.0-rc1",
+            gatewayLatencyMillis = 38,
+            isPaired = true,
+            pairedMacs = listOf(
+                RemoteMacSummary(
+                    id = "macbook",
+                    name = "WillDeep MacBook Pro",
+                    lastDesktopResponseAtEpochMillis = System.currentTimeMillis() - 1_000,
+                    isSelected = true,
+                ),
+                RemoteMacSummary(
+                    id = "studio",
+                    name = "Studio Mac mini",
+                    lastDesktopResponseAtEpochMillis = System.currentTimeMillis() - 120_000,
+                ),
+            ),
+            selectedMacId = "macbook",
+            isTransportConnected = true,
+            desktopResponseAgeMillis = 1_000,
+            status = ConnectionStatus.Connected,
+            sessions = listOf(session, completedSession),
+            selectedSessionId = session.id,
+            workspaces = listOf(
+                GatewayWorkspace("/Users/rocky/Sites/muchtoken", "muchtoken", "", 1),
+                GatewayWorkspace("/Users/rocky/Sites/Xedit", "Xedit", "", 1),
+            ),
+            pendingTools = listOf(approval, question),
+            patchProposals = listOf(
+                PatchProposal(
+                    id = "patch-copy",
+                    title = "更新会话状态文案",
+                    summary = "将连接状态改成任务状态",
+                    path = "HomeScreen.kt",
+                    stats = "+18 -7",
+                    sessionId = session.id,
+                ),
+            ),
+            conversationMessages = listOf(
+                GatewayMessage(
+                    id = "message-user",
+                    role = "user",
+                    content = "把首页、待处理、会话详情和连接诊断按确认稿落地。",
+                    createdAt = "2026-07-18T07:00:00Z",
+                    sessionId = session.id,
+                ),
+                GatewayMessage(
+                    id = "message-assistant",
+                    role = "assistant",
+                    content = "正在整理导航和状态展示，并保留已有的真实网关能力。",
+                    createdAt = "2026-07-18T07:00:02Z",
+                    sessionId = session.id,
+                    isStreaming = true,
+                ),
+            ),
+            worktree = GatewayWorktree(
+                repositoryRoot = "/Users/rocky/Sites/willdeep-android",
+                fileCount = 3,
+                totalAddedLines = 246,
+                totalDeletedLines = 31,
+                files = listOf(
+                    GatewayWorktreeFile("HomeScreen.kt", "modified", 64, 18),
+                    GatewayWorktreeFile("AttentionScreen.kt", "added", 121, 0),
+                    GatewayWorktreeFile("ConnectionDiagnosticsScreen.kt", "added", 61, 13),
+                ),
+                sessionId = session.id,
+            ),
+        )
+
+        val visualViewModel = MobileGatewayViewModel(appContext)
+        composeRule.setContent {
+            WillDeepTheme {
+                when (visualScreen.value) {
+                    0 -> HomeScreen(
+                        state = visualState,
+                        versionName = "1.25.0-rc1",
+                        onScanClick = {}, onCreateSession = {}, onSelectSession = {},
+                        onConnect = {}, onDisconnect = {}, onForget = {}, onRemoteMacSelected = {},
+                        onToolDecision = { _, _ -> }, onToolAnswerChange = { _, _ -> },
+                        onToolConfirmationChange = { _, _ -> }, onPatchDecision = { _, _ -> },
+                        onWorkspacePickerDismiss = {}, onWorkspacePickerRetry = {}, onWorkspaceSelected = {},
+                        onOpenAttention = {}, onOpenDiagnostics = {},
+                    )
+                    1 -> AttentionScreen(
+                        state = visualState,
+                        onBack = {}, onOpenSession = {}, onToolDecision = { _, _ -> },
+                        onToolAnswerChange = { _, _ -> }, onToolConfirmationChange = { _, _ -> },
+                        onPatchDecision = { _, _ -> },
+                    )
+                    2 -> SessionDetailScreen(
+                        viewModel = visualViewModel,
+                        state = visualState,
+                        onBack = {},
+                        onScan = {},
+                    )
+                    else -> ConnectionDiagnosticsScreen(
+                        state = visualState,
+                        onBack = {},
+                        onCheckNow = {},
+                        onRemoteMacSelected = {},
+                    )
+                }
+            }
+        }
+        saveRootScreenshot(targetContext, "remote-console-home.png")
+        composeRule.runOnIdle { visualScreen.value = 1 }
+        composeRule.waitForIdle()
+        saveRootScreenshot(targetContext, "remote-console-attention.png")
+        composeRule.runOnIdle { visualScreen.value = 2 }
+        composeRule.waitForIdle()
+        saveRootScreenshot(targetContext, "remote-console-session.png")
+        composeRule.runOnIdle { visualScreen.value = 3 }
+        composeRule.waitForIdle()
+        saveRootScreenshot(targetContext, "remote-console-diagnostics.png")
     }
 
     @Test
