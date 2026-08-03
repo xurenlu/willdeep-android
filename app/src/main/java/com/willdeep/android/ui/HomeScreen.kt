@@ -557,7 +557,10 @@ private fun PairedBody(
             state.desktopResponseAgeMillis >= com.willdeep.android.mobile.ReconnectPolicy.HEARTBEAT_TIMEOUT_MILLIS
         ) {
             Spacer(Modifier.height(8.dp))
-            MacReconnectNotice(state = state)
+            MacReconnectNotice(
+                state = state,
+                onScanClick = onScanClick,
+            )
         }
         val attentionCount = state.pendingTools.size + state.patchProposals.size
         if (attentionCount > 0) {
@@ -833,7 +836,10 @@ private fun selectedMacStatusText(state: MobileGatewayUiState): String {
 }
 
 @Composable
-private fun MacReconnectNotice(state: MobileGatewayUiState) {
+private fun MacReconnectNotice(
+    state: MobileGatewayUiState,
+    onScanClick: () -> Unit,
+) {
     val seconds = (state.desktopResponseAgeMillis / 1_000L).coerceAtLeast(20L)
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -864,6 +870,20 @@ private fun MacReconnectNotice(state: MobileGatewayUiState) {
                 style = MaterialTheme.typography.labelMedium,
                 color = Color(0xFF8B5E00),
             )
+            if (MobileGatewayConnectionPolicy.shouldSuggestRePair(
+                    isTransportConnected = state.isTransportConnected,
+                    desktopResponseAgeMillis = state.desktopResponseAgeMillis,
+                )
+            ) {
+                Text(
+                    text = stringResource(R.string.remote_mac_pairing_may_be_stale),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+                OutlinedButton(onClick = onScanClick) {
+                    Text(stringResource(R.string.remote_mac_rescan_pairing))
+                }
+            }
         }
     }
 }

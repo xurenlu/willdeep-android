@@ -91,7 +91,7 @@
     <string name="error_gateway_pairing_not_allowed">Mac Mobile Gateway is not allowing pairing right now.</string>
     <string name="error_gateway_health_target_missing">Paste a pairing payload or pair with a Mac before checking gateway health.</string>
     <string name="error_pairing_payload_invalid">Paste the pairing QR payload from WillDeep Settings.</string>
-    <string name="error_desktop_heartbeat_timeout">No Mac app message for 20 seconds. Restoring the connection.</string>
+    <string name="error_desktop_heartbeat_timeout">No Mac app message for 20 seconds. If the Mac is open, scan its current pairing QR code again.</string>
     <string name="error_pairing_payload_expired">This pairing QR code has expired. Generate a new one on the Mac.</string>
     <string name="camera_permission_required">Camera permission is required to scan the Mac pairing QR code.</string>
     <string name="qr_scanner_title">Scan Mac pairing QR</string>
@@ -175,6 +175,8 @@
     <string name="remote_mac_no_response_seconds">No Mac app message for %1$d seconds</string>
     <string name="remote_mac_transport_waiting">Server connected; still waiting for the Mac app</string>
     <string name="remote_mac_transport_reconnecting">Restoring the server channel</string>
+    <string name="remote_mac_pairing_may_be_stale">The server accepted this channel, but an older pairing token is silently isolated from the Mac.</string>
+    <string name="remote_mac_rescan_pairing">Scan current Mac QR code</string>
     <string name="remote_mac_add_computer">Scan to add computer</string>
     <string name="remote_mac_remove_selected">Remove current computer</string>
     <string name="remote_mac_never_responded">No Mac app response yet</string>

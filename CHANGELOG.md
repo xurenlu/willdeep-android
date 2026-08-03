@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0-rc2] - 2026-08-03
+
+### Fixed
+
+- When the relay server channel opens but no Mac App event arrives within 20 seconds, Android now explains that an older pairing token may be silently isolated and offers a direct action to scan the Mac's current QR code.
+- Bumped Android client version to `1.25.0-rc2` (`versionCode = 112`).
+
 ## [1.25.0-rc1] - 2026-07-18
 
 ### Added

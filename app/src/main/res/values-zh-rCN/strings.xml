@@ -91,7 +91,7 @@
     <string name="error_gateway_pairing_not_allowed">Mac Mobile Gateway 当前不允许配对。</string>
     <string name="error_gateway_health_target_missing">请先粘贴配对 payload，或先与 Mac 配对后再检查 Gateway 健康状态。</string>
     <string name="error_pairing_payload_invalid">请粘贴 WillDeep 设置里的配对二维码 payload。</string>
-    <string name="error_desktop_heartbeat_timeout">20 秒没有收到 Mac App 消息，正在恢复连接。</string>
+    <string name="error_desktop_heartbeat_timeout">20 秒没有收到 Mac App 消息；如果 Mac 已打开，请重新扫描当前配对二维码。</string>
     <string name="error_pairing_payload_expired">这个配对二维码已经过期。请在 Mac 上重新生成。</string>
     <string name="camera_permission_required">需要相机权限才能扫描 Mac 配对二维码。</string>
     <string name="qr_scanner_title">扫描 Mac 配对二维码</string>
@@ -175,6 +175,8 @@
     <string name="remote_mac_no_response_seconds">已 %1$d 秒未收到 Mac App 消息</string>
     <string name="remote_mac_transport_waiting">服务器已连接，仍在等待 Mac App 响应</string>
     <string name="remote_mac_transport_reconnecting">服务器通道正在恢复</string>
+    <string name="remote_mac_pairing_may_be_stale">服务器接受了连接，但旧配对 Token 会被静默隔离，无法收到当前 Mac 的消息。</string>
+    <string name="remote_mac_rescan_pairing">重新扫描当前 Mac 二维码</string>
     <string name="remote_mac_add_computer">扫码添加电脑</string>
     <string name="remote_mac_remove_selected">移除当前电脑</string>
     <string name="remote_mac_never_responded">尚未收到 Mac App 响应</string>

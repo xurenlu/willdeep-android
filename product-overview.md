@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-07-18 | Current version: v1.25.0-rc1
+> Last updated: 2026-08-03 | Current version: v1.25.0-rc2
 
 ## Project Summary
 
@@ -37,6 +37,7 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Reconnect temporary WebSocket disconnects with bounded backoff and require pairing again when the Mac rejects a revoked token.
 - Preserve unsent task text and pending action cards when the WebSocket is unavailable.
 - Treat WebSocket/relay connectivity as transport only, mark a Mac online only after a real Mac App event, poll every five seconds, and wait twenty seconds before showing the Mac reconnecting state.
+- Explain the relay's stale-token isolation when the server channel is connected but the Mac stays silent, and provide a direct action to scan the Mac's current pairing QR code again.
 - Notify the Android user when the Mac needs attention for tool approval, patch review, typed confirmation, or `ask_user` input.
 - Let safe approval and patch notifications send direct approve/reject decisions, while requests that need typed input open the matching session for continued conversation.
 - Request Android 13+ notification permission and use a high-priority WillDeep attention notification channel.

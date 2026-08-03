@@ -58,6 +58,28 @@ class MobileGatewayConnectionPolicyTest {
     }
 
     @Test
+    fun serverOnlyConnectionSuggestsRepairAfterDesktopTimeout() {
+        assertFalse(
+            MobileGatewayConnectionPolicy.shouldSuggestRePair(
+                isTransportConnected = true,
+                desktopResponseAgeMillis = 19_999L,
+            )
+        )
+        assertTrue(
+            MobileGatewayConnectionPolicy.shouldSuggestRePair(
+                isTransportConnected = true,
+                desktopResponseAgeMillis = 20_000L,
+            )
+        )
+        assertFalse(
+            MobileGatewayConnectionPolicy.shouldSuggestRePair(
+                isTransportConnected = false,
+                desktopResponseAgeMillis = 30_000L,
+            )
+        )
+    }
+
+    @Test
     fun gatewayHealthTargetKeepsFallbackBaseUrls() {
         val target = resolveGatewayHealthTarget(
             MobileGatewayUiState(
