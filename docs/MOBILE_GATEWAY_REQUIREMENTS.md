@@ -242,6 +242,23 @@ Gateway events parsed by Android v1.17.0-rc52:
 
 Unknown events are ignored for now so the Mac can add event types without breaking this client.
 
+## Desktop Command Matrix
+
+Android talks to two desktop implementations through the same relay protocol: the macOS app (Xedit, full implementation) and the willdeep-rs CLI (`/mobile` in the TUI, scoped to the one CLI session). Both must reject commands they do not implement with the exact wording `Unsupported mobile command: <type>.` in an `error` envelope carrying the originating command ID.
+
+| Command | macOS app | willdeep-rs CLI (0.81.0-rc9+) | Android on unsupported |
+| --- | --- | --- | --- |
+| `session.list` | `state.snapshot` | `state.snapshot` (start-time snapshot) | — |
+| `session.select` | `ack` | `state.snapshot` | — |
+| `session.create` | `session.upsert` | unsupported | command marked failed |
+| `workspace.list` | `workspace.list` | `workspace.list` (current workspace only) | picker shows "not supported" |
+| `capabilities.get` | `capabilities.updated` | `capabilities.updated` (active profile/model only) | silent |
+| `push.register` | `ack` | unsupported | silent |
+| `message.send` | `ack` | `ack` (text only; images/model overrides ignored) | — |
+| `turn.stop`, `tool.decide`, `patch.decide`, `diff.get`, `job.kill`, `file.read`, `queue.update` | `ack` | unsupported | command marked failed |
+
+Android treats any `Unsupported mobile command: <type>` (and the pre-rc9 CLI wording `unsupported command: <type>`) as a per-command rejection: the connection stays `Connected`. Probe commands (`capabilities.get`, `push.register`) are dropped silently; other commands show a localized "the connected desktop doesn't support this action yet" status instead of the raw English error.
+
 ## Security Requirements
 
 - Device token must be stored with encrypted preferences.

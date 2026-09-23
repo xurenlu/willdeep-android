@@ -645,6 +645,31 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
         send(GatewayEnvelope(type = "capabilities.get"))
     }
 
+    private fun handleUnsupportedCommand(event: GatewayEvent.Error, commandType: String) {
+        if (commandType in OPTIONAL_GATEWAY_COMMANDS) {
+            _state.update {
+                it.copy(
+                    commandStatuses = it.commandStatuses.filterNot { status ->
+                        status.id == event.commandId || status.type == commandType
+                    },
+                )
+            }
+            return
+        }
+        val notice = getApplication<Application>().getString(R.string.error_desktop_command_unsupported)
+        _state.update {
+            it.copy(
+                isLoadingWorkspaces = if (commandType == "workspace.list") false else it.isLoadingWorkspaces,
+                workspacePickerError = if (commandType == "workspace.list") notice else it.workspacePickerError,
+                commandStatuses = it.commandStatuses.markCommandFailed(
+                    commandId = event.commandId,
+                    message = notice,
+                ),
+                logLines = it.logLines.append(GatewayLogLine("error", event.message)),
+            )
+        }
+    }
+
     private fun noteDesktopEventReceived() {
         val elapsedRealtime = SystemClock.elapsedRealtime()
         val epochMillis = System.currentTimeMillis()
@@ -1446,16 +1471,11 @@ class MobileGatewayViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
             is GatewayEvent.Error -> {
-                if (event.isUnsupportedOptionalCommand()) {
-                    _state.update {
-                        it.copy(
-                            commandStatuses = it.commandStatuses.filterNot { status ->
-                                status.id == event.commandId ||
-                                    status.type == "capabilities.get" ||
-                                    status.type == "push.register"
-                            },
-                        )
-                    }
+                val unsupportedCommand = event.unsupportedCommandType()
+                if (unsupportedCommand != null) {
+                    // 桌面端（尤其 willdeep-rs CLI）只实现了协议子集：拒掉的是这一条命令，
+                    // 连接本身是好的，不能把整条连接标成 Error。
+                    handleUnsupportedCommand(event, unsupportedCommand)
                     return
                 }
                 _state.update {
@@ -1759,9 +1779,18 @@ private fun MobileAttentionActionRequest.sameAttentionTarget(
         sessionId == other.sessionId
 }
 
-private fun GatewayEvent.Error.isUnsupportedOptionalCommand(): Boolean {
-    return message.contains("Unsupported mobile command: capabilities.get", ignoreCase = true) ||
-        message.contains("Unsupported mobile command: push.register", ignoreCase = true)
+/** 探测型命令：桌面端不支持时静默降级，不提示用户。 */
+internal val OPTIONAL_GATEWAY_COMMANDS = setOf("capabilities.get", "push.register")
+
+/**
+ * macOS 桌面端回 `Unsupported mobile command: <type>.`，
+ * willdeep-rs CLI 旧版回 `unsupported command: <type>`，两种都认。
+ */
+private val UNSUPPORTED_COMMAND_PATTERN =
+    Regex("""unsupported (?:mobile )?command:\s*([A-Za-z_]+(?:\.[A-Za-z_]+)+)""", RegexOption.IGNORE_CASE)
+
+internal fun GatewayEvent.Error.unsupportedCommandType(): String? {
+    return UNSUPPORTED_COMMAND_PATTERN.find(message)?.groupValues?.get(1)?.lowercase()
 }
 
 internal fun GatewayEvent.isDesktopHeartbeatEvent(): Boolean {

@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-08-12 | Current version: v1.25.0-rc5
+> Last updated: 2026-09-23 | Current version: v1.25.0-rc6
 
 ## Project Summary
 

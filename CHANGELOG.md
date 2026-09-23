@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.25.0-rc6] - 2026-09-23
+
+### Fixed
+
+- 连接 willdeep-rs CLI 中继后，`capabilities.get` 被 CLI 以 `unsupported command: capabilities.get` 拒绝，文案与 macOS 桌面端的 `Unsupported mobile command: …` 不一致，容错没命中，整条连接被标成错误。现在两种文案都识别，并且任何「命令不支持」都只让这一条命令失败、连接保持已连接：`capabilities.get` / `push.register` 静默降级，其余命令显示本地化提示「当前连接的桌面端暂不支持这个操作」，不再把原始英文报错直接展示给用户。
+- 工作区选择器请求 `workspace.list` 被拒时不再一直转圈，改为显示同一条提示。
+- 在 `docs/MOBILE_GATEWAY_REQUIREMENTS.md` 补上 Android / macOS / willdeep-rs CLI 三方命令对照表。
+- Bumped Android client version to `1.25.0-rc6` (`versionCode = 116`)。
+
+### Tests
+
+- 新增 `UnsupportedCommandTest`：覆盖 macOS 文案、旧版 CLI 文案、非探测型命令与无关错误。
+
 ## [1.25.0-rc5] - 2026-08-12
 
 ### Changed

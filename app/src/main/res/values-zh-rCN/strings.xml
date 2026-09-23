@@ -83,6 +83,7 @@
     <string name="status_disconnected">已断开</string>
     <string name="status_error">错误：%1$s</string>
     <string name="error_websocket_not_connected">WebSocket 未连接。</string>
+    <string name="error_desktop_command_unsupported">当前连接的桌面端暂不支持这个操作。</string>
     <string name="error_device_revoked">Mac 已不再识别这台手机，请重新扫码配对。</string>
     <string name="error_reconnect_exhausted">无法重新连接。请确认 Mac 上的 Mobile Gateway 仍已启用。</string>
     <string name="error_answer_required">批准此请求前需要先输入回答。</string>

@@ -83,6 +83,7 @@
     <string name="status_disconnected">Disconnected</string>
     <string name="status_error">Error: %1$s</string>
     <string name="error_websocket_not_connected">WebSocket is not connected.</string>
+    <string name="error_desktop_command_unsupported">The connected desktop doesn\'t support this action yet.</string>
     <string name="error_device_revoked">Mac no longer recognizes this phone. Scan the QR code again to re-pair.</string>
     <string name="error_reconnect_exhausted">Could not reconnect. Check that Mobile Gateway is still enabled on the Mac.</string>
     <string name="error_answer_required">Enter an answer before approving this request.</string>
