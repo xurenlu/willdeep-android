@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.25.0-rc5] - 2026-08-12
+
+### Changed
+
+- 中继模式的配对二维码不再要求 `base_url` / `pairing_token` / `expires_at`。这三个字段在中继模式下要么是 `relay_base_url` / `relay_token` 的副本，要么是远期常量，桌面端每重复一次都要多烧几十个二维码模块。现在缺省时由中继字段补全：`base_url` ← `relay_base_url`，`pairing_token` ← `relay_token`，`expires_at`/`protocol_version`/`desktop_name` 取默认值。
+- 局域网网关模式（没有中继字段可推导）的必填校验保持不变，放宽只针对中继模式。
+- Bumped Android client version to `1.25.0-rc5` (`versionCode = 115`)。
+
+### Tests
+
+- 新增 `pairingPayloadParsesCliCompactRelayUrlWithDesktopName`：覆盖 willdeep-rs CLI 的紧凑配对 URL（`?r=&t=&d=`），断言中继坐标、桌面名、协议兼容性与不过期。
+- 新增 `pairingPayloadFillsRelayDefaultsWhenLanFieldsAreOmitted`：精简 JSON（只有 relay_* 字段）能补全出可用的 payload。
+- 新增 `pairingPayloadStillRequiresLanFieldsWithoutRelay`：无中继字段时缺 `base_url` / `pairing_token` 仍判为无效二维码。
+
+## [1.25.0-rc4] - 2026-08-11
+
+### Fixed
+
+- Render Markdown ordered lists with automatically increasing numbers, including model responses that use `1.` for every source item.
+- Bumped Android client version to `1.25.0-rc4` (`versionCode = 114`).
+
+## [1.25.0-rc3] - 2026-08-09
+
+### Fixed
+
+- Hide Mac-generated image-understanding descriptions from Android user-message bubbles while preserving the user's original text and leaving assistant-authored matching text untouched.
+- Parse project identity, project display name, and workspace path from forward-compatible gateway session/workspace payloads so sessions from multiple folders can be grouped under one project when the Mac supplies project metadata.
+- Prefer project names in session details and attention surfaces, while preserving workspace-based grouping and labels for older Mac gateways.
+- Bumped Android client version to `1.25.0-rc3` (`versionCode = 113`).
+
 ## [1.25.0-rc2] - 2026-08-03
 
 ### Fixed

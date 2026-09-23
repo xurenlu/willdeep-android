@@ -1467,7 +1467,7 @@ private fun List<GatewaySession>.filterByStatus(
 
 private fun List<GatewaySession>.filterByWorkspace(workspaceKey: String): List<GatewaySession> {
     if (workspaceKey == ALL_WORKSPACES_KEY) return this
-    return filter { session -> session.workspaceKey() == workspaceKey }
+    return filter { session -> session.projectOrWorkspaceKey() == workspaceKey }
 }
 
 private fun workspaceTabs(
@@ -1478,7 +1478,7 @@ private fun workspaceTabs(
     noWorkspaceLabel: String,
 ): List<HomeWorkspaceTab> {
     val sessionCountsByWorkspace = sessions
-        .groupingBy(GatewaySession::workspaceKey)
+        .groupingBy(GatewaySession::projectOrWorkspaceKey)
         .eachCount()
     val tabs = mutableListOf(
         HomeWorkspaceTab(
@@ -1489,25 +1489,29 @@ private fun workspaceTabs(
         )
     )
     workspaces.forEach { workspace ->
-        val label = workspace.name.ifBlank { workspace.path.substringAfterLast('/').ifBlank { workspace.path } }
-        if (label.isNotBlank() && tabs.none { it.key == label }) {
+        val key = workspace.projectOrWorkspaceKey()
+        val label = workspace.projectName?.trim().orEmpty().ifBlank {
+            workspace.name.ifBlank { workspace.path.substringAfterLast('/').ifBlank { workspace.path } }
+        }
+        if (label.isNotBlank() && tabs.none { it.key == key }) {
             tabs += HomeWorkspaceTab(
-                key = label,
+                key = key,
                 label = label,
                 subtitle = workspace.path,
-                count = sessionCountsByWorkspace[label] ?: workspace.sessionCount,
+                count = sessionCountsByWorkspace[key] ?: workspace.sessionCount,
             )
         }
     }
     sessionCountsByWorkspace
         .filterKeys { it != NO_WORKSPACE_KEY }
         .toSortedMap()
-        .forEach { (workspaceName, count) ->
-            if (tabs.none { it.key == workspaceName }) {
+        .forEach { (key, count) ->
+            if (tabs.none { it.key == key }) {
+                val session = sessions.first { it.projectOrWorkspaceKey() == key }
                 tabs += HomeWorkspaceTab(
-                    key = workspaceName,
-                    label = workspaceName,
-                    subtitle = workspaceName,
+                    key = key,
+                    label = session.projectOrWorkspaceLabel(),
+                    subtitle = session.workspacePath.ifBlank { session.workspaceName },
                     count = count,
                 )
             }
@@ -1531,20 +1535,38 @@ internal fun groupSessionsByWorkspace(
 ): List<HomeWorkspaceSessionGroup> {
     val groups = linkedMapOf<String, MutableList<GatewaySession>>()
     sessions.forEach { session ->
-        groups.getOrPut(session.workspaceKey()) { mutableListOf() } += session
+        groups.getOrPut(session.projectOrWorkspaceKey()) { mutableListOf() } += session
     }
     return groups.map { (key, groupedSessions) ->
         HomeWorkspaceSessionGroup(
             key = key,
-            label = if (key == NO_WORKSPACE_KEY) noWorkspaceLabel else key,
+            label = if (key == NO_WORKSPACE_KEY) {
+                noWorkspaceLabel
+            } else {
+                groupedSessions.first().projectOrWorkspaceLabel()
+            },
             // The gateway session list is already ordered newest-first; keep that order here.
             sessions = groupedSessions,
         )
     }
 }
 
-private fun GatewaySession.workspaceKey(): String {
-    return workspaceName.trim().ifBlank { NO_WORKSPACE_KEY }
+private fun GatewaySession.projectOrWorkspaceKey(): String {
+    projectId?.trim()?.takeIf { it.isNotEmpty() }?.let { return "project:$it" }
+    workspaceName.trim().takeIf { it.isNotEmpty() }?.let { return it }
+    workspacePath.trim().takeIf { it.isNotEmpty() }?.let { return "workspace:$it" }
+    return NO_WORKSPACE_KEY
+}
+
+private fun GatewaySession.projectOrWorkspaceLabel(): String {
+    return projectName?.trim().orEmpty().ifBlank {
+        workspaceName.trim().ifBlank { workspacePath.substringAfterLast('/').ifBlank { id.take(8) } }
+    }
+}
+
+private fun GatewayWorkspace.projectOrWorkspaceKey(): String {
+    projectId?.trim()?.takeIf { it.isNotEmpty() }?.let { return "project:$it" }
+    return name.trim().ifBlank { "workspace:$path" }
 }
 
 private fun sessionCounts(

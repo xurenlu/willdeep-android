@@ -157,6 +157,8 @@ Android also accepts `willdeep://mobile/pair?...` with the same compact paramete
 
 The token is short-lived and single-use. `fallback_base_urls` is optional, ignored by older clients, and persisted by newer clients so WebSocket reconnect can try Tailscale when LAN reachability fails. Android must not log the full payload or device token.
 
+In **relay mode** the JSON form may omit `base_url`, `pairing_token` and `expires_at` entirely — they describe a local gateway that does not exist there, and duplicating the relay URL and token cost ~100 bytes of QR payload (one to two extra QR versions). Android derives them: `base_url` ← `relay_base_url`, `pairing_token` ← `relay_token`, `expires_at` ← `2099-01-01T00:00:00Z`, plus the usual defaults for `protocol_version` / `desktop_name`. This mirrors what the compact `?r=&t=` form has always done. Without relay fields there is nothing to derive from, so LAN payloads still require `base_url` and `pairing_token`. Producers: macOS Xedit ≥ 1.247.0-rc12, WillDeep CLI ≥ 0.21.0-rc65 (the CLI emits `?r=&t=&d=` and never the JSON form).
+
 ## HTTP API
 
 Android currently calls:

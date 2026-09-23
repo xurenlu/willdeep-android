@@ -237,13 +237,16 @@ private fun SessionRow(session: GatewaySession, selected: Boolean, onClick: () -
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = session.title.ifBlank { session.workspaceName.ifBlank { session.id.take(8) } },
+                text = session.title.ifBlank {
+                    session.projectName?.ifBlank { null }
+                        ?: session.workspaceName.ifBlank { session.id.take(8) }
+                },
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = session.workspaceName,
+                text = session.projectName?.ifBlank { null } ?: session.workspaceName,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary,
                 maxLines = 1,

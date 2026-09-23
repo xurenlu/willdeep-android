@@ -1,6 +1,6 @@
 # Product Overview
 
-> Last updated: 2026-08-03 | Current version: v1.25.0-rc2
+> Last updated: 2026-08-12 | Current version: v1.25.0-rc5
 
 ## Project Summary
 
@@ -22,8 +22,8 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Connect to the Mac gateway over WebSocket.
 - Retry Mac gateway health checks, pairing claims, and WebSocket connections against saved fallback endpoints when the LAN endpoint is unreachable.
 - Put the selected remote Mac at the top of the home hierarchy, with a bottom-sheet computer picker, per-device last-response information, and scan/remove controls.
-- Browse sessions through All, Working, Needs Confirmation, and Completed filters, grouped by workspace with the newest three sessions shown by default and per-workspace expansion for older sessions.
-- Switch between all sessions and a single workspace from the compact workspace control above the filters.
+- Browse sessions through All, Working, Needs Confirmation, and Completed filters, grouped by project when project metadata is available or by workspace for older Mac gateways, with the newest three sessions shown by default and per-group expansion for older sessions.
+- Switch between all sessions and a single project/workspace from the compact scope control above the filters.
 - Keep the mobile app portrait-only and lead the home hierarchy with remote Mac status instead of a decorative page title.
 - Surface the Ask WillDeep composer and queued requests directly after pairing so sending Mac Agent tasks is the primary mobile flow.
 - Use the redesigned mobile composer icon toolbar, plus-style attachment entry, top-aligned multi-line input, Mac-aligned send/stop action button, and bottom-sheet pickers to choose approval mode, Mac-reported provider, model, skills, experts, and plugins before sending a request without crowding the text input.
@@ -48,7 +48,8 @@ WillDeep Android is the native mobile companion for the WillDeep Mac desktop app
 - Send phone-originated coding requests with an optional Mac workspace path in live acceptance so WillDeep edits the intended desktop repository, omitting any stale selected session id when the workspace path is supplied.
 - Use localized English and Simplified Chinese UI resources.
 - Display gateway status, paired desktop name, protocol version, sessions, selected session, and recent event log.
-- Display recent Mac-side conversation messages with lightweight Markdown support for fenced code blocks, images, and simple tables, follow streaming assistant deltas, and auto-scroll session details to the bottom of the chat.
+- Display recent Mac-side conversation messages with lightweight Markdown support for fenced code blocks, bullet and ordered lists, images, and simple tables, follow streaming assistant deltas, and auto-scroll session details to the bottom of the chat.
+- Hide the internal vision-model description that the Mac app may append to a user message for non-vision Agent providers, keeping that model-only context out of the visible Android conversation.
 - Label hidden assistant thinking, tool activity, and waiting-for-visible-output messages clearly when a raw payload exists, and hide fully empty message rows.
 - Show when the Mac is still streaming an assistant response and clear the indicator on `message.done`.
 - Track Mac-side changed-file activity for acceptance evidence without rendering changed-file review cards on Android.
@@ -121,4 +122,5 @@ The JVM client integration test covers the real `MobileGatewayClient` against a 
 ## Known Gaps
 
 - Live Mac gateway testing still requires an attached Android device plus a fresh two-minute Mac pairing payload at run time.
+- Project grouping falls back to workspace grouping until the connected Mac gateway includes `project_id` and `project_name` in session/workspace payloads.
 - Additional locales beyond English and Simplified Chinese are pending.

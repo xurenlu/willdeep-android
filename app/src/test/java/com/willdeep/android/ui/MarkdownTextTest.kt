@@ -44,4 +44,33 @@ class MarkdownTextTest {
         val table = blocks.single() as MdBlock.Table
         assertEquals(listOf("1", "2", ""), table.rows.single())
     }
+
+    @Test
+    fun parseMarkdownBlocksTreatsRepeatedOneMarkersAsOneOrderedList() {
+        val blocks = parseMarkdownBlocks(
+            """
+            1. First
+            1. Second
+            1. Third
+            """.trimIndent(),
+        )
+
+        val list = blocks.single() as MdBlock.OrderedList
+        assertEquals(1, list.start)
+        assertEquals(listOf("First", "Second", "Third"), list.items)
+    }
+
+    @Test
+    fun parseMarkdownBlocksPreservesOrderedListStart() {
+        val blocks = parseMarkdownBlocks(
+            """
+            3) Third
+            4) Fourth
+            """.trimIndent(),
+        )
+
+        val list = blocks.single() as MdBlock.OrderedList
+        assertEquals(3, list.start)
+        assertEquals(listOf("Third", "Fourth"), list.items)
+    }
 }

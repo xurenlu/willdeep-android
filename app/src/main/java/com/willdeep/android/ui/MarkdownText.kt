@@ -36,6 +36,7 @@ internal sealed interface MdBlock {
     data class Heading(val level: Int, val text: String) : MdBlock
     data class CodeBlock(val lang: String?, val code: String) : MdBlock
     data class BulletList(val items: List<String>) : MdBlock
+    data class OrderedList(val start: Int, val items: List<String>) : MdBlock
     data class Quote(val text: String) : MdBlock
     data class Image(val alt: String, val url: String) : MdBlock
     data class Table(val headers: List<String>, val rows: List<List<String>>) : MdBlock
@@ -69,15 +70,19 @@ internal fun MarkdownText(
                 )
                 is MdBlock.BulletList -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     block.items.forEach { item ->
-                        Row {
-                            Text("•  ", style = style, color = color)
-                            Text(
-                                text = parseInline(item, codeBg, linkColor),
-                                style = style,
-                                color = color,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                        MarkdownListItem("•", item, codeBg, linkColor, style, color)
+                    }
+                }
+                is MdBlock.OrderedList -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    block.items.forEachIndexed { index, item ->
+                        MarkdownListItem(
+                            marker = "${block.start + index}.",
+                            item = item,
+                            codeBg = codeBg,
+                            linkColor = linkColor,
+                            style = style,
+                            color = color,
+                        )
                     }
                 }
                 is MdBlock.Quote -> Surface(
@@ -99,6 +104,26 @@ internal fun MarkdownText(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MarkdownListItem(
+    marker: String,
+    item: String,
+    codeBg: Color,
+    linkColor: Color,
+    style: TextStyle,
+    color: Color,
+) {
+    Row {
+        Text("$marker  ", style = style, color = color)
+        Text(
+            text = parseInline(item, codeBg, linkColor),
+            style = style,
+            color = color,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -213,6 +238,8 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
     var i = 0
     val para = StringBuilder()
     val listItems = mutableListOf<String>()
+    val orderedListItems = mutableListOf<String>()
+    var orderedListStart = 1
 
     fun flushPara() {
         if (para.isNotEmpty()) {
@@ -226,18 +253,30 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
             listItems.clear()
         }
     }
+    fun flushOrderedList() {
+        if (orderedListItems.isNotEmpty()) {
+            blocks.add(MdBlock.OrderedList(orderedListStart, orderedListItems.toList()))
+            orderedListItems.clear()
+        }
+    }
+    fun flushLists() {
+        flushList()
+        flushOrderedList()
+    }
 
     val headingRegex = Regex("""^#{1,6}\s+""")
     val listRegex = Regex("""^[-*+]\s+""")
+    val orderedListRegex = Regex("""^ {0,3}(\d{1,9})[.)]\s+""")
     val imageRegex = Regex("""^!\[([^]]*)]\((\S+?)(?:\s+"[^"]*")?\)$""")
 
     while (i < lines.size) {
         val line = lines[i]
         val trimmedLine = line.trim()
         val imageMatch = imageRegex.matchEntire(trimmedLine)
+        val orderedListMatch = orderedListRegex.find(line)
         when {
             line.trimStart().startsWith("```") -> {
-                flushPara(); flushList()
+                flushPara(); flushLists()
                 val fence = line.trimStart()
                 val lang = fence.removePrefix("```").trim().ifBlank { null }
                 val codeLines = mutableListOf<String>()
@@ -250,7 +289,7 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
                 if (i < lines.size) i++
             }
             imageMatch != null -> {
-                flushPara(); flushList()
+                flushPara(); flushLists()
                 blocks.add(
                     MdBlock.Image(
                         alt = imageMatch.groupValues[1].trim(),
@@ -260,7 +299,7 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
                 i++
             }
             isTableHeaderAt(lines, i) -> {
-                flushPara(); flushList()
+                flushPara(); flushLists()
                 val headers = splitTableRow(lines[i])
                 val rows = mutableListOf<List<String>>()
                 i += 2
@@ -271,34 +310,42 @@ internal fun parseMarkdownBlocks(input: String): List<MdBlock> {
                 blocks.add(MdBlock.Table(headers, rows))
             }
             headingRegex.containsMatchIn(line) -> {
-                flushPara(); flushList()
+                flushPara(); flushLists()
                 val hashes = line.takeWhile { it == '#' }.length
                 blocks.add(MdBlock.Heading(hashes, line.drop(hashes).trim()))
                 i++
             }
             listRegex.containsMatchIn(line) -> {
-                flushPara()
+                flushPara(); flushOrderedList()
                 listItems.add(line.replaceFirst(listRegex, ""))
                 i++
             }
-            line.startsWith(">") -> {
+            orderedListMatch != null -> {
                 flushPara(); flushList()
+                if (orderedListItems.isEmpty()) {
+                    orderedListStart = orderedListMatch.groupValues[1].toInt()
+                }
+                orderedListItems.add(line.replaceFirst(orderedListRegex, ""))
+                i++
+            }
+            line.startsWith(">") -> {
+                flushPara(); flushLists()
                 blocks.add(MdBlock.Quote(line.removePrefix(">").trim()))
                 i++
             }
             line.isBlank() -> {
-                flushPara(); flushList()
+                flushPara(); flushLists()
                 i++
             }
             else -> {
-                flushList()
+                flushLists()
                 if (para.isNotEmpty()) para.append("\n")
                 para.append(line)
                 i++
             }
         }
     }
-    flushPara(); flushList()
+    flushPara(); flushLists()
     return blocks
 }
 

@@ -82,9 +82,11 @@ fun SessionDetailScreen(
 ) {
     val activeSession: GatewaySession? = state.sessions.firstOrNull { it.id == state.selectedSessionId }
     val titleText = activeSession?.title?.ifBlank {
-        activeSession.workspaceName.ifBlank { activeSession.id.take(8) }
+        activeSession.projectName?.ifBlank { null }
+            ?: activeSession.workspaceName.ifBlank { activeSession.id.take(8) }
     } ?: stringResource(R.string.session_detail_title)
-    val subtitleText = activeSession?.workspaceName?.ifBlank { null }
+    val subtitleText = activeSession?.projectName?.ifBlank { null }
+        ?: activeSession?.workspaceName?.ifBlank { null }
     val sessionId = state.selectedSessionId
     val scopedState = state.copy(
         pendingTools = state.pendingTools.filter { it.sessionId == sessionId },

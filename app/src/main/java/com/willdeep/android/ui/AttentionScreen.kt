@@ -217,14 +217,17 @@ private fun AttentionApprovalItem(
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = session?.title?.ifBlank { session.workspaceName }
+                    text = session?.title?.ifBlank {
+                        session.projectName?.ifBlank { null } ?: session.workspaceName
+                    }
                         ?: stringResource(R.string.attention_unknown_session),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                session?.workspaceName?.takeIf { it.isNotBlank() }?.let { workspace ->
+                (session?.projectName?.ifBlank { null } ?: session?.workspaceName)
+                    ?.takeIf { it.isNotBlank() }?.let { workspace ->
                     Text(
                         workspace,
                         style = MaterialTheme.typography.labelSmall,

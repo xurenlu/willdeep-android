@@ -42,7 +42,40 @@ class HomeWorkspaceGroupingTest {
         )
     }
 
-    private fun session(id: String, workspaceName: String): GatewaySession {
+    @Test
+    fun groupsDifferentWorkspaceFoldersUnderTheSameProject() {
+        val sessions = listOf(
+            session(
+                id = "android",
+                workspaceName = "willdeep-android",
+                workspacePath = "/Users/rocky/Sites/willdeep-android",
+                projectId = "project-1",
+                projectName = "WillDeep",
+            ),
+            session(
+                id = "mac",
+                workspaceName = "Xedit",
+                workspacePath = "/Users/rocky/Sites/Xedit",
+                projectId = "project-1",
+                projectName = "WillDeep",
+            ),
+        )
+
+        val groups = groupSessionsByWorkspace(sessions, noWorkspaceLabel = "No workspace")
+
+        assertEquals(1, groups.size)
+        assertEquals("project:project-1", groups.single().key)
+        assertEquals("WillDeep", groups.single().label)
+        assertEquals(listOf("android", "mac"), groups.single().sessions.map { it.id })
+    }
+
+    private fun session(
+        id: String,
+        workspaceName: String,
+        workspacePath: String = "",
+        projectId: String? = null,
+        projectName: String? = null,
+    ): GatewaySession {
         return GatewaySession(
             id = id,
             title = id,
@@ -50,6 +83,9 @@ class HomeWorkspaceGroupingTest {
             messageCount = 1,
             isActive = false,
             isResponding = false,
+            workspacePath = workspacePath,
+            projectId = projectId,
+            projectName = projectName,
         )
     }
 }
