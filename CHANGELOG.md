@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Docs
+
+- `docs/MOBILE_GATEWAY_REQUIREMENTS.md` 的桌面端命令对照表跟上 willdeep-rs 0.82.0-rc1：手机中继从 TUI 进程挪进 Runtime Daemon，手机上看得到整个 Runtime（所有会话、所有待处理审批与提问），新支持 `session.create`（仅已登记工作区）、`turn.stop`、`tool.decide`（审批只有「这一次允许 / 拒绝」）和 `queue.update` 的 `add`。表格保留 0.81.0-rc9（TUI 托管、只看一条会话）一列，另记 rs 推送的事件与差异（不推 `message.delta`、审批不要求 typed confirmation、错误用 `error` 信封）。Android 代码无需改动：信封与事件名沿用 macOS 桌面端口径。
+
 ## [1.25.0-rc6] - 2026-09-23
 
 ### Fixed

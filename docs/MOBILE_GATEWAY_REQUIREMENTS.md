@@ -1,6 +1,6 @@
 # WillDeep Android Mobile Gateway Requirements
 
-> Last updated: 2026-07-18 | Android version: v1.25.0-rc1 | Protocol: mobile-gateway.v1
+> Last updated: 2026-09-23 | Android version: v1.25.0-rc6 | Protocol: mobile-gateway.v1
 
 ## Summary
 
@@ -244,18 +244,40 @@ Unknown events are ignored for now so the Mac can add event types without breaki
 
 ## Desktop Command Matrix
 
-Android talks to two desktop implementations through the same relay protocol: the macOS app (Xedit, full implementation) and the willdeep-rs CLI (`/mobile` in the TUI, scoped to the one CLI session). Both must reject commands they do not implement with the exact wording `Unsupported mobile command: <type>.` in an `error` envelope carrying the originating command ID.
+Android talks to two desktop implementations through the same relay protocol: the macOS app (Xedit, full implementation) and willdeep-rs. Both must reject commands they do not implement with the exact wording `Unsupported mobile command: <type>.` in an `error` envelope carrying the originating command ID.
 
-| Command | macOS app | willdeep-rs CLI (0.81.0-rc9+) | Android on unsupported |
-| --- | --- | --- | --- |
-| `session.list` | `state.snapshot` | `state.snapshot` (start-time snapshot) | — |
-| `session.select` | `ack` | `state.snapshot` | — |
-| `session.create` | `session.upsert` | unsupported | command marked failed |
-| `workspace.list` | `workspace.list` | `workspace.list` (current workspace only) | picker shows "not supported" |
-| `capabilities.get` | `capabilities.updated` | `capabilities.updated` (active profile/model only) | silent |
-| `push.register` | `ack` | unsupported | silent |
-| `message.send` | `ack` | `ack` (text only; images/model overrides ignored) | — |
-| `turn.stop`, `tool.decide`, `patch.decide`, `diff.get`, `job.kill`, `file.read`, `queue.update` | `ack` | unsupported | command marked failed |
+willdeep-rs hosts its relay in one of two places, depending on version:
+
+- **0.82.0-rc1+: the Runtime Daemon.** The phone sees the whole Runtime (every session, every pending approval and question) and the relay stays up after the terminal closes. It is turned on with `/mobile` in the TUI or `willdeep daemon mobile enable`, and off with `/mobile off` or `willdeep daemon mobile disable`. Writes are limited to sending messages, creating sessions in already registered workspaces, stopping the running turn, and deciding approvals or answering questions. Design: willdeep-rs `docs/decisions/2026-09-23-daemon-mobile-relay.md`.
+- **0.81.0-rc9: the TUI process.** The relay is scoped to the one TUI session that ran `/mobile`.
+
+| Command | macOS app | willdeep-rs Runtime (0.82.0-rc1+) | willdeep-rs TUI (0.81.0-rc9) | Android on unsupported |
+| --- | --- | --- | --- | --- |
+| `session.list` | `state.snapshot` | `state.snapshot`: up to 50 non-archived Runtime sessions, **every** pending approval/question with its `session_id`, and the last 40 messages of the active session plus live replies | `state.snapshot` (start-time snapshot, no messages) | — |
+| `session.select` | `ack` | `ack`, then a fresh `state.snapshot` | `state.snapshot` | — |
+| `session.create` | `session.upsert` | `session.upsert`; `workspace_path` must already be registered in the Runtime | unsupported | command marked failed |
+| `workspace.list` | `workspace.list` | `workspace.list` (Runtime workspace registry with session counts) | `workspace.list` (current workspace only) | picker shows "not supported" |
+| `capabilities.get` | `capabilities.updated` | `capabilities.updated` (the selected session's profile/model, read-only) | `capabilities.updated` (active profile/model only) | silent |
+| `push.register` | `ack` | unsupported | unsupported | silent |
+| `message.send` | `ack` | `ack` + `message.append` user echo + `state.snapshot`; text and images; `approval_mode` / `provider_id` / `model` / `skills` / `experts` / `plugins` are ignored | `ack` (text only; images/model overrides ignored) | — |
+| `turn.stop` | `ack` | `ack` | unsupported | command marked failed |
+| `tool.decide` | `ack` | `ack` + `tool.updated`; approvals resolve as allow once / deny only (never always-allow); `ask_user` needs a non-empty `answer` to approve | unsupported | command marked failed |
+| `queue.update` | `ack` | `action: add` → `ack` (queued as the session's next Runtime turn); `remove` / `clear` / `send_now` unsupported | unsupported | command marked failed |
+| `patch.decide`, `diff.get`, `job.kill`, `file.read` | `ack` | unsupported | unsupported | command marked failed |
+
+Events willdeep-rs 0.82.0-rc1+ pushes while a phone is active (a phone command within the last 60 seconds; the five-second `session.list` heartbeat keeps it active):
+
+- `message.append` + `message.done`: whole assistant messages. There is no `message.delta`, because token streaming is not relayed.
+- `tool.pending` when a task starts waiting on an approval or question.
+- `tool.updated` with status `resolved` / `cancelled` when the interaction is settled anywhere, or `approved` / `rejected` / `answered` / `dismissed` right after the phone's own `tool.decide`. Android removes the card in both cases.
+- `session.upsert` on turn start and finish.
+- A debounced `state.snapshot` after sessions are renamed, archived or deleted.
+
+Other notes on willdeep-rs:
+
+- Snapshots send `patch_proposals`, `jobs`, `queued_messages` and `worktree_changes` as empty arrays, because willdeep-rs has no such objects.
+- Approvals never set `requires_confirmation`.
+- Errors use `error` rather than `command.error`, with `payload.type` set to the originating command.
 
 Android treats any `Unsupported mobile command: <type>` (and the pre-rc9 CLI wording `unsupported command: <type>`) as a per-command rejection: the connection stays `Connected`. Probe commands (`capabilities.get`, `push.register`) are dropped silently; other commands show a localized "the connected desktop doesn't support this action yet" status instead of the raw English error.
 
