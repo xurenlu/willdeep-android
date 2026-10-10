@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.25.0] - 2026-10-11
+
+### Changed
+
+- Promote the remote Agent console and accumulated rc fixes to the first public stable APK release (`versionCode = 117`).
+- Add a repeatable release script that runs unit tests and lint, signs with a dedicated private release key, verifies the APK, and emits SHA256 plus JSON/Markdown evidence.
+- Distribute the signed APK through public GitHub Releases for Android 13 and later; signing credentials remain excluded from Git.
+
+### Fixed
+
+- Declare the CameraX image-access opt-in and optional camera hardware so full Release lint can complete without suppressing errors.
+
 ## [Unreleased]
 
 ### Docs

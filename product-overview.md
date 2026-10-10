@@ -1,6 +1,12 @@
 # Product Overview
 
-> Last updated: 2026-09-23 | Current version: v1.25.0-rc6
+> Last updated: 2026-10-11 | Current version: v1.25.0
+
+## Public Android download
+
+- Download the stable signed APK from [GitHub Releases](https://github.com/xurenlu/willdeep-android/releases/latest). Requires Android 13 or later.
+- Allow installation from the browser when Android prompts, then scan the current pairing QR code in WillDeep on Mac or the WillDeep CLI.
+- Release procedure and signing-key backup requirements: [docs/ANDROID_RELEASE.md](docs/ANDROID_RELEASE.md).
 
 ## Project Summary
 

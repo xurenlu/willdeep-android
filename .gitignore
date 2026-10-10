@@ -15,3 +15,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+/.signing/
+*.jks
+*.keystore
+hs_err_pid*.log
+replay_pid*.log

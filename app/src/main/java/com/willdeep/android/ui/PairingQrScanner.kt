@@ -1,6 +1,7 @@
 package com.willdeep.android.ui
 
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.view.LifecycleCameraController
@@ -70,6 +71,7 @@ private class PairingQrAnalyzer(
     private val scanner: BarcodeScanner,
     private val onQrCode: (String) -> Unit,
 ) : ImageAnalysis.Analyzer {
+    @androidx.annotation.OptIn(markerClass = [ExperimentalGetImage::class])
     override fun analyze(imageProxy: ImageProxy) {
         val image = imageProxy.image
         if (image == null) {
